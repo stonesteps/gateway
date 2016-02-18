@@ -1,0 +1,159 @@
+option optimize_for = LITE_RUNTIME;
+
+option java_package = "com.tritonsvc.spa.communication.proto";
+
+//////////////////////////////////////////////////////////////////////////////////
+// IDL for Uplink and Downlink messages between the Spa System and the Cloud
+//
+// Serialized format is:
+// Header + UplinkHeader + Uplink Model Message
+//     or
+// Header + DownlinkHeader + Downlink Modle Message
+//
+//////////////////////////////////////////////////////////////////////////////////
+
+enum CommandType {
+	UPLINK = 1;
+	DOWNLINK = 2;
+}
+
+enum AckResponseCode {
+    OK = 1;
+    ERROR = 2;
+}
+
+/////////////////////////////////////////////////////////////////////////
+// Header contains the command type which specifies direction.
+// originator is a guid that represents an original message instance that ensuing messages
+// are considered to be associated with, such as responses for prior requests.
+// In many cases a single request may spawn multiple asynch response messages, each can specify the
+// the same originator to tie back to original request.
+/////////////////////////////////////////////////////////////////////////
+message Header {
+	required CommandType command = 1;
+    optional string originator = 2;
+    required uint64 sentTimestamp = 3;
+}
+
+/////////////////////////////////////////////////////////////////////////
+// A single piece of metadata, general definition of a key pair that is used in
+// in many message defs
+/////////////////////////////////////////////////////////////////////////
+message Metadata {
+    required string name = 1;
+    required string value = 2;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Uplink Messages - sent from spa gateway to the cloud, actual sender aka 'originator' could be
+//                   any component in the spa system, i.e. the gateway or the controller or a mote even
+//////////////////////////////////////////////////////////////////////////
+message Uplink {
+
+	enum UplinkCommandType {
+		REGISTRATION = 1;
+		ACKNOWLEDGEMENT = 2;
+		MEASUREMENT = 3;
+        EVENT = 4;
+	}
+
+    message UplinkHeader {
+        required UplinkCommandType command = 1;
+        required string hardwareId = 2;
+    }
+
+    message Model {
+
+        // Register a device with Cloud.
+        message RegisterDevice {
+            required string deviceTypeName = 1;
+            optional string parentDeviceHardwareId = 2;
+            repeated Metadata metadata = 3;
+        }
+
+        message DownlinkAcknowledge {
+            required AckResponseCode code = 1;
+            optional string description = 2;
+        }
+
+        // Report device alert.
+        message Notification {
+            required string alertType = 1;
+            required string alertMessage = 2;
+            optional fixed64 eventDate = 3;
+            repeated Metadata metadata = 4;
+        }
+
+        // A single measurement.
+        message Measurement {
+            required string measurementId = 1;
+            required double measurementValue = 2;
+        }
+
+        // Event message for device measurements.
+        message DeviceMeasurements {
+            repeated Measurement measurement = 1;
+            optional fixed64 eventDate = 2;
+            repeated Metadata metadata = 3;
+        }
+
+        enum EventType {
+            NOTIFY = 1;
+            ALERT = 2;
+        }
+
+        // A non-scheduled event
+        message Event {
+            required EventType eventType = 1;
+            optional fixed64 eventTimestamp = 2;
+            repeated Metadata metadata = 3;
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////
+// Downlink Messages - sent from cloud to the spa gateway, final destination can be any component within the spa system.
+//                     the gateway is always the proxy
+/////////////////////////////////////////////////////////////////////
+message Downlink {
+
+	enum DownlinkCommandType {
+        ACK = 1;
+        REGISTRATION_RESPONSE = 2;
+        REQUEST = 3;
+	}
+
+	// Header contains the command and originator.
+	message DownlinkHeader {
+		required DownlinkCommandType commandType = 1;
+	}
+
+    message Model {
+
+        // Acknowledge previous command.
+        message UplinkAcknowledge {
+            required string hardwareId = 1; // this could be hardware id for a nested component not the gw
+            required AckResponseCode code = 2;
+            optional string description = 3;
+        }
+
+        // Enumeration of registation state responses.
+        enum RegistrationAckState {NEW_REGISTRATION = 1; ALREADY_REGISTERED = 2; REGISTRATION_ERROR = 3;}
+        enum RegistrationAckError {INVALID_DEVICE_ID = 1; NEW_DEVICES_NOT_ALLOWED = 2;}
+
+        // Acknowledges registration.
+        message RegistrationResponse {
+            required RegistrationAckState state = 1;
+            optional RegistrationAckError errorType = 2;
+            optional string errorMessage = 3;
+            required string p2pAPSSID = 4;
+            required string p2pAPPassword = 5;
+        }
+
+        // A non-scheduled event
+        message Request {
+            required string hardwareId = 1; // this could be hardware id for a nested component not the gw
+            repeated Metadata metadata = 2;
+        }
+    }
+}
