@@ -25,20 +25,11 @@
     <repositories>
         <!--other repositories if any-->
         <repository>
-            <id>thirdparty</id>
-            <url>http://iotdev01:8081/nexus/content/repositories/thirdparty</url>
-        </repository>
-        <repository>
             <id>sonatype-snapshots</id>
             <url>https://oss.sonatype.org/content/repositories/snapshots</url>
         </repository>
     </repositories>
-    <pluginRepositories>
-        <pluginRepository>
-            <id>thirdparty</id>
-            <url>http://iotdev01:8081/nexus/content/repositories/thirdparty</url>
-        </pluginRepository>
-    </pluginRepositories>
+
     <build>
         <extensions>
             <extension>
@@ -58,9 +49,9 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>com.google.protobuf.tools</groupId>
-                <artifactId>maven-protoc-plugin</artifactId>
-                <version>0.4.3</version>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>0.5.0</version>
                 <executions>
                     <execution>
                         <goals>

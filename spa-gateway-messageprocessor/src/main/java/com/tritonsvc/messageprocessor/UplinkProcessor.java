@@ -2,10 +2,12 @@ package com.tritonsvc.messageprocessor;
 
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 /**
  * This class transforms MQTT message payloads into MongoDB Documents.
  */
+@Service
 public class UplinkProcessor implements Runnable{
     @Autowired
     SpaCommandRepository spaCommandRepository;

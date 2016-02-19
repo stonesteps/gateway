@@ -2,7 +2,7 @@ package com.tritonsvc.messageprocessor;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
  * thread based processors separately and then should act as watchdog
  * making both threads are running all the time and not dead or locked
  */
-@Component
+@Service
 public class MessageProcessor implements CommandLineRunner {
 
     @Autowired

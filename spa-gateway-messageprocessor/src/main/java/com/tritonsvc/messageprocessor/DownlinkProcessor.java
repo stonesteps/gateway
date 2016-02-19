@@ -1,7 +1,7 @@
 package com.tritonsvc.messageprocessor;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 /**
  * this class is entry point responsible for performing all Downlink processing
@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
  * messages and transforming that document into a gateway-idl message(protobufs) and
  * publishing the serialized protobufs byte array to MQTT broker
  */
-@Component
+@Service
 public class DownlinkProcessor implements Runnable {
 
     @Autowired
