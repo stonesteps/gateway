@@ -8,6 +8,11 @@ in a Google Protocol Buffers format that follows the Spa Gateway IDL encoding(re
 ##Dev environment note, you must have a MQTT broker available and configured
 Install a local MQTT broker on your machine,
 mosquitto is good, quick install for Mac/homebrew - http://mosquitto.org/download/
+enable mosquitto as service:
+ln -sfv /usr/local/opt/mosquitto/*.plist ~/Library/LaunchAgents
+launchctl load ~/Library/LaunchAgents/homebrew.mxcl.mosquitto.plist
+run mosquitton now:
+launchctl [start|stop] homebrew.mxcl.mosquitto
 
 
 ##Agent Usage Example

@@ -52,8 +52,8 @@ public class Agent {
     /** The uplink queue on mqtt broker **/
     private static final String DEFAULT_MQTT_BASE_PATH = "BWG/spa";
 
-	/** Hardware id */
-	private String hardwareId;
+	/** Gateway serial number */
+	private String gwSerialNumber;
 
 	/** MQTT server hostname */
 	private String mqttHostname;
@@ -101,7 +101,7 @@ public class Agent {
 		try {
 			mqtt.setHost(mqttHostname, mqttPort);
             mqtt.setCleanSession(false);
-            mqtt.setClientId(hardwareId);
+            mqtt.setClientId(gwSerialNumber);
             mqtt.setKeepAlive(mqttKeepaliveSeconds);
 
             // set up the mqtt broker connection health logger
@@ -130,7 +130,7 @@ public class Agent {
 
 		// Create an instance of the command processor.
         processor = createProcessor();
-		processor.setHardwareId(hardwareId);
+		processor.setGwSerialNumber(gwSerialNumber);
         processor.setConfigProps(props);
         processor.setHomePath(homePath);
         processor.setEventDispatcher(outbound);
@@ -216,8 +216,12 @@ public class Agent {
                 }
                 Header header = builder.build();
 
-                UplinkHeader uplinkHeader = UplinkHeader.newBuilder()
-                        .setHardwareId(hardwareId)
+                UplinkHeader.Builder ulBuilder = UplinkHeader.newBuilder();
+                if (hardwareId != null) {
+                    ulBuilder.setHardwareId(hardwareId);
+                }
+
+                UplinkHeader uplinkHeader = ulBuilder
                         .setCommand(uplinkCommandType)
                         .build();
 
@@ -338,11 +342,11 @@ public class Agent {
         LOGGER.info("Using configured processor: " + commandProcessorClassname);
 
 		// Validate hardware id.
-		hardwareId = properties.getProperty(AgentConfiguration.DEVICE_HARDWARE_ID);
-		if (hardwareId == null) {
+		gwSerialNumber = properties.getProperty(AgentConfiguration.GATEWAY_SERIALNUMBER);
+		if (gwSerialNumber == null) {
 			return false;
 		}
-		LOGGER.info("Using configured device hardware id: " + hardwareId);
+		LOGGER.info("Using configured gateway serial number: " + gwSerialNumber);
 
 		// Validate MQTT hostname.
 		mqttHostname = properties.getProperty(AgentConfiguration.MQTT_HOSTNAME);
@@ -376,6 +380,6 @@ public class Agent {
 	}
 
 	private String calculateInboundTopic(String inboundPrefix) {
-		return inboundPrefix + "/" + hardwareId;
+		return inboundPrefix + "/" + gwSerialNumber;
 	}
 }

@@ -28,7 +28,7 @@ public interface AgentMessageProcessor {
 	 * 
 	 * @param hardwareId
 	 */
-	public void setHardwareId(String hardwareId);
+	public void setGwSerialNumber(String hardwareId);
 
     /**
      * Set the runtime props

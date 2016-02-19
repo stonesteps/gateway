@@ -46,7 +46,7 @@ public class AgentTest {
         File createdFile= folder.newFile("config.properties");
         PrintWriter pw = new PrintWriter(new FileWriter(createdFile));
         pw.println("command.processor.classname=com.whatever");
-        pw.println("device.hardware.id=spatime");
+        pw.println("spa.gateway.serialnumber=spatime");
         pw.flush();
         pw.close();
 

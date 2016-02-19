@@ -20,10 +20,13 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Concrete class for handling downlink and sending uplink on MQTT
@@ -32,17 +35,17 @@ import java.util.concurrent.TimeUnit;
 public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(MQTTCommandProcessor.class);
-	private String hardwareId;
+	private String gwSerialNumber;
 	private Properties configProps;
     private String homePath;
     private GatewayEventDispatcher eventDispatcher;
     private int controllerUpdateInterval = 300;
     private final ScheduledExecutorService scheduledExecutorService =  new ScheduledThreadPoolExecutor(1);
 
-    protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId);
+    protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId);
     protected abstract void handleDownlinkCommand(Request request, String originatorId);
     protected abstract void handleUplinkAck(DownlinkAcknowledge ack, String originatorId);
-    protected abstract void handleStartup(String hardwareId, Properties configProps, String homePath, ScheduledExecutorService executorService);
+    protected abstract void handleStartup(String gwSerialNumber, Properties configProps, String homePath, ScheduledExecutorService executorService);
     protected abstract void handleShutdown();
     protected abstract void processDataHarvestIteration();
 
@@ -65,7 +68,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
         if (Ints.tryParse(configProps.getProperty(AgentConfiguration.CONTROLLER_UPDATE_INTERVAL)) != null) {
             controllerUpdateInterval = Ints.tryParse(configProps.getProperty(AgentConfiguration.CONTROLLER_UPDATE_INTERVAL));
         }
-        handleStartup(hardwareId, configProps, homePath, scheduledExecutorService);
+        handleStartup(gwSerialNumber, configProps, homePath, scheduledExecutorService);
         kickOffDataHarvest();
     }
 
@@ -84,7 +87,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
 			switch (downlinkHeader.getCommandType()) {
                 case REGISTRATION_RESPONSE: {
                     RegistrationResponse response = RegistrationResponse.parseDelimitedFrom(stream);
-                    handleRegistrationAck(response, header.getOriginator());
+                    handleRegistrationAck(response, header.getOriginator(), downlinkHeader.getHardwareId());
                     break;
                 }
                 case REQUEST: {
@@ -104,8 +107,8 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
 	}
 
     @Override
-	public void setHardwareId(String hardwareId) {
-		this.hardwareId = hardwareId;
+	public void setGwSerialNumber(String gwSerialNumber) {
+		this.gwSerialNumber = gwSerialNumber;
 	}
 
     @Override
@@ -135,11 +138,10 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
      * Convenience method for sending device registration
      *
      * @param parentHardwareId
-     * @param hardwareId
      * @param deviceTypeName
      * @param meta
      */
-	public void sendRegistration(String parentHardwareId, String hardwareId, String deviceTypeName, Map<String, String> meta) {
+	public void sendRegistration(String parentHardwareId, String deviceTypeName, Map<String, String> meta, String originatorId) {
         RegisterDevice.Builder builder = RegisterDevice.newBuilder();
         for (Map.Entry<String,String> entry : meta.entrySet()) {
             builder.addMetadata(Metadata.newBuilder().setName(entry.getKey()).setValue(entry.getValue()).build());
@@ -148,7 +150,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
         if (parentHardwareId != null) {
             builder.setParentDeviceHardwareId(parentHardwareId);
         }
-		eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.REGISTRATION, builder.build());
+		eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build());
 	}
 
 	/**
@@ -180,6 +182,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
                                  Map<String, Double> measurements,
                                  long measurementTimestampMillis,
                                  Map<String, String> meta) {
+        checkNotNull(hardwareId, "hardwareId must not be null for measurements");
         DeviceMeasurements.Builder builder = DeviceMeasurements.newBuilder();
         builder.setEventDate(measurementTimestampMillis);
         for (Map.Entry<String, Double> entry : measurements.entrySet()) {
@@ -209,6 +212,18 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
         }
 		eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.EVENT, eb.build());
 	}
+
+    /**
+     * obtain a repeatable unique key for each device registration
+     *
+     * @param parentHwId
+     * @param deviceTypeName
+     * @param identityAttributes
+     * @return
+     */
+    public String generateRegistrationKey(String parentHwId, String deviceTypeName, Map<String, String> identityAttributes) {
+        return Integer.toString(Objects.hash(parentHwId == null ? "" : parentHwId, deviceTypeName, identityAttributes));
+    }
 
     // after 30 seconds from start, and once every X minutes send up to cloud whatever system states
     // the X reporting interval should be settable via other reuest messages like setSystemStateReportInterval(), etc

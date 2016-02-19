@@ -10,7 +10,7 @@ public interface AgentConfiguration {
 	public static final String COMMAND_PROCESSOR_CLASSNAME = "command.processor.classname";
 
 	/** Property for device unique hardware id */
-	public static final String DEVICE_HARDWARE_ID = "device.hardware.id";
+	public static final String GATEWAY_SERIALNUMBER = "spa.gateway.serialnumber";
 
 	/** Property for MQTT hostname */
 	public static final String MQTT_HOSTNAME = "mqtt.hostname";
