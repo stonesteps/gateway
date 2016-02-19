@@ -28,7 +28,7 @@ which should be set to the 'gateway_agent' directory specified as full path, now
 
 Using standalone built jar:
 mvn clean install
-java -jar target/tritonsvc-java-agent-1.0.0.jar <gateway_agent directory path>
+java -jar target/tritonsvc-java-agent-0.0.1-SNAPSHOT.jar <gateway_agent directory path>
 
 
 You should see log activity in 'gateway_agent'/logs/bwg.log. The MockProcessor will push

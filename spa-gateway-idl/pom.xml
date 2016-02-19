@@ -6,7 +6,7 @@
     <groupId>com.tritonsvc</groupId>
     <artifactId>spa-gateway-idl</artifactId>
     <packaging>jar</packaging>
-    <version>1.0.0</version>
+    <version>0.0.1-SNAPSHOT</version>
     <name>BWG Spa IDL</name>
     <description>Java messages with Spa and Cloud</description>
     <url>http://www.tritonsvc.com/</url>

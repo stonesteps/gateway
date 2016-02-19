@@ -6,7 +6,7 @@
     <groupId>com.tritonsvc</groupId>
     <artifactId>tritonsvc-java-agent</artifactId>
     <packaging>jar</packaging>
-    <version>1.0.0</version>
+    <version>0.0.1-SNAPSHOT</version>
     <name>BWG SPA Gateway Agent</name>
     <description>Java agent for interacting with Spa and Cloud</description>
     <url>http://www.tritonsvc.com/</url>
@@ -15,7 +15,7 @@
         <dependency>
             <groupId>com.tritonsvc</groupId>
             <artifactId>spa-gateway-idl</artifactId>
-            <version>1.0.0</version>
+            <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.fusesource.mqtt-client</groupId>
