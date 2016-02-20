@@ -25,12 +25,12 @@
         <dependency>
             <groupId>deviceio</groupId>
             <artifactId>deviceio</artifactId>
-            <version>1.0</version>
+            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>alljoyn</groupId>
             <artifactId>alljoyn</artifactId>
-            <version>1.0</version>
+            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.mapdb</groupId>
