@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.tritonsvc</groupId>
-    <artifactId>tritonsvc-java-agent</artifactId>
+    <artifactId>spa-gateway-agent</artifactId>
     <packaging>jar</packaging>
     <version>0.0.1-SNAPSHOT</version>
     <name>BWG SPA Gateway Agent</name>

@@ -8,8 +8,8 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
-	<name>Spa Gateway Message Processor</name>
-	<description>Spa Gateway Message Processor</description>
+	<name>BWG SPA Gateway Message Processor</name>
+	<description>BWG SPA Gateway Message Processor</description>
 
 	<parent>
 		<groupId>org.springframework.boot</groupId>
