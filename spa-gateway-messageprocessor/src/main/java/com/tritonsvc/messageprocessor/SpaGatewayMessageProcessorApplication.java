@@ -6,9 +6,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class SpaGatewayMessageProcessorApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(SpaGatewayMessageProcessorApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(SpaGatewayMessageProcessorApplication.class, args);
+    }
 
 }
