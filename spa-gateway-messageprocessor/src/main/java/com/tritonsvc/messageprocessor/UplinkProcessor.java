@@ -37,7 +37,7 @@ public class UplinkProcessor implements MessageListener {
     @Autowired
     private MqttSubscribeService mqttSubscribeService;
 
-    @Value("${uplinkTopicName:uplink}")
+    @Value("${uplinkTopicName:BWG/spa/uplink}")
     private String uplinkTopicName;
 
     @PostConstruct
