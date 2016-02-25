@@ -3,6 +3,7 @@ package com.tritonsvc.messageprocessor.messagehandler;
 import com.bwg.iot.model.Spa;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
+import com.tritonsvc.messageprocessor.util.SpaDataHelper;
 import com.tritonsvc.messageprocessor.util.StringUtil;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
@@ -13,8 +14,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -97,11 +96,10 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         final String spaId = registerDeviceMessage.getParentDeviceHardwareId();
         final List<Bwg.Metadata> metadata = registerDeviceMessage.getMetadataList();
 
-        final String serialNumber = getMetadataValue("serialNumber", metadata);
+        final String serialNumber = SpaDataHelper.getMetadataValue("serialNumber", metadata);
         final String downlinkTopic = downlinkTopicName + (serialNumber != null ? "/"+serialNumber : "");
 
         // FIXME find also by serial number?
-
 
         boolean newSpa = false;
         Spa spa = null;
@@ -119,15 +117,15 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         }
         if (spa != null) {
             try {
-                final byte[] registerAck = buildRegisterAck(header.getOriginator(), spa, newSpa ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED);
-                mqttSendService.sendMessage(downlinkTopic, registerAck);
+                final Bwg.Downlink.Model.RegistrationResponse registrationResponse = SpaDataHelper.buildRegistrationResponse(newSpa ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED, spa);
+                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), spa.getId(), Bwg.Downlink.DownlinkCommandType.ACK, registrationResponse));
             } catch (Exception e) {
                 log.error("error while sending downlink message", e);
             }
         } else {
             try {
-                final byte[] registerAck = buildRegisterAck(header.getOriginator(), null, Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR);
-                mqttSendService.sendMessage(downlinkTopic, registerAck);
+                final Bwg.Downlink.Model.RegistrationResponse registrationResponse = SpaDataHelper.buildRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR, null);
+                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), null, Bwg.Downlink.DownlinkCommandType.ACK, registrationResponse));
             } catch (Exception e) {
                 log.error("error while sending downlink message", e);
             }
@@ -136,48 +134,6 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
 
     private String generateRandomString() {
         return StringUtil.randomString(32);
-    }
-
-    private byte[] buildRegisterAck(final String originator, final Spa spa, final Bwg.Downlink.Model.RegistrationAckState state) throws IOException {
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        final Bwg.Header.Builder builder = Bwg.Header.newBuilder()
-                .setCommand(Bwg.CommandType.DOWNLINK)
-                .setSentTimestamp(System.currentTimeMillis());
-        if (originator != null) {
-            builder.setOriginator(originator);
-        }
-        final Bwg.Header header = builder.build();
-        final Bwg.Downlink.DownlinkHeader.Builder dlBuilder = Bwg.Downlink.DownlinkHeader.newBuilder();
-        if (spa != null) {
-            dlBuilder.setHardwareId(spa.getId());
-        }
-        final Bwg.Downlink.DownlinkHeader downlinkHeader = dlBuilder
-                .setCommandType(Bwg.Downlink.DownlinkCommandType.ACK)
-                .build();
-        header.writeDelimitedTo(out);
-        downlinkHeader.writeDelimitedTo(out);
-        final Bwg.Downlink.Model.RegistrationResponse.Builder msgBuilder = Bwg.Downlink.Model.RegistrationResponse.newBuilder();
-        msgBuilder.setState(state);
-        msgBuilder.setP2PAPSSID(spa.getP2pAPSSID());
-        msgBuilder.setP2PAPPassword(spa.getP2pAPPassword());
-
-        Bwg.Downlink.Model.RegistrationResponse msg = msgBuilder.build();
-        msg.writeDelimitedTo(out);
-
-        return out.toByteArray();
-    }
-
-    private String getMetadataValue(final String name, final List<Bwg.Metadata> metadata) {
-        String value = null;
-        if (metadata != null && metadata.size() > 0) {
-            for (final Bwg.Metadata metadataElem : metadata) {
-                if (metadataElem.hasName() && metadataElem.getName().equals(name)) {
-                    value = metadataElem.getValue();
-                    break;
-                }
-            }
-        }
-        return value;
     }
 
     private void handleControllerRegistration(final Bwg.Uplink.UplinkHeader uplinkHeader, final RegisterDevice registerDeviceMessage) {
