@@ -1,0 +1,45 @@
+option optimize_for = LITE_RUNTIME;
+
+option java_package = "com.tritonsvc.spa.controller.ngsc.proto";
+
+//////////////////////////////////////////////////////////////////////////////////
+// IDL for RS485 NGSC protocol with the Controller/Pack
+//
+// Refer to Wiki for all docs on the complete protocol, there are two distinct protocols
+// 1.  HDLC framing
+// 2.  application messages
+// http://iotdev02/display/BWG/NGSC+RS485
+//
+// Protobufs IDL file guide
+// https://developers.google.com/protocol-buffers/docs/overview
+//
+//
+// For All messages, try to document which page/section from the ICD there definition
+// came from, the ICD is:
+// http://iotdev02/display/BWG/NGSC+RS485?preview=/1015837/1015840/NGSC%20Communications%20ICD.doc
+//
+//////////////////////////////////////////////////////////////////////////////////
+
+
+message HDLC {
+	required uint32 sample1 = 1;
+    required string sample2 = 2;
+}
+
+// ICD 3.1.4
+message PanelUpdateMessage {
+    required uint32 sample1 = 1;
+    required string sample2 = 2;
+}
+
+// ICD 3.1.7
+message SystemInfoPanelRequestMessage {
+    required uint32 sample1 = 1;
+    required string sample2 = 2;
+}
+
+// ICD 3.1.14
+message SystemInformationMessage {
+    required uint32 sample1 = 1;
+    required string sample2 = 2;
+}

@@ -4,11 +4,8 @@
  */
 package com.tritonsvc.gateway;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.tritonsvc.agent.MQTTCommandProcessor;
-import com.tritonsvc.gateway.wsn.WsnData;
-import com.tritonsvc.gateway.wsn.WsnValue;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
@@ -17,21 +14,14 @@ import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zeromq.ZMQ;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.Date;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.zeromq.ZMQ.PollItem;
-import static org.zeromq.ZMQ.Poller;
-import static org.zeromq.ZMQ.Socket;
-import static org.zeromq.ZMQ.poll;
 
 /**
  * Gateway Agent processing, collects WSN data also.
@@ -40,20 +30,19 @@ import static org.zeromq.ZMQ.poll;
 public class BWGProcessor extends MQTTCommandProcessor {
 
 	private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
-	private ZMQ.Context context = ZMQ.context(1);
     private DB mapDb;
 	private Map<String, DeviceRegistration> registeredHwIds;
 	private Properties configProps;
     private String gwSerialNumber;
     private OidProperties oidProperties = new OidProperties();
-	private static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
-	private static final String DATA_HARVEST_SUBSCRIPTION_ADDRESS = "wsn.data.harvest.subscription.address";
+	public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_REG_WAIT_TIME = 120000;
+    private RS485DataHarvester rs485DataHarvester;
+    final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
 
     @Override
     public void handleShutdown() {
         mapDb.close();
-        context.term();
     }
 
 	@Override
@@ -72,6 +61,8 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
         this.configProps = configProps;
         executorService.execute(new WSNDataHarvester(this));
+        rs485DataHarvester = new RS485DataHarvester(this);
+        executorService.execute(rs485DataHarvester);
         LOGGER.info("finished startup.");
 	}
 
@@ -119,111 +110,30 @@ public class BWGProcessor extends MQTTCommandProcessor {
         }
 
         // TODO - error handling if cloud side push fails -> Cacheing locally with mapDb
-        // TODO the pump will be registered in here once the RFID tag for the pump appears
-        // TODO get the controller board state message from rs-485, fill out properties and measurements
-        Map<String, String> meta = newHashMap();
-        Map<String, Double> measurement = newHashMap();
-        setControllerTemps(meta, measurement);
-        meta.put("comment", "controller data harvest");
 
-        sendMeasurements(registeredController.getHardwareId(), null, measurement, new Date().getTime(), meta);
+        rs485DataHarvester.sendPeriodicControllerMeasurements(registeredController.getHardwareId());
 
-        // TODO get the nfc tag data for pumps and register pumps
         LOGGER.info("Sent harvest periodic reports");
     }
 
-    Socket createWSNSubscriberSocket() {
-        Socket subscriber = context.socket(ZMQ.SUB);
-        subscriber.setRcvHWM(0);
-        subscriber.connect("tcp://" + configProps.getProperty(DATA_HARVEST_SUBSCRIPTION_ADDRESS));
-        subscriber.subscribe("".getBytes());
-        return subscriber;
+    public OidProperties getOidProperties() {
+        return oidProperties;
     }
 
-    void sendWSNDataToCloud(String json) throws IOException {
-        DeviceRegistration registeredSpa = obtainSpaRegistration();
-        if (registeredSpa .getHardwareId() == null) {
-            LOGGER.info("skipping data harvest, spa gateway has not been registered");
-            return;
-        }
-
-        ObjectMapper mapper = new ObjectMapper();
-        WsnData wsnData = mapper.readValue(json, WsnData.class);
-
-        DeviceRegistration registeredMote = obtainMoteRegistration(registeredSpa.getHardwareId(), wsnData.getMac());
-        if (registeredMote.getHardwareId() == null) {
-            LOGGER.info("skipping wsn data harvest, mote %s has not been registered", wsnData.getMac());
-            return;
-        }
-
-        Map<String, String> meta = newHashMap();
-        meta.put("receivedDate", Long.toString(wsnData.getReceivedUnixTimestamp() * 1000));
-        if (wsnData.getRssi() != null) {
-            meta.put("rssi_quality", Double.toString(wsnData.getRssi().getQuality()));
-            meta.put("rssi_ul", Double.toString(wsnData.getRssi().getUplink()));
-            meta.put("rssi_dl", Double.toString(wsnData.getRssi().getDownlink()));
-        }
-
-        String safeMacKey = wsnData.getMac().replaceAll(":","").toLowerCase();
-        for (WsnValue wsnValue : wsnData.getValues()) {
-            String oid = configProps.getProperty(DYNAMIC_DEVICE_OID_PROPERTY
-                    .replaceAll("MAC",safeMacKey)
-                    .replaceAll("DEVICE_NAME", wsnValue.getDeviceName()));
-
-            if (oid == null) {
-                LOGGER.info("Unable to send sensor data to cloud, no oid and specId properties for it's mac address " +
-                        safeMacKey + " and device name " + wsnValue.getDeviceName() + " were found in config.properties");
-                continue;
-            }
-
-            Map<String, Double> measurement = newHashMap();
-            measurement.put(oid, wsnValue.getValue());
-            long timestamp = wsnData.getRecordedUnixTimestamp() != null ? wsnData.getRecordedUnixTimestamp() * 1000 : wsnData.getReceivedUnixTimestamp() * 1000;
-            sendMeasurements(registeredMote.getHardwareId(), null, measurement, timestamp, meta);
-            LOGGER.info(" sent measurement for mote %s, registered id %s %s %s", wsnValue.getDeviceName(), registeredMote.getHardwareId(), oid, Double.toString(wsnValue.getValue()));
-        }
+    public Properties getConfigProps() {
+        return configProps;
     }
 
-    String waitForWSNData(Socket client, int timeout) {
-        PollItem items[] = {new PollItem(client, Poller.POLLIN)};
-        int rc = poll(items, timeout);
-        if (rc == -1) {
-            return null; //  Interrupted
-        }
-
-        if (items[0].isReadable()) {
-            //  We got a msg from the ZeroMQ socket, it's a new WSN data message
-            return client.recvStr();
-        } else {
-            LOGGER.info("timed out waiting for wsn data");
-            return null;
-        }
-    }
-
-    private DeviceRegistration obtainSpaRegistration() {
+    public DeviceRegistration obtainSpaRegistration() {
         return sendRegistration(null, "gateway", ImmutableMap.of("serialNumber", gwSerialNumber));
     }
 
-    private DeviceRegistration obtainControllerRegistration(String spaHardwareId) {
+    public DeviceRegistration obtainControllerRegistration(String spaHardwareId) {
         return sendRegistration(spaHardwareId, "controller", newHashMap());
     }
 
-    private DeviceRegistration obtainMoteRegistration(String spaHardwareId, String macAddress) {
+    public DeviceRegistration obtainMoteRegistration(String spaHardwareId, String macAddress) {
         return sendRegistration(spaHardwareId, "mote", ImmutableMap.of("mac", macAddress));
-    }
-
-    private void setControllerTemps(Map<String, String> meta, Map<String, Double> measurement) {
-        // TODO should be passing the controller panel update message into here, it has the pre/post temps
-        double pre = new Random().nextDouble();
-        double post = new Random().nextDouble();
-
-        if (oidProperties.getPreHeaterTemp() != null) {
-            measurement.put(oidProperties.getPreHeaterTemp(), pre);
-        }
-        if (oidProperties.getPostHeaterTemp() != null) {
-            measurement.put(oidProperties.getPostHeaterTemp(), post);
-        }
-        meta.put("heater_temp_delta", Double.toString(Math.abs(pre - post)));
     }
 
     private void validateOidProperties() {
@@ -246,8 +156,44 @@ public class BWGProcessor extends MQTTCommandProcessor {
     }
 
     private DeviceRegistration sendRegistration(String parentHwId, String deviceTypeName, Map<String, String> identityAttributes) {
-        // only send reg if the device has not reg'd yet
-        String registrationHashCode = generateRegistrationKey(parentHwId, deviceTypeName, identityAttributes);
+        boolean readLocked = false;
+        boolean writeLocked = false;
+        try {
+            regLock.readLock().lock();
+            readLocked = true;
+            // only send reg if the device has not reg'd yet
+            String registrationHashCode = generateRegistrationKey(parentHwId, deviceTypeName, identityAttributes);
+            DeviceRegistration registeredDevice = getValidRegistration(registrationHashCode);
+            if (registeredDevice != null) {
+                return registeredDevice;
+            }
+
+            regLock.readLock().unlock();
+            readLocked = false;
+            regLock.writeLock().lock();
+            writeLocked = true;
+            registeredDevice = getValidRegistration(registrationHashCode);
+            if (registeredDevice != null) {
+                return registeredDevice;
+            }
+
+            registeredDevice = new DeviceRegistration();
+            registeredHwIds.put(registrationHashCode, registeredDevice);
+            mapDb.commit();
+            super.sendRegistration(parentHwId, deviceTypeName, identityAttributes, registrationHashCode);
+            return registeredDevice;
+        }
+        finally {
+            if (readLocked) {
+                regLock.readLock().unlock();
+            }
+            if (writeLocked) {
+                regLock.writeLock().unlock();
+            }
+        }
+    }
+
+    private DeviceRegistration getValidRegistration(String registrationHashCode) {
         if (registeredHwIds.containsKey(registrationHashCode)) {
             DeviceRegistration registeredDevice = registeredHwIds.get(registrationHashCode);
             // if the reg is too old, send another one
@@ -255,11 +201,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
                 return registeredDevice;
             }
         }
-
-        DeviceRegistration registeredDevice = new DeviceRegistration();
-        registeredHwIds.put(registrationHashCode, registeredDevice);
-        mapDb.commit();
-        super.sendRegistration(parentHwId, deviceTypeName, identityAttributes, registrationHashCode);
-        return registeredDevice;
+        return null;
     }
 }
