@@ -38,6 +38,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 	public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_REG_WAIT_TIME = 120000;
     private RS485DataHarvester rs485DataHarvester;
+    private RS485MessagePublisher rs485MessagePublisher;
     final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
 
     @Override
@@ -63,6 +64,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
         executorService.execute(new WSNDataHarvester(this));
         rs485DataHarvester = new RS485DataHarvester(this);
         executorService.execute(rs485DataHarvester);
+        rs485MessagePublisher = new RS485MessagePublisher(this,rs485DataHarvester);
         LOGGER.info("finished startup.");
 	}
 
@@ -87,7 +89,16 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     @Override
 	public void handleDownlinkCommand(Request request, String originatorId) {
-		//TODO
+		//TODO-Marek: get message-processor changed to parse 'SetTargetTemperature' requests from
+        // mongodb Requests collection, and marshal into a new bwg.proto downlink message for 'SetTargetTemperature',
+        // and push out to mqtt downlink topic for specific spa.
+        // Then, make sure it arrives here and parsed out as a new 'SetTargetTemperature' downlink message from bwg.proto
+        // invoke call on rs485MessagePublisher.setTemperature() with real requested temp. Done.
+        //
+        // I'll be working on the impl of rs485MessagePublisher.setTemperature(78.0) at same time.
+
+        // if request is a SetTargetTemp then:
+            rs485MessagePublisher.setTemperature(78.0);
 	}
 
     @Override

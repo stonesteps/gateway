@@ -39,13 +39,9 @@ public class RS485DataHarvester implements Runnable {
                 // http://docs.oracle.com/javame/8.0/api/dio/api/jdk/dio/uart/UART.html
                 // https://www.voxxed.com/blog/2014/12/device-io-api/
                 //
-                // rs485SerialInputStream = new DeviceIO.InputStream("/dev/ttys0");
-                while(true) {
-                    // int len = rs485SerialInputStream.read(msgBuffer[]);
-                    // if (len > 0 ) {
-                    //    processMessage(msgBuffer, len);
-                    // }
-                }
+                // Use UART.setEventListener() to attach a handler to the message streams
+                // that are coming in on rs 485
+                // the handler should then do processMessage(msgBuffer, len);
             }
             catch (Throwable ex) {
                 LOGGER.info("harvest rs485 data listener got exception " + ex.getMessage());
