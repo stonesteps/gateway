@@ -3,6 +3,7 @@ package com.tritonsvc.messageprocessor;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
 import com.tritonsvc.messageprocessor.util.SpaDataHelper;
 import com.tritonsvc.spa.communication.proto.Bwg;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ public class SpaGatewayMessageProcessorIntegrationTests {
     private String uplinkTopicName;
 
     @Test
+    @Ignore
     public void sendReceive() throws Exception {
 
         // wait some time
@@ -37,5 +39,4 @@ public class SpaGatewayMessageProcessorIntegrationTests {
 
         Thread.sleep(10000);
     }
-
 }
