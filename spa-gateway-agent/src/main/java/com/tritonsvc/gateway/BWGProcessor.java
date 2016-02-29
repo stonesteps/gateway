@@ -6,6 +6,7 @@ package com.tritonsvc.gateway;
 
 import com.google.common.collect.ImmutableMap;
 import com.tritonsvc.agent.MQTTCommandProcessor;
+import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
@@ -16,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
@@ -89,17 +91,41 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     @Override
 	public void handleDownlinkCommand(Request request, String originatorId) {
-		//TODO-Marek: get message-processor changed to parse 'SetTargetTemperature' requests from
-        // mongodb Requests collection, and marshal into a new bwg.proto downlink message for 'SetTargetTemperature',
-        // and push out to mqtt downlink topic for specific spa.
-        // Then, make sure it arrives here and parsed out as a new 'SetTargetTemperature' downlink message from bwg.proto
-        // invoke call on rs485MessagePublisher.setTemperature() with real requested temp. Done.
-        //
-        // I'll be working on the impl of rs485MessagePublisher.setTemperature(78.0) at same time.
+        if (request == null) {
+            LOGGER.info("Request is null, not processing");
+            return;
+        }
 
-        // if request is a SetTargetTemp then:
-            rs485MessagePublisher.setTemperature(78.0);
+        if (request.hasRequestType()) {
+            switch (request.getRequestType()) {
+                case HEATER:
+                    updateHeater(request.getMetadataList());
+                    break;
+            }
+        }
 	}
+
+    private void updateHeater(final List<Bwg.Metadata> metadataList) {
+        boolean setTemp = false;
+        double temperature = 0.0d;
+
+        if (metadataList != null && metadataList.size() > 0) {
+            for (final Bwg.Metadata metadata: metadataList) {
+                if ("temperature".equals(metadata.getName())) {
+                    try {
+                        temperature = Double.parseDouble(metadata.getValue());
+                        setTemp = true;
+                    } catch (final NumberFormatException e) {
+                        LOGGER.error("Invalid temperature passed to heater {}", metadata.getValue());
+                    }
+                }
+            }
+        }
+
+        if (setTemp) {
+            rs485MessagePublisher.setTemperature(temperature);
+        }
+    }
 
     @Override
 	public void handleUplinkAck(DownlinkAcknowledge ack, String originatorId) {
