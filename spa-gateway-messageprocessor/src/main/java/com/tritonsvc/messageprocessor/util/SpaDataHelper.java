@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Utility class helping with creating and handling Spa entities
@@ -36,6 +38,19 @@ public final class SpaDataHelper {
     public static Bwg.Metadata buildMetadata(final String name, final String value) {
         final Bwg.Metadata.Builder builder = Bwg.Metadata.newBuilder();
         builder.setName(name).setValue(value);
+        return builder.build();
+    }
+
+    public static Bwg.Downlink.Model.Request buildRequest(final Bwg.Downlink.Model.RequestType type, final HashMap<String, String> values) {
+        final Bwg.Downlink.Model.Request.Builder builder = Bwg.Downlink.Model.Request.newBuilder();
+        builder.setRequestType(type);
+
+        if (values != null && values.size() > 0) {
+            for (final Map.Entry<String, String> entry: values.entrySet()) {
+                builder.addMetadata(buildMetadata(entry.getKey(), entry.getValue()));
+            }
+        }
+
         return builder.build();
     }
 
