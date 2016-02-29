@@ -18,6 +18,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = SpaGatewayMessageProcessorApplication.class)
@@ -82,6 +83,9 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         command.setSpaId(spa.getId());
         command.setSentTimestamp(String.valueOf(System.currentTimeMillis()));
         command.setRequestTypeId(Integer.valueOf(SpaCommand.RequestType.HEATER.getCode()));
+        final HashMap<String, String> values = new HashMap<>();
+        values.put("desiredTemp", "78.0");
+        command.setValues(values);
         spaCommandRepository.save(command);
         return command;
     }
