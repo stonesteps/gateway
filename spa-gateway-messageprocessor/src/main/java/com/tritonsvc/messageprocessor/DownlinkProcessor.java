@@ -39,7 +39,7 @@ public class DownlinkProcessor {
     @Value("${downlinkTopicName:BWG/spa/downlink}")
     private String downlinkTopicName;
 
-    @Scheduled(fixedRate = 30000)
+    @Scheduled(fixedRate = 5000)
     public void processCommands() {
         final List<SpaCommand> commands = spaCommandRepository.findFirst25ByProcessedTimestampIsNullOrderBySentTimestampAsc();
 
@@ -48,12 +48,17 @@ public class DownlinkProcessor {
                 if (processCommand(command)) {
                     command.setProcessedTimestamp(String.valueOf(System.currentTimeMillis()));
                     spaCommandRepository.save(command);
+                    log.info("Spa command processed successfully");
                 }
             }
+        } else {
+            log.info("No commands, sleeping");
         }
     }
 
     private boolean processCommand(final SpaCommand command) {
+        log.info("Processing command {}", command);
+
         boolean processed = false;
 
         if (command == null) {
@@ -79,6 +84,8 @@ public class DownlinkProcessor {
                 } catch (Exception e) {
                     log.error("Error while sending downlink message", e);
                 }
+            } else {
+                log.error("Message data is empty - not sending anything");
             }
         }
 

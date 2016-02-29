@@ -6,7 +6,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import java.util.List;
 
 /**
- * Spa repo
+ * Spa command repo
  */
 public interface SpaCommandRepository extends MongoRepository<SpaCommand, String> {
 
