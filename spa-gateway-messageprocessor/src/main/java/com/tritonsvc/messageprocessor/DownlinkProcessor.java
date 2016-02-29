@@ -5,6 +5,7 @@ import com.bwg.iot.model.SpaCommand;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
+import com.tritonsvc.messageprocessor.util.NumberHelper;
 import com.tritonsvc.messageprocessor.util.SpaDataHelper;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import org.slf4j.Logger;
@@ -26,6 +27,7 @@ import java.util.List;
 public class DownlinkProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(UplinkProcessor.class);
+    private static final String DESIRED_TEMP_PARAM = "desiredTemp";
 
     @Autowired
     private SpaCommandRepository spaCommandRepository;
@@ -58,37 +60,46 @@ public class DownlinkProcessor {
 
     private boolean processCommand(final SpaCommand command) {
         log.info("Processing command {}", command);
-
         boolean processed = false;
 
         if (command == null) {
             log.error("Spa command is null, not processing");
-        }
-
-        if (command.getRequestTypeId() != null && Bwg.Downlink.Model.RequestType.HEATER_VALUE == command.getRequestTypeId().intValue()) {
-            final Spa spa = spaRepository.findOne(command.getSpaId());
-            if (spa == null) {
-                log.error("Could not find related spa with id {}", command.getSpaId());
-            }
-
-            log.info("Building heater update downlink message");
-            final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(Bwg.Downlink.Model.RequestType.HEATER, command.getValues());
-            final byte[] messageData = SpaDataHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
-            if (messageData != null && messageData.length > 0) {
-                final String serialNumber = spa.getSerialNumber();
-                final String downlinkTopic = downlinkTopicName + (serialNumber != null ? "/" + serialNumber : "");
-                log.info("Seding downlink message to topic {}", downlinkTopic);
-                try {
-                    mqttSendService.sendMessage(downlinkTopic, messageData);
-                    processed = true;
-                } catch (Exception e) {
-                    log.error("Error while sending downlink message", e);
-                }
-            } else {
-                log.error("Message data is empty - not sending anything");
-            }
+        } else if (command.getRequestTypeId() != null && Bwg.Downlink.Model.RequestType.HEATER_VALUE == command.getRequestTypeId().intValue()) {
+            processed = sendHeaterUpdateCommand(command);
         }
 
         return processed;
+    }
+
+    private boolean sendHeaterUpdateCommand(final SpaCommand command) {
+        boolean sent = false;
+        final Spa spa = spaRepository.findOne(command.getSpaId());
+        if (spa == null) {
+            log.error("Could not find related spa with id {}", command.getSpaId());
+        } else {
+            log.info("Building heater update downlink message");
+
+            final String desiredTemp = command.getValues().get(DESIRED_TEMP_PARAM);
+            if (!NumberHelper.isDouble(desiredTemp)) {
+                log.error("Desired temp passed with command is invalid {}", desiredTemp);
+            } else {
+                final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(Bwg.Downlink.Model.RequestType.HEATER, command.getValues());
+                final byte[] messageData = SpaDataHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
+                if (messageData != null && messageData.length > 0) {
+                    final String serialNumber = spa.getSerialNumber();
+                    final String downlinkTopic = downlinkTopicName + (serialNumber != null ? "/" + serialNumber : "");
+                    log.info("Seding downlink message to topic {}", downlinkTopic);
+                    try {
+                        mqttSendService.sendMessage(downlinkTopic, messageData);
+                        sent = true;
+                    } catch (Exception e) {
+                        log.error("Error while sending downlink message", e);
+                    }
+                } else {
+                    log.error("Message data is empty - not sending anything");
+                }
+            }
+        }
+        return sent;
     }
 }
