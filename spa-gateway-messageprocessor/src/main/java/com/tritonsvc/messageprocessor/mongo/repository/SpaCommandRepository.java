@@ -1,4 +1,4 @@
-package com.tritonsvc.messageprocessor;
+package com.tritonsvc.messageprocessor.mongo.repository;
 
 import com.bwg.iot.model.SpaCommand;
 import org.springframework.data.mongodb.repository.MongoRepository;

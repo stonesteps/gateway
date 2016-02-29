@@ -1,7 +1,11 @@
 package com.tritonsvc.messageprocessor;
 
+import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
+import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
+
+import javax.annotation.PostConstruct;
 
 /**
  * this class is entry point responsible for performing all Downlink processing
@@ -9,8 +13,8 @@ import org.springframework.stereotype.Service;
  * messages and transforming that document into a gateway-idl message(protobufs) and
  * publishing the serialized protobufs byte array to MQTT broker
  */
-@Service
-public class DownlinkProcessor implements Runnable {
+@Component
+public class DownlinkProcessor {
 
     @Autowired
     SpaCommandRepository spaCommandRepository;
@@ -18,8 +22,8 @@ public class DownlinkProcessor implements Runnable {
     @Autowired
     SpaRepository spaRepository;
 
-    @Override
-    public void run() {
+    @PostConstruct
+    public void start() {
         //TODO - establish a loop that polls the mongodb Requests collection
         //       every X configurable seconds, should query collection for any
         //       documents that don't have a processedTimestamp attribute.
