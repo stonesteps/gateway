@@ -6,6 +6,7 @@ package com.tritonsvc.gateway;
 
 import com.google.common.collect.ImmutableMap;
 import com.tritonsvc.agent.MQTTCommandProcessor;
+import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
@@ -16,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
@@ -29,14 +31,17 @@ import static com.google.common.collect.Maps.newHashMap;
  */
 public class BWGProcessor extends MQTTCommandProcessor {
 
+    public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
+
 	private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
+    private static final long MAX_REG_WAIT_TIME = 120000;
+    private static final String DESIRED_TEMP_PARAM = "desiredTemp";
+
     private DB mapDb;
 	private Map<String, DeviceRegistration> registeredHwIds;
 	private Properties configProps;
     private String gwSerialNumber;
     private OidProperties oidProperties = new OidProperties();
-	public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
-    private static final long MAX_REG_WAIT_TIME = 120000;
     private RS485DataHarvester rs485DataHarvester;
     private RS485MessagePublisher rs485MessagePublisher;
     final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
@@ -72,7 +77,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 	public void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId) {
 
         if (response.getState() == RegistrationAckState.REGISTRATION_ERROR) {
-            LOGGER.info("received registration error state %s", response.getErrorMessage());
+            LOGGER.info("Received registration error state %s", response.getErrorMessage());
             return;
         }
         if (registeredHwIds.containsKey(originatorId)) {
@@ -80,8 +85,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
             registered.setHardwareId(hardwareId);
             registeredHwIds.put(originatorId, registered);
             mapDb.commit();
-            LOGGER.info("received successful registration, originatorid %s for hardwareid %s ", originatorId, hardwareId);
-
+            LOGGER.info("Received successful registration, originatorid %s for hardwareid %s ", originatorId, hardwareId);
         } else {
             LOGGER.info("received registration %s for hardwareid %s that did not have a previous code for ", originatorId, hardwareId);
         }
@@ -89,17 +93,43 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     @Override
 	public void handleDownlinkCommand(Request request, String originatorId) {
-		//TODO-Marek: get message-processor changed to parse 'SetTargetTemperature' requests from
-        // mongodb Requests collection, and marshal into a new bwg.proto downlink message for 'SetTargetTemperature',
-        // and push out to mqtt downlink topic for specific spa.
-        // Then, make sure it arrives here and parsed out as a new 'SetTargetTemperature' downlink message from bwg.proto
-        // invoke call on rs485MessagePublisher.setTemperature() with real requested temp. Done.
-        //
-        // I'll be working on the impl of rs485MessagePublisher.setTemperature(78.0) at same time.
+        if (request == null) {
+            LOGGER.info("Request is null, not processing");
+            return;
+        }
 
-        // if request is a SetTargetTemp then:
-            rs485MessagePublisher.setTemperature(78.0);
+        if (request.hasRequestType()) {
+            switch (request.getRequestType()) {
+                case HEATER:
+                    updateHeater(request.getMetadataList());
+                    break;
+            }
+        }
 	}
+
+    private void updateHeater(final List<Bwg.Metadata> metadataList) {
+        boolean setTemp = false;
+        double temperature = 0.0d;
+
+        if (metadataList != null && metadataList.size() > 0) {
+            for (final Bwg.Metadata metadata: metadataList) {
+                if (DESIRED_TEMP_PARAM.equals(metadata.getName())) {
+                    try {
+                        temperature = Double.parseDouble(metadata.getValue());
+                        setTemp = true;
+                    } catch (final NumberFormatException e) {
+                        LOGGER.error("Invalid param {} value passed to heater: {}", DESIRED_TEMP_PARAM, metadata.getValue());
+                    }
+                }
+            }
+        }
+
+        if (setTemp) {
+            rs485MessagePublisher.setTemperature(temperature);
+        } else {
+            LOGGER.error("Update heater command did not have required metadata param: {}", DESIRED_TEMP_PARAM);
+        }
+    }
 
     @Override
 	public void handleUplinkAck(DownlinkAcknowledge ack, String originatorId) {

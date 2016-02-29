@@ -164,6 +164,7 @@ message Downlink {
             FILTER = 5;
             DIAG_REPORT = 6;
             PANEL = 7; // LOCK or UNLOCK
+            HEATER = 8;
         }
 
         // each request has a type, then any parameters specific to

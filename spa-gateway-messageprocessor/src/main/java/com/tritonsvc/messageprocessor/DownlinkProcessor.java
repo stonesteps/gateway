@@ -1,7 +1,21 @@
 package com.tritonsvc.messageprocessor;
 
+import com.bwg.iot.model.Spa;
+import com.bwg.iot.model.SpaCommand;
+import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
+import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
+import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
+import com.tritonsvc.messageprocessor.util.NumberHelper;
+import com.tritonsvc.messageprocessor.util.SpaDataHelper;
+import com.tritonsvc.spa.communication.proto.Bwg;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 /**
  * this class is entry point responsible for performing all Downlink processing
@@ -9,28 +23,83 @@ import org.springframework.stereotype.Service;
  * messages and transforming that document into a gateway-idl message(protobufs) and
  * publishing the serialized protobufs byte array to MQTT broker
  */
-@Service
-public class DownlinkProcessor implements Runnable {
+@Component
+public class DownlinkProcessor {
+
+    private static final Logger log = LoggerFactory.getLogger(UplinkProcessor.class);
+    private static final String DESIRED_TEMP_PARAM = "desiredTemp";
 
     @Autowired
-    SpaCommandRepository spaCommandRepository;
+    private SpaCommandRepository spaCommandRepository;
 
     @Autowired
-    SpaRepository spaRepository;
+    private SpaRepository spaRepository;
 
-    @Override
-    public void run() {
-        //TODO - establish a loop that polls the mongodb Requests collection
-        //       every X configurable seconds, should query collection for any
-        //       documents that don't have a processedTimestamp attribute.
-        //
-        //       transform mongodb document into idl request message(spa-gateway-idl),
-        //       populate with values and then serialize to byte array and publish to MQTT
-        //
-        //       log output from this process is very important need to see log output that
-        //       demonstrates this thread is active and never dead or locked up.
-        // ....
+    @Autowired
+    private MqttSendService mqttSendService;
+
+    @Value("${downlinkTopicName:BWG/spa/downlink}")
+    private String downlinkTopicName;
+
+    @Scheduled(fixedRate = 5000)
+    public void processCommands() {
+        final List<SpaCommand> commands = spaCommandRepository.findFirst25ByProcessedTimestampIsNullOrderBySentTimestampAsc();
+
+        if (commands != null && commands.size() > 0) {
+            for (final SpaCommand command : commands) {
+                if (processCommand(command)) {
+                    command.setProcessedTimestamp(String.valueOf(System.currentTimeMillis()));
+                    spaCommandRepository.save(command);
+                    log.info("Spa command processed successfully");
+                }
+            }
+        } else {
+            log.info("No commands, sleeping");
+        }
     }
 
+    private boolean processCommand(final SpaCommand command) {
+        log.info("Processing command {}", command);
+        boolean processed = false;
 
+        if (command == null) {
+            log.error("Spa command is null, not processing");
+        } else if (command.getRequestTypeId() != null && Bwg.Downlink.Model.RequestType.HEATER_VALUE == command.getRequestTypeId().intValue()) {
+            processed = sendHeaterUpdateCommand(command);
+        }
+
+        return processed;
+    }
+
+    private boolean sendHeaterUpdateCommand(final SpaCommand command) {
+        boolean sent = false;
+        final Spa spa = spaRepository.findOne(command.getSpaId());
+        if (spa == null) {
+            log.error("Could not find related spa with id {}", command.getSpaId());
+        } else {
+            log.info("Building heater update downlink message");
+
+            final String desiredTemp = command.getValues().get(DESIRED_TEMP_PARAM);
+            if (!NumberHelper.isDouble(desiredTemp)) {
+                log.error("Desired temp passed with command is invalid {}", desiredTemp);
+            } else {
+                final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(Bwg.Downlink.Model.RequestType.HEATER, command.getValues());
+                final byte[] messageData = SpaDataHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
+                if (messageData != null && messageData.length > 0) {
+                    final String serialNumber = spa.getSerialNumber();
+                    final String downlinkTopic = downlinkTopicName + (serialNumber != null ? "/" + serialNumber : "");
+                    log.info("Seding downlink message to topic {}", downlinkTopic);
+                    try {
+                        mqttSendService.sendMessage(downlinkTopic, messageData);
+                        sent = true;
+                    } catch (Exception e) {
+                        log.error("Error while sending downlink message", e);
+                    }
+                } else {
+                    log.error("Message data is empty - not sending anything");
+                }
+            }
+        }
+        return sent;
+    }
 }
