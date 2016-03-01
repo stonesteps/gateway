@@ -19,4 +19,15 @@ public final class NumberHelper {
         }
         return isDouble;
     }
+
+    public static boolean isInt(final String string) {
+        boolean isInt = false;
+        try {
+            Integer.parseInt(string);
+            isInt = true;
+        } catch (final NumberFormatException e) {
+            // ignore
+        }
+        return isInt;
+    }
 }
