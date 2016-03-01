@@ -2,6 +2,8 @@ package com.tritonsvc.messageprocessor;
 
 import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaCommand;
+import com.bwg.iot.model.SpaCommandAttributeName;
+import com.bwg.iot.model.SpaCommandAttributeValue;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
@@ -61,9 +63,32 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         // create spa (with serialNumber)
         final Spa spa = createSpa("1");
         // and command with metadata
-        final SpaCommand command = createSpaCommand(spa);
+        final HashMap<String, String> values = new HashMap<>();
+        values.put(SpaCommandAttributeName.DESIRED_TEMP, "78.0");
+        final SpaCommand command = createSpaCommand(spa, SpaCommand.RequestType.HEATER.getCode(), values);
 
-        // wait some time 
+        // wait some time
+        Thread.sleep(10000);
+
+        final SpaCommand processed = spaCommandRepository.findOne(command.getId());
+        Assert.assertNotNull(processed);
+        Assert.assertNotNull(processed.getProcessedTimestamp());
+    }
+
+    @Test
+    @Ignore
+    public void processLightsCommand() throws Exception {
+        spaRepository.deleteAll();
+        spaCommandRepository.deleteAll();
+
+        // create spa (with serialNumber)
+        final Spa spa = createSpa("1");
+        // and command with metadata
+        final HashMap<String, String> values = new HashMap<>();
+        values.put(SpaCommandAttributeName.DESIRED_STATE, SpaCommandAttributeValue.ON);
+        final SpaCommand command = createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
+
+        // wait some time
         Thread.sleep(10000);
 
         final SpaCommand processed = spaCommandRepository.findOne(command.getId());
@@ -78,13 +103,11 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         return spa;
     }
 
-    private SpaCommand createSpaCommand(Spa spa) {
+    private SpaCommand createSpaCommand(Spa spa, int requestType, HashMap<String, String> values) {
         final SpaCommand command = new SpaCommand();
         command.setSpaId(spa.getId());
         command.setSentTimestamp(String.valueOf(System.currentTimeMillis()));
-        command.setRequestTypeId(Integer.valueOf(SpaCommand.RequestType.HEATER.getCode()));
-        final HashMap<String, String> values = new HashMap<>();
-        values.put("desiredTemp", "78.0");
+        command.setRequestTypeId(Integer.valueOf(requestType));
         command.setValues(values);
         spaCommandRepository.save(command);
         return command;
