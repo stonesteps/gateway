@@ -70,7 +70,7 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         // wait some time
         Thread.sleep(10000);
 
-        final SpaCommand processed = spaCommandRepository.findOne(command.getId());
+        final SpaCommand processed = spaCommandRepository.findOne(command.get_id());
         Assert.assertNotNull(processed);
         Assert.assertNotNull(processed.getProcessedTimestamp());
     }
@@ -91,7 +91,7 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         // wait some time
         Thread.sleep(10000);
 
-        final SpaCommand processed = spaCommandRepository.findOne(command.getId());
+        final SpaCommand processed = spaCommandRepository.findOne(command.get_id());
         Assert.assertNotNull(processed);
         Assert.assertNotNull(processed.getProcessedTimestamp());
     }
@@ -105,7 +105,7 @@ public class SpaGatewayMessageProcessorIntegrationTests {
 
     private SpaCommand createSpaCommand(Spa spa, int requestType, HashMap<String, String> values) {
         final SpaCommand command = new SpaCommand();
-        command.setSpaId(spa.getId());
+        command.setSpaId(spa.get_id());
         command.setSentTimestamp(String.valueOf(System.currentTimeMillis()));
         command.setRequestTypeId(Integer.valueOf(requestType));
         command.setValues(values);

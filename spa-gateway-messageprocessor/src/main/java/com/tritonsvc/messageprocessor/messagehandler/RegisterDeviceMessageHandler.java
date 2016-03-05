@@ -118,7 +118,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         if (spa != null) {
             try {
                 final Bwg.Downlink.Model.RegistrationResponse registrationResponse = SpaDataHelper.buildRegistrationResponse(newSpa ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED, spa);
-                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), spa.getId(), Bwg.Downlink.DownlinkCommandType.ACK, registrationResponse));
+                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), spaId, Bwg.Downlink.DownlinkCommandType.ACK, registrationResponse));
             } catch (Exception e) {
                 log.error("error while sending downlink message", e);
             }
