@@ -15,6 +15,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
@@ -131,12 +132,12 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     }
 
-    private void updateHeater(final List<Bwg.Metadata> metadataList, byte registeredAddress) throws RS485Exception{
+    private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception{
         Integer temperature = null;
 
         if (metadataList != null && metadataList.size() > 0) {
-            for (final Bwg.Metadata metadata : metadataList) {
-                if (Bwg.SpaCommandAttribName.DESIREDTEMP.name().equalsIgnoreCase(metadata.getName())) {
+            for (final RequestMetadata metadata : metadataList) {
+                if (Bwg.SpaCommandAttribName.DESIREDTEMP.equals(metadata.getName())) {
                     temperature = new Integer(metadata.getValue());
                 }
             }

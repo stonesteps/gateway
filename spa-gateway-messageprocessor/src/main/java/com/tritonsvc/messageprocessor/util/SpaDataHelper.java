@@ -3,6 +3,8 @@ package com.tritonsvc.messageprocessor.util;
 import com.bwg.iot.model.Spa;
 import com.google.protobuf.AbstractMessageLite;
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
+import com.tritonsvc.spa.communication.proto.Bwg.SpaCommandAttribName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +37,18 @@ public final class SpaDataHelper {
         return value;
     }
 
+    public static RequestMetadata buildRequestMetadata(final String name, final String value) {
+        final RequestMetadata.Builder builder = RequestMetadata.newBuilder();
+
+        for (SpaCommandAttribName attrib : SpaCommandAttribName.values()) {
+            if (attrib.name().equalsIgnoreCase(name)) {
+                builder.setName(attrib).setValue(value);
+                return builder.build();
+            }
+        }
+        throw new IllegalArgumentException("request meta attrib name is not defined in bwg.proto: " + name);
+    }
+
     public static Bwg.Metadata buildMetadata(final String name, final String value) {
         final Bwg.Metadata.Builder builder = Bwg.Metadata.newBuilder();
         builder.setName(name).setValue(value);
@@ -47,7 +61,7 @@ public final class SpaDataHelper {
 
         if (values != null && values.size() > 0) {
             for (final Map.Entry<String, String> entry: values.entrySet()) {
-                builder.addMetadata(buildMetadata(entry.getKey(), entry.getValue()));
+                builder.addMetadata(buildRequestMetadata(entry.getKey(), entry.getValue()));
             }
         }
 

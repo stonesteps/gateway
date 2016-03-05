@@ -173,13 +173,18 @@ message Downlink {
             HEATER = 8;
         }
 
+        message RequestMetadata {
+            required SpaCommandAttribName name = 1;
+            required string value = 2;
+        }
+
         // each request has a type, then any parameters specific to
         // request type are carried in the metadata as key/value pairs
         // one common attribute will probably be 'port' as in 1, 2, 3 because there
         // multiple ports on the controller for each of these types such as pumps1, pumps2, filter1, fitler2, etc
         message Request {
             required RequestType requestType = 1;
-            repeated Metadata metadata = 2;
+            repeated RequestMetadata metadata = 2;
         }
     }
 }
