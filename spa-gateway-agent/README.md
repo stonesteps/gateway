@@ -17,7 +17,10 @@ launchctl [start|stop] homebrew.mxcl.mosquitto
 
 ##Agent Usage Example
 create a directory called 'gateway_agent'
-copy src/config/config.properties, src/config/dio.properties, and src/config/logback.xml into 'gateway_agent'
+copy src/config/config.properties, src/config/dio.properties, src/config/logback.xml into 'gateway_agent'
+     
+If you plan to run the agent on target(armv7 processor) with a connection to a real spa rs485:
+copy lib/armv7/libdio.so 'gateway_agent'
 
 If you want to just simulate mock data and are not connecting to a real Spa controller,
 then in config.properties, make sure to specify:
@@ -26,9 +29,13 @@ command.processor.classname=com.tritonsvc.gateway.MockProcessor
 Using IDE, define run/debug launch config for AgentLoader.java and set Program Arguments to have one argument
 which should be set to the 'gateway_agent' directory specified as full path, now execute AgentLoader.
 
-Using standalone built jar:
+Using standalone built jar: 
 mvn clean install
+kick off the agent as configured for MockProcessor:
 java -jar target/spa-gateway-agent-0.0.1-SNAPSHOT.jar <gateway_agent directory path>
+kick off the agent as configured for BWGProcessor which attempts to make real rs485 connection on 
+serial port configured in config.properties(requires armv7 processor):
+java -Djava.library.path=<gateway_agent directory path> -jar spa-gateway-agent-0.0.1-SNAPSHOT.jar
 
 
 You should see log activity in 'gateway_agent'/logs/bwg.log. The MockProcessor will push
