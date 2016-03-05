@@ -4,7 +4,6 @@
  */
 package com.tritonsvc.gateway;
 
-import com.bwg.iot.model.SpaCommandAttributeName;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
@@ -137,7 +136,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
         if (metadataList != null && metadataList.size() > 0) {
             for (final Bwg.Metadata metadata : metadataList) {
-                if (SpaCommandAttributeName.DESIRED_TEMP.equals(metadata.getName())) {
+                if (Bwg.SpaCommandAttribName.DESIREDTEMP.name().equalsIgnoreCase(metadata.getName())) {
                     temperature = new Integer(metadata.getValue());
                 }
             }
@@ -146,7 +145,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
         if (temperature != null) {
             rs485MessagePublisher.setTemperature(temperature, registeredAddress);
         } else {
-            throw new RS485Exception("Update heater command did not have required metadata param: " + SpaCommandAttributeName.DESIRED_TEMP);
+            throw new RS485Exception("Update heater command did not have required metadata param: " + Bwg.SpaCommandAttribName.DESIREDTEMP.name());
         }
     }
 
