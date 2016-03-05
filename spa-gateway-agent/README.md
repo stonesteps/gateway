@@ -17,7 +17,7 @@ launchctl [start|stop] homebrew.mxcl.mosquitto
 
 ##Agent Usage Example
 create a directory called 'gateway_agent'
-copy src/config/config.properties, and src/config/logback.xml into 'gateway_agent'
+copy src/config/config.properties, src/config/dio.properties, and src/config/logback.xml into 'gateway_agent'
 
 If you want to just simulate mock data and are not connecting to a real Spa controller,
 then in config.properties, make sure to specify:

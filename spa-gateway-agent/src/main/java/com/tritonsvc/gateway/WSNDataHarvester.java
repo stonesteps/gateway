@@ -91,7 +91,7 @@ public class WSNDataHarvester implements Runnable {
 
         DeviceRegistration registeredMote = processor.obtainMoteRegistration(registeredSpa.getHardwareId(), wsnData.getMac());
         if (registeredMote.getHardwareId() == null) {
-            LOGGER.info("skipping wsn data harvest, mote %s has not been registered", wsnData.getMac());
+            LOGGER.info("skipping wsn data harvest, mote {} has not been registered", wsnData.getMac());
             return;
         }
 
@@ -121,7 +121,7 @@ public class WSNDataHarvester implements Runnable {
             measurement.put(oid, wsnValue.getValue());
             long timestamp = wsnData.getRecordedUnixTimestamp() != null ? wsnData.getRecordedUnixTimestamp() * 1000 : wsnData.getReceivedUnixTimestamp() * 1000;
             processor.sendMeasurements(registeredMote.getHardwareId(), null, measurement, timestamp, meta);
-            LOGGER.info(" sent measurement for mote %s, registered id %s %s %s", wsnValue.getDeviceName(), registeredMote.getHardwareId(), oid, Double.toString(wsnValue.getValue()));
+            LOGGER.info(" sent measurement for mote {}, registered id {} {} {}", wsnValue.getDeviceName(), registeredMote.getHardwareId(), oid, Double.toString(wsnValue.getValue()));
         }
     }
 

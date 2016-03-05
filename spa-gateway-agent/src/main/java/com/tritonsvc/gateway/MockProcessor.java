@@ -46,31 +46,31 @@ public class MockProcessor extends MQTTCommandProcessor {
     @Override
 	public void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId) {
         if (response.getState() == RegistrationAckState.REGISTRATION_ERROR) {
-            LOGGER.info("received registration error state %s", response.getErrorMessage());
+            LOGGER.info("received registration error state {}", response.getErrorMessage());
             return;
         }
 
         if (originatorId.equals("spa_originatorid")) {
             registeredSpa.setHardwareId(hardwareId);
-            LOGGER.info("received registration success for originator %s on hardwareid %s ", originatorId, hardwareId);
+            LOGGER.info("received registration success for originator {} on hardwareid {} ", originatorId, hardwareId);
         }
 
         if (originatorId.equals("controller_originatorid")) {
             registeredController.setHardwareId(hardwareId);
-            LOGGER.info("received registration success for controller originator %s on hardwareid %s ", originatorId, hardwareId);
+            LOGGER.info("received registration success for controller originator {} on hardwareid {} ", originatorId, hardwareId);
         }
 
         if (originatorId.equals("mote_originatorid")) {
             registeredMote.setHardwareId(hardwareId);
-            LOGGER.info("received registration success for mote originator %s on hardwareid %s ", originatorId, hardwareId);
+            LOGGER.info("received registration success for mote originator {} on hardwareid {} ", originatorId, hardwareId);
         }
 
-        LOGGER.info("received registration %s for hardwareid %s that did not have a previous code for ", originatorId, hardwareId);
+        LOGGER.info("received registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
 
 	}
 
     @Override
-	public void handleDownlinkCommand(Request request, String originatorId) {
+	public void handleDownlinkCommand(Request request, String hardwareId, String originatorId) {
 		//TODO
 	}
 

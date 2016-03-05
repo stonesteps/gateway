@@ -40,10 +40,10 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
     private String homePath;
     private GatewayEventDispatcher eventDispatcher;
     private int controllerUpdateInterval = 300;
-    private final ScheduledExecutorService scheduledExecutorService =  new ScheduledThreadPoolExecutor(1);
+    private final ScheduledExecutorService scheduledExecutorService =  new ScheduledThreadPoolExecutor(3);
 
     protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId);
-    protected abstract void handleDownlinkCommand(Request request, String originatorId);
+    protected abstract void handleDownlinkCommand(Request request, String hardwareId, String originatorId);
     protected abstract void handleUplinkAck(DownlinkAcknowledge ack, String originatorId);
     protected abstract void handleStartup(String gwSerialNumber, Properties configProps, String homePath, ScheduledExecutorService executorService);
     protected abstract void handleShutdown();
@@ -92,7 +92,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
                 }
                 case REQUEST: {
                     Request request = Request.parseDelimitedFrom(stream);
-                    handleDownlinkCommand(request, header.getOriginator());
+                    handleDownlinkCommand(request, downlinkHeader.getHardwareId(), header.getOriginator());
                     break;
                 }
                 case ACK: {
