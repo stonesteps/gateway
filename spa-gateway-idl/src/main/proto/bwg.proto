@@ -22,12 +22,6 @@ enum AckResponseCode {
     ERROR = 2;
 }
 
-enum SpaCommandAttribName {
-    DESIREDTEMP = 1;
-    DESIREDSTATE = 2;
-    PORT = 3;
-}
-
 /////////////////////////////////////////////////////////////////////////
 // Header contains the command type which specifies direction.
 // originator is a guid that represents an original message instance that ensuing messages
@@ -171,6 +165,12 @@ message Downlink {
             DIAG_REPORT = 6;
             PANEL = 7; // LOCK or UNLOCK
             HEATER = 8;
+        }
+
+        enum SpaCommandAttribName {
+            DESIREDTEMP = 1;
+            DESIREDSTATE = 2;
+            PORT = 3;
         }
 
         message RequestMetadata {

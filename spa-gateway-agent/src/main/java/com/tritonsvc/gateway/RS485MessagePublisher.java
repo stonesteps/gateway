@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static javax.xml.bind.DatatypeConverter.printHexBinary;
 
@@ -19,6 +20,7 @@ public class RS485MessagePublisher {
     private byte DELIMITER_BYTE = (byte)0x7E;
     private byte LINKING_ADDRESS_BYTE = (byte)0xFE;
     private LinkedBlockingQueue<byte[]> pendingDownlinks = new LinkedBlockingQueue<>(100);
+    private AtomicLong lastLoggedDownlinkPoll = new AtomicLong(0);
 
     //private PanelUpdateMessage lastKnownPanelUpdateMessage;
     //private SystemInformation lastKnownSystemInformation;
@@ -196,6 +198,7 @@ public class RS485MessagePublisher {
                 ByteBuffer bb = ByteBuffer.wrap(requestMessage);
                 processor.getRS485UART().write(bb);
                 LOGGER.info("sent queued downlink messages for poll response {}, there are {} remaining", printHexBinary(bb.array()), pendingDownlinks.size());
+                lastLoggedDownlinkPoll.set(System.currentTimeMillis());
             } else {
                 ByteBuffer bb = ByteBuffer.allocate(7);
                 bb.put(DELIMITER_BYTE); // start flag
@@ -208,7 +211,14 @@ public class RS485MessagePublisher {
                 bb.position(0);
 
                 processor.getRS485UART().write(bb);
-                LOGGER.info("sent no downlink messages for poll response {}", printHexBinary(bb.array()));
+                if (System.currentTimeMillis() - lastLoggedDownlinkPoll.get() > 60000) {
+                    synchronized (lastLoggedDownlinkPoll) {
+                        if (System.currentTimeMillis() - lastLoggedDownlinkPoll.get() > 60000) {
+                            lastLoggedDownlinkPoll.set(System.currentTimeMillis());
+                            LOGGER.info("sent no downlink messages for poll response in last 60 seconds");
+                        }
+                    }
+                }
             }
         }
         catch (Throwable ex) {

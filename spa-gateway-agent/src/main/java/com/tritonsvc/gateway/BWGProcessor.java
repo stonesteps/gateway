@@ -10,12 +10,12 @@ import com.google.common.primitives.Ints;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.gateway.DeviceRegistration.DeviceRegistrationSerializer;
-import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
@@ -120,6 +120,9 @@ public class BWGProcessor extends MQTTCommandProcessor {
                 case HEATER:
                     updateHeater(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress());
                     break;
+                case PUMPS:
+                    updatePumps(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress());
+                    break;
                 default:
                     sendAck(hardwareId, originatorId, AckResponseCode.ERROR, "not supported");
             }
@@ -130,6 +133,8 @@ public class BWGProcessor extends MQTTCommandProcessor {
             return;
         }
 
+        LOGGER.info("received downlink command from cloud and queued it up for rs485 transmission {}, originatorid = {}", request.getRequestType().name(), originatorId);
+        sendAck(hardwareId, originatorId, AckResponseCode.OK, null);
     }
 
     private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception{
@@ -137,7 +142,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
         if (metadataList != null && metadataList.size() > 0) {
             for (final RequestMetadata metadata : metadataList) {
-                if (Bwg.SpaCommandAttribName.DESIREDTEMP.equals(metadata.getName())) {
+                if (SpaCommandAttribName.DESIREDTEMP.equals(metadata.getName())) {
                     temperature = new Integer(metadata.getValue());
                 }
             }
@@ -146,7 +151,31 @@ public class BWGProcessor extends MQTTCommandProcessor {
         if (temperature != null) {
             rs485MessagePublisher.setTemperature(temperature, registeredAddress);
         } else {
-            throw new RS485Exception("Update heater command did not have required metadata param: " + Bwg.SpaCommandAttribName.DESIREDTEMP.name());
+            throw new RS485Exception("Update heater command did not have required metadata param: " + SpaCommandAttribName.DESIREDTEMP.name());
+        }
+    }
+
+    private void updatePumps(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception{
+        Integer port = null;
+
+        if (metadataList != null && metadataList.size() > 0) {
+            for (final RequestMetadata metadata : metadataList) {
+                if (SpaCommandAttribName.PORT.equals(metadata.getName())) {
+                    Integer temp = new Integer(metadata.getValue());
+                    if (temp > 0 && temp < 9) {
+                        port = temp;
+                    } else {
+                        throw new RS485Exception("Invalid pump port param, must be between 1 and 8 inclusive: " + temp);
+                    }
+                }
+            }
+        }
+
+        if (port != null) {
+            ButtonCode pumpButton = ButtonCode.valueOf("kJets<port>MetaButton".replaceAll("<port>", Integer.toString(port)));
+            rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress);
+        } else {
+            throw new RS485Exception("Update pumps command did not have required port param");
         }
     }
 

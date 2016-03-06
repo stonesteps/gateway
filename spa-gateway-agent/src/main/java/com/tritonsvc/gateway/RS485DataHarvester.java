@@ -34,6 +34,8 @@ public class RS485DataHarvester implements Runnable {
     private AtomicInteger regisrationAddress = new AtomicInteger(-1);
     private AtomicInteger registrationrequestId = new AtomicInteger();
     private AtomicLong registrationLastAttempt = new AtomicLong();
+    // TODO - remove lastTest when no longer needing downlink test generator in parseHDLCMessages()
+    long lastTest = 0;
 
     //TODO - Marek, these are stateful pojo objects holding the attribs from the panel info/update
     //       messages received over 485. these objects get updated each time the 485 message arrives by processPanelUpdateMessage().
@@ -133,6 +135,14 @@ public class RS485DataHarvester implements Runnable {
         int hdlcFrameLength =0;
         int index =0;
         buffer.clear();
+
+
+        //TODO - eventually remove, servers as a handy downlink test harness
+        //if (regisrationAddress.get() > -1 && (System.currentTimeMillis() - lastTest) > 40000) {
+        //    try {rs485MessagePublisher.setTemperature(80, (byte)regisrationAddress.get());} catch (Exception ex) {}
+        //    try {rs485MessagePublisher.sendButtonCode(ButtonCode.kJets2MetaButton, (byte)regisrationAddress.get());} catch (Exception ex) {}
+        //    lastTest = System.currentTimeMillis();
+        // }
 
         State state = State.searchForBeginning;
 

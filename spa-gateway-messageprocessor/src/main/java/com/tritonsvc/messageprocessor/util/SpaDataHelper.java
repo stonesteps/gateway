@@ -4,7 +4,6 @@ import com.bwg.iot.model.Spa;
 import com.google.protobuf.AbstractMessageLite;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
-import com.tritonsvc.spa.communication.proto.Bwg.SpaCommandAttribName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +39,7 @@ public final class SpaDataHelper {
     public static RequestMetadata buildRequestMetadata(final String name, final String value) {
         final RequestMetadata.Builder builder = RequestMetadata.newBuilder();
 
-        for (SpaCommandAttribName attrib : SpaCommandAttribName.values()) {
+        for (Bwg.Downlink.Model.SpaCommandAttribName attrib : Bwg.Downlink.Model.SpaCommandAttribName.values()) {
             if (attrib.name().equalsIgnoreCase(name)) {
                 builder.setName(attrib).setValue(value);
                 return builder.build();
