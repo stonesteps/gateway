@@ -21,6 +21,7 @@ enum AckResponseCode {
     OK = 1;
     ERROR = 2;
     NOT_REGISTERED = 3;
+    RECEIVED = 4;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -54,8 +55,9 @@ message Uplink {
 	enum UplinkCommandType {
 		REGISTRATION = 1;
 		ACKNOWLEDGEMENT = 2;
-		MEASUREMENT = 3;
+		SPA_STATE = 3;
         EVENT = 4;
+        MEASUREMENT = 5;
 	}
 
     message UplinkHeader {
@@ -100,6 +102,28 @@ message Uplink {
             repeated Measurement measurement = 1;
             optional fixed64 eventDate = 2;
             repeated Metadata metadata = 3;
+        }
+
+        message SpaState {
+            required RunMode runMode = 1;
+            required uint32 desiredTemp = 2;
+            required uint32 hour = 3;
+            required uint32 minute = 4;
+            repeated Measurement measurement = 5;
+            repeated Component component = 6;
+            required fixed64 processedDate = 7;
+            required uint32 errorCode = 8;
+        }
+
+        message Component {
+            required string type = 1;
+            optional uint32 port = 2;
+            required string value = 3;
+        }
+
+        enum RunMode {
+            REST = 1;
+            READY = 2;
         }
 
         enum EventType {

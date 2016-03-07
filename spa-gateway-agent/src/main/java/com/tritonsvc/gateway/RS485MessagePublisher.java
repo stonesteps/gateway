@@ -1,5 +1,6 @@
 package com.tritonsvc.gateway;
 
+import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,11 +20,8 @@ public class RS485MessagePublisher {
     private byte POLL_FINAL_CONTROL_BYTE = (byte)0xBF;
     private byte DELIMITER_BYTE = (byte)0x7E;
     private byte LINKING_ADDRESS_BYTE = (byte)0xFE;
-    private LinkedBlockingQueue<byte[]> pendingDownlinks = new LinkedBlockingQueue<>(100);
+    private LinkedBlockingQueue<PendingRequest> pendingDownlinks = new LinkedBlockingQueue<>(100);
     private AtomicLong lastLoggedDownlinkPoll = new AtomicLong(0);
-
-    //private PanelUpdateMessage lastKnownPanelUpdateMessage;
-    //private SystemInformation lastKnownSystemInformation;
 
     /**
      * Constructor
@@ -41,7 +39,7 @@ public class RS485MessagePublisher {
      * @param address
      * @throws RS485Exception
      */
-    public synchronized void setTemperature(int newTemp, byte address) throws RS485Exception {
+    public synchronized void setTemperature(int newTemp, byte address, String originatorId, String hardwareId) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(8);
             bb.put(DELIMITER_BYTE); // start flag
@@ -52,12 +50,7 @@ public class RS485MessagePublisher {
             bb.put((byte) (0xFF & newTemp));
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
-
-            if (pendingDownlinks.offer(bb.array(), 5000, TimeUnit.MILLISECONDS)) {
-                LOGGER.info("put settemp in downlink queue {}", printHexBinary(bb.array()));
-            } else {
-                throw new Exception("downlink queue is full");
-            }
+            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
         }
         catch (Throwable ex) {
             LOGGER.info("rs485 set temp got exception " + ex.getMessage());
@@ -72,7 +65,7 @@ public class RS485MessagePublisher {
      * @param address
      * @throws RS485Exception
      */
-    public synchronized void sendButtonCode(ButtonCode code, byte address) throws RS485Exception {
+    public synchronized void sendButtonCode(ButtonCode code, byte address, String originatorId, String hardwareId) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(9);
             bb.put(DELIMITER_BYTE); // start flag
@@ -84,12 +77,7 @@ public class RS485MessagePublisher {
             bb.put((byte) 0xFF); // modifier is not specified
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
-
-            if (pendingDownlinks.offer(bb.array(), 5000, TimeUnit.MILLISECONDS)) {
-                LOGGER.info("put send button code in downlink queue {}", printHexBinary(bb.array()));
-            } else {
-                throw new Exception("downlink queue is full");
-            }
+            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
         }
         catch (Throwable ex) {
             LOGGER.info("rs485 send button code got exception " + ex.getMessage());
@@ -193,12 +181,21 @@ public class RS485MessagePublisher {
      */
     public synchronized void sendPendingDownlinkIfAvailable(byte address) throws RS485Exception {
         try {
-            byte[] requestMessage = pendingDownlinks.poll();
+            PendingRequest requestMessage = pendingDownlinks.poll();
             if (requestMessage != null) {
-                ByteBuffer bb = ByteBuffer.wrap(requestMessage);
-                processor.getRS485UART().write(bb);
-                LOGGER.info("sent queued downlink messages for poll response {}, there are {} remaining", printHexBinary(bb.array()), pendingDownlinks.size());
-                lastLoggedDownlinkPoll.set(System.currentTimeMillis());
+                ByteBuffer bb = ByteBuffer.wrap(requestMessage.getPayload());
+                try {
+                    processor.getRS485UART().write(bb);
+                    processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.OK, null);
+                    LOGGER.info("sent queued downlink message, originator {}, as 485 poll response, payload {}, there are {} remaining, sent OK ack back to cloud", requestMessage.getOriginatorId(), printHexBinary(bb.array()), pendingDownlinks.size());
+                } catch (Exception ex) {
+                    processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.ERROR, "485 communication problem");
+                    LOGGER.info("failed sending downlink message, originator {}, as 485 poll response, payload {}", requestMessage.getOriginatorId(), printHexBinary(bb.array()));
+                    throw ex;
+                } finally {
+                    lastLoggedDownlinkPoll.set(System.currentTimeMillis());
+                }
+
             } else {
                 ByteBuffer bb = ByteBuffer.allocate(7);
                 bb.put(DELIMITER_BYTE); // start flag
@@ -224,6 +221,38 @@ public class RS485MessagePublisher {
         catch (Throwable ex) {
             LOGGER.info("rs485 sending device downlinks for poll check, got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+    private void addToPending(PendingRequest request) throws Exception{
+        if (pendingDownlinks.offer(request, 5000, TimeUnit.MILLISECONDS)) {
+            LOGGER.info("put cloud request, originator id {} in downlink queue, payload {}", request.getOriginatorId(), printHexBinary(request.getPayload()));
+        } else {
+            throw new Exception("downlink queue is full");
+        }
+    }
+
+    private static class PendingRequest {
+        private byte[] payload;
+        private String originatorId;
+        private String hardwareId;
+
+        public PendingRequest(byte[] payload, String originatorId, String hardwareId) {
+            this.payload = payload;
+            this.originatorId = originatorId;
+            this.hardwareId = hardwareId;
+        }
+
+        public byte[] getPayload() {
+            return payload;
+        }
+
+        public String getOriginatorId() {
+            return originatorId;
+        }
+
+        public String getHardwareId() {
+            return hardwareId;
         }
     }
 }

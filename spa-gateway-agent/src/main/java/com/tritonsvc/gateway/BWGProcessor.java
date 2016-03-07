@@ -117,7 +117,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
         }
 
         if (response.getState() == RegistrationAckState.ALREADY_REGISTERED) {
-            LOGGER.info("confirmed registration state in cloud for spa", hardwareId);
+            LOGGER.info("confirmed registration state in cloud for spa id = {}", hardwareId);
             return;
         }
 
@@ -152,10 +152,10 @@ public class BWGProcessor extends MQTTCommandProcessor {
         try {
             switch (request.getRequestType()) {
                 case HEATER:
-                    updateHeater(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress());
+                    updateHeater(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
                     break;
                 case PUMPS:
-                    updatePumps(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress());
+                    updatePumps(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
                     break;
                 default:
                     sendAck(hardwareId, originatorId, AckResponseCode.ERROR, "not supported");
@@ -167,11 +167,11 @@ public class BWGProcessor extends MQTTCommandProcessor {
             return;
         }
 
-        LOGGER.info("received downlink command from cloud and queued it up for rs485 transmission {}, originatorid = {}, sent ack back to cloud", request.getRequestType().name(), originatorId);
-        sendAck(hardwareId, originatorId, AckResponseCode.OK, null);
+        LOGGER.info("received downlink command from cloud and queued it up for rs485 transmission {}, originatorid = {}, sent RECEIVED ack back to cloud", request.getRequestType().name(), originatorId);
+        sendAck(hardwareId, originatorId, AckResponseCode.RECEIVED, null);
     }
 
-    private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception{
+    private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception{
         Integer temperature = null;
 
         if (metadataList != null && metadataList.size() > 0) {
@@ -183,13 +183,13 @@ public class BWGProcessor extends MQTTCommandProcessor {
         }
 
         if (temperature != null) {
-            rs485MessagePublisher.setTemperature(temperature, registeredAddress);
+            rs485MessagePublisher.setTemperature(temperature, registeredAddress, originatorId, hardwareId);
         } else {
             throw new RS485Exception("Update heater command did not have required metadata param: " + SpaCommandAttribName.DESIREDTEMP.name());
         }
     }
 
-    private void updatePumps(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception{
+    private void updatePumps(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception{
         Integer port = null;
 
         if (metadataList != null && metadataList.size() > 0) {
@@ -209,7 +209,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
         // to get that state
         if (port != null) {
             ButtonCode pumpButton = ButtonCode.valueOf("kJets<port>MetaButton".replaceAll("<port>", Integer.toString(port)));
-            rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress);
+            rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress, originatorId, hardwareId);
         } else {
             throw new RS485Exception("Update pumps command did not have required port param");
         }
@@ -239,7 +239,8 @@ public class BWGProcessor extends MQTTCommandProcessor {
             return;
         }
 
-        rs485DataHarvester.sendPeriodicSpaInfo(registeredController.getHardwareId());
+        PeriodicSpaInfoReport report = new PeriodicSpaInfoReport(rs485DataHarvester.getLatestSpaInfo(), getCloudDispatcher());
+        report.publishToCloud(registeredController.getHardwareId());
         LOGGER.info("Finished data harvest periodic iteration");
     }
 

@@ -159,7 +159,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
             builder.setParentDeviceHardwareId(parentHardwareId);
         }
 		eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build());
-	    LOGGER.info("sent device registration for {}, {}", deviceTypeName, meta.toString());
+	    LOGGER.info("sent device registration for {}", deviceTypeName);
     }
 
 	/**
@@ -232,6 +232,14 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
      */
     public String generateRegistrationKey(String parentHwId, String deviceTypeName, Map<String, String> identityAttributes) {
         return Integer.toString(Objects.hash(parentHwId == null ? "" : parentHwId, deviceTypeName, identityAttributes));
+    }
+
+    /**
+     * retrieve the instance of mqtt message dispatcher to send messages up to cloud
+     * @return
+     */
+    public GatewayEventDispatcher getCloudDispatcher() {
+        return eventDispatcher;
     }
 
     // after 30 seconds from start, and once every X minutes send up to cloud whatever system states
