@@ -10,6 +10,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Header.Builder;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkHeader;
 import org.fusesource.mqtt.client.BlockingConnection;
+import org.fusesource.mqtt.client.FutureConnection;
 import org.fusesource.mqtt.client.MQTT;
 import org.fusesource.mqtt.client.Message;
 import org.fusesource.mqtt.client.QoS;
@@ -22,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.net.URISyntaxException;
+import java.rmi.dgc.VMID;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -71,10 +73,16 @@ public class Agent {
 	private String inboundTopic;
 
 	/** MQTT client */
-	private MQTT mqtt;
+	private MQTT mqttSub;
+
+    /** MQTT client */
+    private MQTT mqttPub;
 
 	/** MQTT connection */
-	private BlockingConnection connection;
+	private BlockingConnection subConnection;
+
+    /** MQTT connection */
+    private BlockingConnection pubConnection;
 
 	/** Outbound message processing */
 	private MQTTOutbound outbound;
@@ -97,16 +105,31 @@ public class Agent {
         Properties props = loadProperties(homePath);
 		LOGGER.info("BWG agent starting...");
 
-		this.mqtt = createMQTT();
+		this.mqttSub = createMQTT();
+        this.mqttPub = createMQTT();
 		try {
-			mqtt.setHost(mqttHostname, mqttPort);
-            mqtt.setCleanSession(false);
-            mqtt.setClientId(gwSerialNumber);
-            mqtt.setKeepAlive(mqttKeepaliveSeconds);
+            mqttSub.setHost(mqttHostname, mqttPort);
+            mqttSub.setCleanSession(false);
+            mqttSub.setClientId(new VMID().toString());
+            mqttSub.setKeepAlive(mqttKeepaliveSeconds);
 
             // set up the mqtt broker connection health logger
             if (MQTT_TRACE_LOGGER.isDebugEnabled()) {
-                mqtt.setTracer(new Tracer() {
+                mqttSub.setTracer(new Tracer() {
+                    @Override
+                    public void debug(String message, Object...args) {
+                        MQTT_TRACE_LOGGER.debug(message, args);
+                    }
+                });
+            }
+
+            mqttPub.setHost(mqttHostname, mqttPort);
+            mqttPub.setCleanSession(true);
+            mqttPub.setKeepAlive(mqttKeepaliveSeconds);
+
+            // set up the mqtt broker connection health logger
+            if (MQTT_TRACE_LOGGER.isDebugEnabled()) {
+                mqttPub.setTracer(new Tracer() {
                     @Override
                     public void debug(String message, Object...args) {
                         MQTT_TRACE_LOGGER.debug(message, args);
@@ -118,15 +141,17 @@ public class Agent {
 		}
 		LOGGER.info("Connecting to MQTT broker at '" + mqttHostname + ":" + mqttPort + "'...");
 
-        connection = mqtt.blockingConnection();
+        subConnection = mqttSub.blockingConnection();
+        pubConnection = mqttPub.blockingConnection();
         try {
-            connection.connect();
+            subConnection.connect();
+            pubConnection.connect();
         } catch (Exception e) {
             throw Throwables.propagate(e);
         }
 
 		// Create outbound message processor.
-		outbound = new MQTTOutbound(connection, outboundTopic);
+		outbound = new MQTTOutbound(pubConnection, outboundTopic);
 
 		// Create an instance of the command processor.
         processor = createProcessor();
@@ -136,7 +161,7 @@ public class Agent {
         processor.setEventDispatcher(outbound);
 
 		// Create inbound message processing thread.
-		inbound = new MQTTInbound(connection, inboundTopic, processor, outbound);
+		inbound = new MQTTInbound(subConnection, inboundTopic, processor);
 
 		// Handle shutdown gracefully.
 		Runtime.getRuntime().addShutdownHook(new ShutdownHandler());
@@ -251,18 +276,14 @@ public class Agent {
 		/** Command processor */
 		private AgentMessageProcessor processor;
 
-		/** Event dispatcher */
-		private GatewayEventDispatcher dispatcher;
-
         /** run flag **/
         boolean running;
 
 		public MQTTInbound(BlockingConnection connection, String topic,
-                           AgentMessageProcessor processor, GatewayEventDispatcher dispatcher) {
+                           AgentMessageProcessor processor) {
 			this.connection = connection;
 			this.topic = topic;
 			this.processor = processor;
-			this.dispatcher = dispatcher;
 		}
 
 		@Override
@@ -283,13 +304,13 @@ public class Agent {
 
                 while (running) {
                     try {
-                        Message message = connection.receive(10, TimeUnit.SECONDS);
+                        Message message = connection.receive();
                         if (message == null) {
                             LOGGER.debug("no downlink messages received in last 10 seconds");
                             continue;
                         }
                         message.ack();
-                        processor.processDownlinkCommand(message.getPayload(), dispatcher);
+                        processor.processDownlinkCommand(message.getPayload());
                     } catch (InterruptedException e) {
                         LOGGER.warn("Device event processor interrupted.");
                         return;
@@ -313,15 +334,20 @@ public class Agent {
 	private class ShutdownHandler extends Thread {
 		@Override
 		public void run() {
-			if (connection != null) {
+
 				try {
                     inbound.stop();
-					connection.disconnect();
+                    if (subConnection != null) {
+                        subConnection.disconnect();
+                    }
+                    if (pubConnection != null) {
+                        pubConnection.disconnect();
+                    }
 					LOGGER.info("Disconnected from MQTT broker.");
 				} catch (Exception e) {
 					LOGGER.warn("Shutdown initiated, exception disconnecting from MQTT broker.", e);
 				}
-			}
+
 		}
 	}
 

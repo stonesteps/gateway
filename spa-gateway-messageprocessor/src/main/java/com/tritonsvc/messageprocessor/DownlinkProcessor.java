@@ -25,7 +25,7 @@ import java.util.List;
 @Component
 public class DownlinkProcessor {
 
-    private static final Logger log = LoggerFactory.getLogger(UplinkProcessor.class);
+    private static final Logger log = LoggerFactory.getLogger(DownlinkProcessor.class);
 
     @Autowired
     private SpaCommandRepository spaCommandRepository;
@@ -113,7 +113,7 @@ public class DownlinkProcessor {
         if (spa == null) {
             log.error("Could not find related spa with id {}", command.getSpaId());
         } else {
-            log.info("Building heater update downlink message");
+            log.info("Building device downlink message");
 
             final String port = command.getValues().get(SpaCommandAttributeName.PORT);
             final String desiredState = command.getValues().get(SpaCommandAttributeName.DESIRED_STATE);

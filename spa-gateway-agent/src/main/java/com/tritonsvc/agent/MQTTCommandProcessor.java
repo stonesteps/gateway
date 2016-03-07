@@ -6,6 +6,8 @@ import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DeviceMeasurements;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
@@ -43,8 +45,9 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
     private final ScheduledExecutorService scheduledExecutorService =  new ScheduledThreadPoolExecutor(3);
 
     protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId);
+    protected abstract void handleSpaRegistrationAck(SpaRegistrationResponse response, String originatorId, String hardwareId);
     protected abstract void handleDownlinkCommand(Request request, String hardwareId, String originatorId);
-    protected abstract void handleUplinkAck(DownlinkAcknowledge ack, String originatorId);
+    protected abstract void handleUplinkAck(UplinkAcknowledge ack, String originatorId);
     protected abstract void handleStartup(String gwSerialNumber, Properties configProps, String homePath, ScheduledExecutorService executorService);
     protected abstract void handleShutdown();
     protected abstract void processDataHarvestIteration();
@@ -73,7 +76,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
     }
 
     @Override
-	public void processDownlinkCommand(byte[] message, GatewayEventDispatcher dispatcher) {
+	public void processDownlinkCommand(byte[] message) {
 		ByteArrayInputStream stream = new ByteArrayInputStream(message);
 		try {
 			Bwg.Header header = Bwg.Header.parseDelimitedFrom(stream);
@@ -90,13 +93,18 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
                     handleRegistrationAck(response, header.getOriginator(), downlinkHeader.getHardwareId());
                     break;
                 }
+                case SPA_REGISTRATION_RESPONSE: {
+                    SpaRegistrationResponse response = SpaRegistrationResponse.parseDelimitedFrom(stream);
+                    handleSpaRegistrationAck(response, header.getOriginator(), downlinkHeader.getHardwareId());
+                    break;
+                }
                 case REQUEST: {
                     Request request = Request.parseDelimitedFrom(stream);
                     handleDownlinkCommand(request, downlinkHeader.getHardwareId(), header.getOriginator());
                     break;
                 }
                 case ACK: {
-                    DownlinkAcknowledge ack = DownlinkAcknowledge.parseDelimitedFrom(stream);
+                    UplinkAcknowledge ack = UplinkAcknowledge.parseDelimitedFrom(stream);
                     handleUplinkAck(ack, header.getOriginator());
                     break;
                 }
@@ -151,7 +159,8 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
             builder.setParentDeviceHardwareId(parentHardwareId);
         }
 		eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build());
-	}
+	    LOGGER.info("sent device registration for {}, {}", deviceTypeName, meta.toString());
+    }
 
 	/**
 	 * Convenience method for sending an acknowledgement event for prior downlink

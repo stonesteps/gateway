@@ -10,6 +10,7 @@ import javax.annotation.PostConstruct;
  * Created by holow on 2/22/2016.
  */
 public abstract class AbstractMessageHandler<T> implements MessageHandler<T> {
+    protected static final String DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
 
     @Autowired
     private UplinkProcessor uplinkProcessor;

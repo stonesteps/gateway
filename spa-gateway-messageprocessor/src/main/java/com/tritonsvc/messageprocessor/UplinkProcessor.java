@@ -6,7 +6,9 @@ import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MessageListener;
 import com.tritonsvc.messageprocessor.mqtt.MqttSubscribeService;
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,6 +62,10 @@ public class UplinkProcessor implements MessageListener {
             if (uplinkHeader.getCommand() == Bwg.Uplink.UplinkCommandType.REGISTRATION) {
                 final RegisterDevice registerDevice = RegisterDevice.parseDelimitedFrom(stream);
                 handleMessage(RegisterDevice.class, header, uplinkHeader, registerDevice);
+            }
+            if (uplinkHeader.getCommand() == UplinkCommandType.ACKNOWLEDGEMENT) {
+                final DownlinkAcknowledge ack = DownlinkAcknowledge.parseDelimitedFrom(stream);
+                handleMessage(DownlinkAcknowledge.class, header, uplinkHeader, ack);
             }
 
         } catch (Exception e) {

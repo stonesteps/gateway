@@ -18,9 +18,8 @@ public interface AgentMessageProcessor {
 	 * Process downlink command.
 	 * 
 	 * @param message
-	 * @param dispatcher
 	 */
-	public void processDownlinkCommand(byte[] message, GatewayEventDispatcher dispatcher);
+	public void processDownlinkCommand(byte[] message);
 
 
 	/**

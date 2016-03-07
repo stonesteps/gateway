@@ -1,6 +1,8 @@
 package com.tritonsvc.agent;
 
 import org.fusesource.mqtt.client.BlockingConnection;
+import org.fusesource.mqtt.client.Future;
+import org.fusesource.mqtt.client.FutureConnection;
 import org.fusesource.mqtt.client.MQTT;
 import org.junit.Before;
 import org.junit.Rule;
@@ -23,8 +25,10 @@ public class AgentTest {
 
     private Agent agent;
     private AgentMessageProcessor processor;
-    private MQTT mqtt;
-    private BlockingConnection connection;
+    private MQTT mqttSub;
+    private MQTT mqttPub;
+    private BlockingConnection subConnection;
+    private BlockingConnection pubConnection;
 
     @Rule
     public TemporaryFolder folder= new TemporaryFolder();
@@ -34,11 +38,14 @@ public class AgentTest {
     public void setUp() throws IOException {
         agent = spy(new Agent());
         processor = mock(AgentMessageProcessor.class);
-        mqtt = mock(MQTT.class);
-        connection = mock(BlockingConnection.class);
+        mqttSub = mock(MQTT.class);
+        mqttPub = mock(MQTT.class);
+        subConnection = mock(BlockingConnection.class);
+        pubConnection = mock(BlockingConnection.class);
         doReturn(processor).when(agent).createProcessor();
-        doReturn(mqtt).when(agent).createMQTT();
-        when(mqtt.blockingConnection()).thenReturn(connection);
+        doReturn(mqttSub).doReturn(mqttPub).when(agent).createMQTT();
+        when(mqttSub.blockingConnection()).thenReturn(subConnection);
+        when(mqttPub.blockingConnection()).thenReturn(pubConnection);
     }
 
     @Test
@@ -51,8 +58,10 @@ public class AgentTest {
         pw.close();
 
         agent.start(folder.getRoot().getAbsolutePath());
-        verify(mqtt).setHost(eq("localhost"), eq(1883));
-        verify(connection).connect();
+        verify(mqttSub).setHost(eq("localhost"), eq(1883));
+        verify(mqttPub).setHost(eq("localhost"), eq(1883));
+        verify(subConnection).connect();
+        verify(pubConnection).connect();
         verify(processor).executeStartup();
     }
 }

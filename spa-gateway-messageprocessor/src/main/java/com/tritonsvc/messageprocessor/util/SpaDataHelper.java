@@ -67,8 +67,8 @@ public final class SpaDataHelper {
         return builder.build();
     }
 
-    public static Bwg.Downlink.Model.RegistrationResponse buildRegistrationResponse(final Bwg.Downlink.Model.RegistrationAckState state, final Spa spa) {
-        final Bwg.Downlink.Model.RegistrationResponse.Builder builder = Bwg.Downlink.Model.RegistrationResponse.newBuilder();
+    public static Bwg.Downlink.Model.SpaRegistrationResponse buildSpaRegistrationResponse(final Bwg.Downlink.Model.RegistrationAckState state, final Spa spa) {
+        final Bwg.Downlink.Model.SpaRegistrationResponse.Builder builder = Bwg.Downlink.Model.SpaRegistrationResponse.newBuilder();
         builder.setState(state);
         if (spa != null) {
             if (spa.getP2pAPSSID() != null) {
@@ -121,7 +121,7 @@ public final class SpaDataHelper {
 
     private static Bwg.Header buildHeader(final Bwg.CommandType commandType, final String originator) {
         final Bwg.Header.Builder builder = Bwg.Header.newBuilder();
-        builder.setCommand(Bwg.CommandType.UPLINK).setSentTimestamp(System.currentTimeMillis());
+        builder.setCommand(commandType).setSentTimestamp(System.currentTimeMillis());
         if (originator != null) {
             builder.setOriginator(originator);
         }

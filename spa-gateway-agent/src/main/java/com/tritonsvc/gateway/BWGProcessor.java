@@ -16,7 +16,8 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResp
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
 import jdk.dio.uart.UARTConfig;
@@ -42,7 +43,8 @@ import static com.google.common.collect.Maps.newHashMap;
 public class BWGProcessor extends MQTTCommandProcessor {
 
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
-    private static final long MAX_REG_WAIT_TIME = 120000;
+    private static final long MAX_NEW_REG_WAIT_TIME = 120000;
+    private static final long MAX_REG_LIFETIME = 300000;
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
     private DB mapDb;
@@ -89,6 +91,12 @@ public class BWGProcessor extends MQTTCommandProcessor {
             LOGGER.info("received registration error state {}", response.getErrorMessage());
             return;
         }
+
+        if (response.getState() == RegistrationAckState.ALREADY_REGISTERED) {
+            LOGGER.info("confirmed registration state in cloud for id {}", hardwareId);
+            return;
+        }
+
         if (getRegisteredHWIds().containsKey(originatorId)) {
             DeviceRegistration registered = getRegisteredHWIds().get(originatorId);
             registered.setHardwareId(hardwareId);
@@ -98,6 +106,32 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
         } else {
             LOGGER.info("received registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
+        }
+    }
+
+    @Override
+    public void handleSpaRegistrationAck(SpaRegistrationResponse response, String originatorId, String hardwareId) {
+        if (response.getState() == RegistrationAckState.REGISTRATION_ERROR) {
+            LOGGER.info("received spa registration error state {}", response.getErrorMessage());
+            return;
+        }
+
+        if (response.getState() == RegistrationAckState.ALREADY_REGISTERED) {
+            LOGGER.info("confirmed registration state in cloud for spa", hardwareId);
+            return;
+        }
+
+        if (getRegisteredHWIds().containsKey(originatorId)) {
+            DeviceRegistration registered = getRegisteredHWIds().get(originatorId);
+            registered.setHardwareId(hardwareId);
+            registered.getMeta().put("apSSID", response.getP2PAPSSID());
+            registered.getMeta().put("apPassword", response.getP2PAPPassword());
+            getRegisteredHWIds().put(originatorId, registered);
+            commitData();
+            LOGGER.info("received successful spa registration, originatorid {} for hardwareid {} ", originatorId, hardwareId);
+
+        } else {
+            LOGGER.info("received spa registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
         }
     }
 
@@ -133,7 +167,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
             return;
         }
 
-        LOGGER.info("received downlink command from cloud and queued it up for rs485 transmission {}, originatorid = {}", request.getRequestType().name(), originatorId);
+        LOGGER.info("received downlink command from cloud and queued it up for rs485 transmission {}, originatorid = {}, sent ack back to cloud", request.getRequestType().name(), originatorId);
         sendAck(hardwareId, originatorId, AckResponseCode.OK, null);
     }
 
@@ -161,16 +195,18 @@ public class BWGProcessor extends MQTTCommandProcessor {
         if (metadataList != null && metadataList.size() > 0) {
             for (final RequestMetadata metadata : metadataList) {
                 if (SpaCommandAttribName.PORT.equals(metadata.getName())) {
-                    Integer temp = new Integer(metadata.getValue());
+                    Integer temp = new Integer(metadata.getValue()) + 1;
                     if (temp > 0 && temp < 9) {
                         port = temp;
                     } else {
-                        throw new RS485Exception("Invalid pump port param, must be between 1 and 8 inclusive: " + temp);
+                        throw new RS485Exception("Invalid pump port param, must be between 0 and 7 inclusive: " + (temp-1));
                     }
                 }
             }
         }
 
+        // TODO - look at DESIREDSTATE, need to get the current state of pump from controller, then send sequence of button codes
+        // to get that state
         if (port != null) {
             ButtonCode pumpButton = ButtonCode.valueOf("kJets<port>MetaButton".replaceAll("<port>", Integer.toString(port)));
             rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress);
@@ -180,8 +216,8 @@ public class BWGProcessor extends MQTTCommandProcessor {
     }
 
     @Override
-    public void handleUplinkAck(DownlinkAcknowledge ack, String originatorId) {
-        //TODO
+    public void handleUplinkAck(UplinkAcknowledge ack, String originatorId) {
+        //TODO - check if ack.NOT_REGISTERED and send up a registration if so
     }
 
     @Override
@@ -197,6 +233,12 @@ public class BWGProcessor extends MQTTCommandProcessor {
             LOGGER.info("skipping data harvest, spa controller has not been registered");
             return;
         }
+
+        if (rs485DataHarvester.getRegisteredAddress() == null) {
+            LOGGER.info("skipping data harvest, gateway has not registered over 485 bus with spa controller yet");
+            return;
+        }
+
         rs485DataHarvester.sendPeriodicSpaInfo(registeredController.getHardwareId());
         LOGGER.info("Finished data harvest periodic iteration");
     }
@@ -310,23 +352,24 @@ public class BWGProcessor extends MQTTCommandProcessor {
         try {
             regLock.readLock().lock();
             readLocked = true;
-            // only send reg if the device has not reg'd yet
+            // only send reg if current one has not expired or is absent
             String registrationHashCode = generateRegistrationKey(parentHwId, deviceTypeName, identityAttributes);
-            DeviceRegistration registeredDevice = getValidRegistration(registrationHashCode);
-            if (registeredDevice != null) {
-                return registeredDevice;
+            if (isValidRegistration(registrationHashCode) ) {
+                return getRegisteredHWIds().get(registrationHashCode);
             }
 
             regLock.readLock().unlock();
             readLocked = false;
             regLock.writeLock().lock();
             writeLocked = true;
-            registeredDevice = getValidRegistration(registrationHashCode);
-            if (registeredDevice != null) {
-                return registeredDevice;
+            if (isValidRegistration(registrationHashCode)) {
+                return getRegisteredHWIds().get(registrationHashCode);
             }
 
-            registeredDevice = new DeviceRegistration();
+            DeviceRegistration registeredDevice = (getRegisteredHWIds().containsKey(registrationHashCode) ?
+                    getRegisteredHWIds().get(registrationHashCode) : new DeviceRegistration());
+
+            registeredDevice.setLastTime(System.currentTimeMillis());
             getRegisteredHWIds().put(registrationHashCode, registeredDevice);
             commitData();
             super.sendRegistration(parentHwId, deviceTypeName, identityAttributes, registrationHashCode);
@@ -341,15 +384,16 @@ public class BWGProcessor extends MQTTCommandProcessor {
         }
     }
 
-    private DeviceRegistration getValidRegistration(String registrationHashCode) {
+    private boolean isValidRegistration(String registrationHashCode) {
         if (getRegisteredHWIds().containsKey(registrationHashCode)) {
             DeviceRegistration registeredDevice = getRegisteredHWIds().get(registrationHashCode);
-            // if the reg is too old, attempt another one
-            if (registeredDevice.getHardwareId() != null || System.currentTimeMillis() - registeredDevice.getLastTime() < MAX_REG_WAIT_TIME) {
-                return registeredDevice;
+            // if the reg request is too old, attempt another one
+            if ((registeredDevice.getHardwareId() != null && System.currentTimeMillis() - registeredDevice.getLastTime() < MAX_REG_LIFETIME) ||
+                    (registeredDevice.getHardwareId() == null && System.currentTimeMillis() - registeredDevice.getLastTime() < MAX_NEW_REG_WAIT_TIME)) {
+                return true;
             }
         }
-        return null;
+        return false;
     }
 
     private void setUpRS485() {

@@ -9,6 +9,8 @@ import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,11 +52,6 @@ public class MockProcessor extends MQTTCommandProcessor {
             return;
         }
 
-        if (originatorId.equals("spa_originatorid")) {
-            registeredSpa.setHardwareId(hardwareId);
-            LOGGER.info("received registration success for originator {} on hardwareid {} ", originatorId, hardwareId);
-        }
-
         if (originatorId.equals("controller_originatorid")) {
             registeredController.setHardwareId(hardwareId);
             LOGGER.info("received registration success for controller originator {} on hardwareid {} ", originatorId, hardwareId);
@@ -70,12 +67,30 @@ public class MockProcessor extends MQTTCommandProcessor {
 	}
 
     @Override
+    public void handleSpaRegistrationAck(SpaRegistrationResponse response, String originatorId, String hardwareId) {
+        if (response.getState() == RegistrationAckState.REGISTRATION_ERROR) {
+            LOGGER.info("received spa registration error state {}", response.getErrorMessage());
+            return;
+        }
+
+        if (originatorId.equals("spa_originatorid")) {
+            registeredSpa.setHardwareId(hardwareId);
+            registeredSpa.getMeta().put("apSSID", response.getP2PAPSSID());
+            registeredSpa.getMeta().put("apPassword", response.getP2PAPPassword());
+            LOGGER.info("received spa registration success for originator {} on hardwareid {} ", originatorId, hardwareId);
+        }
+
+        LOGGER.info("received spa registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
+
+    }
+
+    @Override
 	public void handleDownlinkCommand(Request request, String hardwareId, String originatorId) {
 		//TODO
 	}
 
     @Override
-	public void handleUplinkAck(DownlinkAcknowledge ack, String originatorId) {
+	public void handleUplinkAck(UplinkAcknowledge ack, String originatorId) {
 		//TODO
 	}
 

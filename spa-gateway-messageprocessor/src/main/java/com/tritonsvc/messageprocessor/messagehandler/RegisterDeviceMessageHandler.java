@@ -6,6 +6,8 @@ import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
 import com.tritonsvc.messageprocessor.util.SpaDataHelper;
 import com.tritonsvc.messageprocessor.util.StringUtil;
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.DownlinkCommandType;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -59,76 +63,44 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         } else if (DEVICE_TYPE_MOTE.equals(deviceTypeName)) {
             handleMoteRegistration(uplinkHeader, registerDeviceMessage);
         }
-
-        // type names:
-        // gateway, controller, mote
-        // gateway metadata: serialNumber
-        // mote metadata: mac
-
-
-        // Doing device registration  may be a good starting point for message processing.
-        // It's a bit more involved than other uplinks in that it requires a downlink ack to be
-        // sent with the newly registered hardwareId.
-        //
-        // inspect the message.deviceTypeName, parentDeviceHardwareId, and meta collection properties to determine what
-        // mongodb collection to add the device registration inoto and also determine the device's idenity within
-        // that collection, in some cases you'll get a deviceTypeName of 'pump' or 'mote', then you'll need to
-        // look at the keys in meta collection also because there's multiple of these types per single spa system
-        // such as pump1, pump2, mote1,mote2,mote3, so they'll have a meta property of 'port' with 1,2,3,etc for value
-        //
-        // check the target mongodb collection if the device is not there generate a new document, if
-        // device is already present, no need to update. In either case, need to get the unique device id for the document in mongodb
-        // and send that id back down to spa system as a downlink message in IDL called Downlink.Model.RegistrationResponse
-        //
-        // also, make sure to pass the originatorId present on any uplink message onto any downlink messages that get sent back
-        // to spa as a result, this is required for the RegistrationResponse message. Refer to BWGProcessor.java to
-        // see how the 'other' half processes the same downlink/uplink messages.
-        // ...
-
     }
 
     private void handleGatewayRegistration(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final RegisterDevice registerDeviceMessage) {
-
-        // FIXME any validation of incomming message?
-        // FIXME serial number required?
-
         // create spa
-        final String spaId = registerDeviceMessage.getParentDeviceHardwareId();
         final List<Bwg.Metadata> metadata = registerDeviceMessage.getMetadataList();
 
         final String serialNumber = SpaDataHelper.getMetadataValue("serialNumber", metadata);
         final String downlinkTopic = downlinkTopicName + (serialNumber != null ? "/"+serialNumber : "");
 
-        // FIXME find also by serial number?
+        if (StringUtils.isEmpty(serialNumber)) {
+            try {
+                final SpaRegistrationResponse registrationResponse = SpaDataHelper.buildSpaRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR, null);
+                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), null, DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
+            } catch (Exception e) {
+                log.error("error while sending downlink message", e);
+            }
+        }
 
         boolean newSpa = false;
-        Spa spa = null;
-        if (StringUtils.isEmpty(spaId)) {
+        Spa spa = spaRepository.findBySerialNumber(serialNumber);
+
+        if (spa == null) {
             log.info("creating new spa object");
             spa = new Spa();
-            spa.setP2pAPPassword(generateRandomString());
-            spa.setP2pAPSSID(generateRandomString());
-            spa.setSerialNumber(serialNumber);
-            spaRepository.save(spa);
             newSpa = true;
-        } else {
-            log.info("looking for spa with id {}", spaId);
-            spa = spaRepository.findOne(spaId);
         }
-        if (spa != null) {
-            try {
-                final Bwg.Downlink.Model.RegistrationResponse registrationResponse = SpaDataHelper.buildRegistrationResponse(newSpa ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED, spa);
-                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), spaId, Bwg.Downlink.DownlinkCommandType.ACK, registrationResponse));
-            } catch (Exception e) {
-                log.error("error while sending downlink message", e);
-            }
-        } else {
-            try {
-                final Bwg.Downlink.Model.RegistrationResponse registrationResponse = SpaDataHelper.buildRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR, null);
-                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), null, Bwg.Downlink.DownlinkCommandType.ACK, registrationResponse));
-            } catch (Exception e) {
-                log.error("error while sending downlink message", e);
-            }
+
+        spa.setP2pAPPassword(generateRandomString());
+        spa.setP2pAPSSID(generateRandomString());
+        spa.setSerialNumber(serialNumber);
+        spa.setRegistrationDate(new SimpleDateFormat(DATE_FORMAT).format(new Date()));
+        spaRepository.save(spa);
+
+        try {
+            final SpaRegistrationResponse registrationResponse = SpaDataHelper.buildSpaRegistrationResponse(newSpa ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED, spa);
+            mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), spa.get_id(), DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
+        } catch (Exception e) {
+            log.error("error while sending downlink message", e);
         }
     }
 

@@ -20,6 +20,7 @@ enum CommandType {
 enum AckResponseCode {
     OK = 1;
     ERROR = 2;
+    NOT_REGISTERED = 3;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -124,7 +125,8 @@ message Downlink {
 	enum DownlinkCommandType {
         ACK = 1;
         REGISTRATION_RESPONSE = 2;
-        REQUEST = 3;
+        SPA_REGISTRATION_RESPONSE =3;
+        REQUEST = 4;
 	}
 
 	// Header contains the command and originator.
@@ -149,6 +151,12 @@ message Downlink {
         // Acknowledges prior registration uplink, the hardwareId returned in header will be
         // the generated id field in the mongodb that was created in the cloud when registration message was received
         message RegistrationResponse {
+            required RegistrationAckState state = 1;
+            optional RegistrationAckError errorType = 2;
+            optional string errorMessage = 3;
+        }
+
+        message SpaRegistrationResponse {
             required RegistrationAckState state = 1;
             optional RegistrationAckError errorType = 2;
             optional string errorMessage = 3;

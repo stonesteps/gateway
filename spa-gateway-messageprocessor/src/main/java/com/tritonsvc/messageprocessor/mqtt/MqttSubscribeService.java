@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PreDestroy;
+import java.rmi.dgc.VMID;
 import java.util.concurrent.*;
 import java.util.concurrent.Future;
 
@@ -70,7 +71,8 @@ public final class MqttSubscribeService {
 
             mqtt.setHost(mqttHostname, mqttPort);
             mqtt.setKeepAlive(mqttKeepAliveSeconds);
-            mqtt.setCleanSession(true);
+            mqtt.setCleanSession(false);
+            mqtt.setClientId(new VMID().toString());
 
             connection = mqtt.futureConnection();
             connection.connect();

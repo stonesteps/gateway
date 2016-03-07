@@ -267,16 +267,20 @@ public class RS485DataHarvester implements Runnable {
 
     private void processUnassignedDevicePoll() {
         if (System.currentTimeMillis() - registrationLastAttempt.get() > 60000) {
-            byte[] requestKey = new byte[2];
-            new Random().nextBytes(requestKey);
-            int requestId =(0xFF00 & (requestKey[0] << 8)) | (0xFF & requestKey[1]);
-            registrationrequestId.set( requestId);
-            registrationLastAttempt.set(System.currentTimeMillis());
-            try {
-                rs485MessagePublisher.sendUnassignedDeviceResponse(requestId);
-            } catch (RS485Exception ex) {
-                LOGGER.error("unable to send unassigned device response", ex);
-                registrationrequestId.set(0);
+            synchronized(registrationLastAttempt) {
+                if (System.currentTimeMillis() - registrationLastAttempt.get() > 60000) {
+                    byte[] requestKey = new byte[2];
+                    new Random().nextBytes(requestKey);
+                    int requestId = (0xFF00 & (requestKey[0] << 8)) | (0xFF & requestKey[1]);
+                    registrationrequestId.set(requestId);
+                    registrationLastAttempt.set(System.currentTimeMillis());
+                    try {
+                        rs485MessagePublisher.sendUnassignedDeviceResponse(requestId);
+                    } catch (RS485Exception ex) {
+                        LOGGER.error("unable to send unassigned device response", ex);
+                        registrationrequestId.set(0);
+                    }
+                }
             }
         }
     }
