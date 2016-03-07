@@ -1,6 +1,9 @@
 package com.tritonsvc.messageprocessor;
 
 import com.bwg.iot.model.*;
+import com.bwg.iot.model.Component.ComponentType;
+import com.google.common.base.Objects;
+import com.google.common.base.Strings;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
@@ -94,6 +97,7 @@ public class DownlinkProcessor {
                     final String downlinkTopic = downlinkTopicName + (serialNumber != null ? "/" + serialNumber : "");
                     log.info("Sending downlink message to topic {}", downlinkTopic);
                     try {
+                        //TODO - need a targetTemp attrib on spa model, to hold last requested spa target temp, should update here
                         mqttSendService.sendMessage(downlinkTopic, messageData);
                         sent = true;
                     } catch (Exception e) {
@@ -130,6 +134,7 @@ public class DownlinkProcessor {
                     log.info("Sending downlink message to topic {}", downlinkTopic);
                     try {
                         mqttSendService.sendMessage(downlinkTopic, messageData);
+                        setComponentState(ComponentType.PUMP, port, desiredState, spa.getCurrentState().getComponents());
                         sent = true;
                     } catch (Exception e) {
                         log.error("Error while sending downlink message", e);
@@ -140,5 +145,13 @@ public class DownlinkProcessor {
             }
         }
         return sent;
+    }
+
+    private void setComponentState(ComponentType type, String port, String value, List<ComponentState> componentStates) {
+        for (ComponentState comp : componentStates) {
+            if (Objects.equal(comp.getComponentType(), type) && Objects.equal(comp.getPort(), port)) {
+                comp.setTargetValue(value);
+            }
+        }
     }
 }
