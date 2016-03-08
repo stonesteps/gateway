@@ -39,12 +39,12 @@ public class UplinkProcessor implements MessageListener {
     @Autowired
     private MqttSubscribeService mqttSubscribeService;
 
-    @Value("${uplinkTopicName:BWG/spa/uplink}")
-    private String uplinkTopicName;
+    @Autowired
+    private MessageProcessorConfiguration messageProcessorConfiguration;
 
     @PostConstruct
     public void start() throws Exception {
-        mqttSubscribeService.subscribe(uplinkTopicName, this);
+        mqttSubscribeService.subscribe(messageProcessorConfiguration.getUplinkTopicName(), this);
     }
 
     private Map<Class<?>, MessageHandler> handlersMap = new HashMap<>();

@@ -39,7 +39,7 @@ public class DownlinkAckMessageHandler extends AbstractMessageHandler<DownlinkAc
             return;
         }
 
-        request.setAckResponseCode( ackMessage.getCode().name());
+        request.setAckResponseCode(ackMessage.getCode().name());
         request.setAckTimestamp(new SimpleDateFormat(DATE_FORMAT).format(new Date()));
         spaCommandRepository.save(request);
     }

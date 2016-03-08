@@ -197,6 +197,8 @@ message Downlink {
             DIAG_REPORT = 6;
             PANEL = 7; // LOCK or UNLOCK
             HEATER = 8;
+            OZONE = 9;
+            MICROSILK = 10;
         }
 
         enum SpaCommandAttribName {
