@@ -30,12 +30,12 @@ public class DownlinkAckMessageHandler extends AbstractMessageHandler<DownlinkAc
 
     @Override
     public void processMessage(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final DownlinkAcknowledge ackMessage) {
-        log.info("processing downlink ack message for originator {}, and hw id {}, response code {} {} ", header.getOriginator(), uplinkHeader.getHardwareId(), ackMessage.getCode().name(), ackMessage.getDescription() == null ? "" : ackMessage.getDescription());
+        log.info("Processing downlink ack message for originator {}, and hw id {}, response code {} {} ", header.getOriginator(), uplinkHeader.getHardwareId(), ackMessage.getCode().name(), ackMessage.getDescription() == null ? "" : ackMessage.getDescription());
 
         SpaCommand request = spaCommandRepository.findByOriginatorIdAndSpaId(header.getOriginator(), uplinkHeader.getHardwareId());
 
         if (request == null) {
-            log.error("received an ack for prior downlink, however no originator {} and hardwareid {} exists.", header.getOriginator(), uplinkHeader.getHardwareId());
+            log.error("Received an ack for prior downlink, however no originator {} and hardwareid {} exists.", header.getOriginator(), uplinkHeader.getHardwareId());
             return;
         }
 

@@ -11,13 +11,7 @@ import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.gateway.DeviceRegistration.DeviceRegistrationSerializer;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
 import jdk.dio.uart.UARTConfig;
@@ -38,7 +32,6 @@ import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Gateway Agent processing, collects WSN data also.
- * 
  */
 public class BWGProcessor extends MQTTCommandProcessor {
 
@@ -60,9 +53,18 @@ public class BWGProcessor extends MQTTCommandProcessor {
     @Override
     public void handleShutdown() {
         mapDb.close();
-        try {rs485Uart.stopReading();} catch (Exception ex) {}
-        try {rs485Uart.stopWriting();} catch (Exception ex) {}
-        try {rs485Uart.close();} catch (Exception ex) {}
+        try {
+            rs485Uart.stopReading();
+        } catch (Exception ex) {
+        }
+        try {
+            rs485Uart.stopWriting();
+        } catch (Exception ex) {
+        }
+        try {
+            rs485Uart.close();
+        } catch (Exception ex) {
+        }
     }
 
     @Override
@@ -86,7 +88,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
     }
 
     @Override
-	public void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId) {
+    public void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId) {
         if (response.getState() == RegistrationAckState.REGISTRATION_ERROR) {
             LOGGER.info("received registration error state {}", response.getErrorMessage());
             return;
@@ -153,15 +155,22 @@ public class BWGProcessor extends MQTTCommandProcessor {
             switch (request.getRequestType()) {
                 case HEATER:
                     updateHeater(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress());
-                    break;
                 case PUMPS:
                     updatePumps(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress());
+                    break;
+                case LIGHTS:
+                    updateLights(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress());
+                    break;
+                case BLOWER:
+                    updateBlower(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress());
+                    break;
+                case MISTER:
+                    updateMister(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress());
                     break;
                 default:
                     sendAck(hardwareId, originatorId, AckResponseCode.ERROR, "not supported");
             }
-        }
-        catch (RS485Exception ex) {
+        } catch (RS485Exception ex) {
             LOGGER.error("had rs485 problem when sending a command ", ex);
             sendAck(hardwareId, originatorId, AckResponseCode.ERROR, ex.getMessage());
             return;
@@ -171,7 +180,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
         sendAck(hardwareId, originatorId, AckResponseCode.OK, null);
     }
 
-    private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception{
+    private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception {
         Integer temperature = null;
 
         if (metadataList != null && metadataList.size() > 0) {
@@ -189,17 +198,33 @@ public class BWGProcessor extends MQTTCommandProcessor {
         }
     }
 
-    private void updatePumps(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception{
+    private void updatePumps(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception {
+        updatePeripherlal(metadataList, registeredAddress, "kJets<port>MetaButton", 1, 8);
+    }
+
+    private void updateLights(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception {
+        updatePeripherlal(metadataList, registeredAddress, "kLight<port>MetaButton", 1, 4);
+    }
+
+    private void updateBlower(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception {
+        updatePeripherlal(metadataList, registeredAddress, "kBlower<port>MetaButton", 1, 2);
+    }
+
+    private void updateMister(final List<RequestMetadata> metadataList, byte registeredAddress) throws RS485Exception {
+        updatePeripherlal(metadataList, registeredAddress, "kMister<port>MetaButton", 1, 3);
+    }
+
+    private void updatePeripherlal(final List<RequestMetadata> metadataList, byte registeredAddress, final String buttonCodeTemplate, final int minPort, final int maxPort) throws RS485Exception {
         Integer port = null;
 
         if (metadataList != null && metadataList.size() > 0) {
             for (final RequestMetadata metadata : metadataList) {
                 if (SpaCommandAttribName.PORT.equals(metadata.getName())) {
                     Integer temp = new Integer(metadata.getValue()) + 1;
-                    if (temp > 0 && temp < 9) {
+                    if (temp >= minPort && temp <= maxPort) {
                         port = temp;
                     } else {
-                        throw new RS485Exception("Invalid pump port param, must be between 0 and 7 inclusive: " + (temp-1));
+                        throw new RS485Exception("Invalid pump port param, must be between " + (minPort - 1) + " and " + (maxPort - 1) + " inclusive: " + (temp - 1));
                     }
                 }
             }
@@ -208,8 +233,8 @@ public class BWGProcessor extends MQTTCommandProcessor {
         // TODO - look at DESIREDSTATE, need to get the current state of pump from controller, then send sequence of button codes
         // to get that state
         if (port != null) {
-            ButtonCode pumpButton = ButtonCode.valueOf("kJets<port>MetaButton".replaceAll("<port>", Integer.toString(port)));
-            rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress);
+            ButtonCode buttonCode = ButtonCode.valueOf(buttonCodeTemplate.replaceAll("<port>", Integer.toString(port)));
+            rs485MessagePublisher.sendButtonCode(buttonCode, registeredAddress);
         } else {
             throw new RS485Exception("Update pumps command did not have required port param");
         }
@@ -245,6 +270,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     /**
      * get the oid properties mapping in config file
+     *
      * @return
      */
     public OidProperties getOidProperties() {
@@ -262,6 +288,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     /**
      * get the handle to the rs 485 serial port
+     *
      * @return
      */
     public UART getRS485UART() {
@@ -277,7 +304,10 @@ public class BWGProcessor extends MQTTCommandProcessor {
         } catch (Throwable th) {
             // this is extreme, but if the map gets in a bad state in memory,
             // this is best way to allow it to get back up
-            try {mapDb.close();} catch (Throwable th2){}
+            try {
+                mapDb.close();
+            } catch (Throwable th2) {
+            }
             generateMapDb();
         }
     }
@@ -293,6 +323,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     /**
      * initiate a cloud registration for spa system as whole based on gateway serial number
+     *
      * @return
      */
     public DeviceRegistration obtainSpaRegistration() {
@@ -301,6 +332,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     /**
      * initiate a cloud reg for the spa controller
+     *
      * @param spaHardwareId
      * @return
      */
@@ -310,6 +342,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     /**
      * initiate a cloud reg for a mote
+     *
      * @param spaHardwareId
      * @param macAddress
      * @return
@@ -354,7 +387,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
             readLocked = true;
             // only send reg if current one has not expired or is absent
             String registrationHashCode = generateRegistrationKey(parentHwId, deviceTypeName, identityAttributes);
-            if (isValidRegistration(registrationHashCode) ) {
+            if (isValidRegistration(registrationHashCode)) {
                 return getRegisteredHWIds().get(registrationHashCode);
             }
 
@@ -398,7 +431,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     private void setUpRS485() {
         String serialPort = configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT, "/dev/ttys0");
-        int baudRate = Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD,"")) != null ?
+        int baudRate = Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD, "")) != null ?
                 Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD)) : 115200;
 
         UARTConfig config = new UARTConfig.Builder()
@@ -411,8 +444,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
                 .build();
         try {
             rs485Uart = DeviceManager.open(config);
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             throw Throwables.propagate(ex);
         }
 

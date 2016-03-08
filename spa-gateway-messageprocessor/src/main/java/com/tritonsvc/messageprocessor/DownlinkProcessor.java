@@ -64,12 +64,14 @@ public class DownlinkProcessor {
             log.error("Spa command is null, not processing");
         } else if (command.getRequestTypeId() != null && Bwg.Downlink.Model.RequestType.HEATER_VALUE == command.getRequestTypeId().intValue()) {
             sent = sendHeaterUpdateCommand(command);
+        } else if (command.getRequestTypeId() != null && Bwg.Downlink.Model.RequestType.PUMPS_VALUE == command.getRequestTypeId().intValue()) {
+            sent = sendPeripheralStateUpdateCommand(command, Bwg.Downlink.Model.RequestType.PUMPS);
         } else if (command.getRequestTypeId() != null && Bwg.Downlink.Model.RequestType.LIGHTS_VALUE == command.getRequestTypeId().intValue()) {
             sent = sendPeripheralStateUpdateCommand(command, Bwg.Downlink.Model.RequestType.LIGHTS);
         } else if (command.getRequestTypeId() != null && Bwg.Downlink.Model.RequestType.BLOWER_VALUE == command.getRequestTypeId().intValue()) {
             sent = sendPeripheralStateUpdateCommand(command, Bwg.Downlink.Model.RequestType.BLOWER);
-        } else if (command.getRequestTypeId() != null && Bwg.Downlink.Model.RequestType.PUMPS_VALUE == command.getRequestTypeId().intValue()) {
-            sent = sendPeripheralStateUpdateCommand(command, Bwg.Downlink.Model.RequestType.PUMPS);
+        } else if (command.getRequestTypeId() != null && Bwg.Downlink.Model.RequestType.MISTER_VALUE == command.getRequestTypeId().intValue()) {
+            sent = sendPeripheralStateUpdateCommand(command, Bwg.Downlink.Model.RequestType.MISTER);
         }
 
         return sent;
@@ -107,7 +109,7 @@ public class DownlinkProcessor {
         return sent;
     }
 
-    private boolean sendPeripheralStateUpdateCommand(SpaCommand command, Bwg.Downlink.Model.RequestType requestType) {
+    private boolean sendPeripheralStateUpdateCommand(final SpaCommand command, final Bwg.Downlink.Model.RequestType requestType) {
         boolean sent = false;
         final Spa spa = spaRepository.findOne(command.getSpaId());
         if (spa == null) {

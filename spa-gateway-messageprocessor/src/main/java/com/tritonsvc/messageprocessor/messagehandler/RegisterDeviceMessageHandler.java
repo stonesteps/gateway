@@ -48,13 +48,13 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
 
     @Override
     public void processMessage(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final Bwg.Uplink.Model.RegisterDevice registerDeviceMessage) {
-        log.info("processing register device message");
+        log.info("Processing register device message");
 
         final String deviceTypeName = registerDeviceMessage.getDeviceTypeName();
         final String parentDeviceHardwareId = registerDeviceMessage.getParentDeviceHardwareId();
 
-        log.info("registering device type name: {}", deviceTypeName);
-        log.info("with parent device hw id: {}", parentDeviceHardwareId);
+        log.info("Registering device type name: {}", deviceTypeName);
+        log.info("And with parent device hardware id: {}", parentDeviceHardwareId);
 
         if (DEVICE_TYPE_GATEWAY.equals(deviceTypeName)) {
             handleGatewayRegistration(header, uplinkHeader, registerDeviceMessage);
@@ -77,7 +77,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
                 final SpaRegistrationResponse registrationResponse = SpaDataHelper.buildSpaRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR, null);
                 mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), null, DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
             } catch (Exception e) {
-                log.error("error while sending downlink message", e);
+                log.error("Error while sending downlink gateway registration message", e);
             }
         }
 
@@ -85,7 +85,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         Spa spa = spaRepository.findBySerialNumber(serialNumber);
 
         if (spa == null) {
-            log.info("creating new spa object");
+            log.info("Creating new spa object");
             spa = new Spa();
             newSpa = true;
         }
@@ -100,7 +100,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
             final SpaRegistrationResponse registrationResponse = SpaDataHelper.buildSpaRegistrationResponse(newSpa ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED, spa);
             mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), spa.get_id(), DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
         } catch (Exception e) {
-            log.error("error while sending downlink message", e);
+            log.error("Error while sending downlink message", e);
         }
     }
 
