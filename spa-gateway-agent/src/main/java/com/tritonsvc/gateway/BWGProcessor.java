@@ -44,7 +44,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_NEW_REG_WAIT_TIME = 120000;
-    private static final long MAX_REG_LIFETIME = 300000;
+    private static final long MAX_REG_LIFETIME = 240000;
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
     private DB mapDb;
