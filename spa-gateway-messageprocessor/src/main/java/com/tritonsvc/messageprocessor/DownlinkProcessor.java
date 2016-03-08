@@ -1,6 +1,9 @@
 package com.tritonsvc.messageprocessor;
 
 import com.bwg.iot.model.*;
+import com.bwg.iot.model.Component.ComponentType;
+import com.google.common.base.Objects;
+import com.google.common.base.Strings;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
@@ -14,7 +17,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.List;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * this class is entry point responsible for performing all Downlink processing
@@ -96,7 +102,13 @@ public class DownlinkProcessor {
                     final String downlinkTopic = downlinkTopicName + (serialNumber != null ? "/" + serialNumber : "");
                     log.info("Sending downlink message to topic {}", downlinkTopic);
                     try {
+                        //TODO - need a targetTemp attrib on spa model, to hold last requested spa target temp, should update here
                         mqttSendService.sendMessage(downlinkTopic, messageData);
+                        if (spa.getCurrentState() == null) {
+                            spa.setCurrentState(new SpaState());
+                        }
+                        spa.getCurrentState().setTargetDesiredTemp(desiredTemp);
+                        spaRepository.save(spa);
                         sent = true;
                     } catch (Exception e) {
                         log.error("Error while sending downlink message", e);
@@ -132,6 +144,11 @@ public class DownlinkProcessor {
                     log.info("Sending downlink message to topic {}", downlinkTopic);
                     try {
                         mqttSendService.sendMessage(downlinkTopic, messageData);
+                        if (spa.getCurrentState() == null) {
+                            spa.setCurrentState(new SpaState());
+                        }
+                        setComponentTargetState(ComponentType.PUMP, port, desiredState, spa.getCurrentState().getComponents());
+                        spaRepository.save(spa);
                         sent = true;
                     } catch (Exception e) {
                         log.error("Error while sending downlink message", e);
@@ -142,5 +159,19 @@ public class DownlinkProcessor {
             }
         }
         return sent;
+    }
+
+    private void setComponentTargetState(ComponentType type, String port, String targetValue, Collection<ComponentState> componentStates) {
+        for (ComponentState comp : componentStates) {
+            if (Objects.equal(comp.getComponentType(), type.name()) && Objects.equal(comp.getPort(), port)) {
+                comp.setTargetValue(targetValue);
+                return;
+            }
+        }
+        ComponentState state = new ComponentState();
+        state.setTargetValue(targetValue);
+        state.setComponentType(type.name());
+        state.setPort(port);
+        componentStates.add(state);
     }
 }

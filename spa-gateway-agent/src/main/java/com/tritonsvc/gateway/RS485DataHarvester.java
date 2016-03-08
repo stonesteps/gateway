@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Date;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -41,14 +42,14 @@ public class RS485DataHarvester implements Runnable {
     //       messages received over 485. these objects get updated each time the 485 message arrives by processPanelUpdateMessage().
     //
     //       there is a dedicated thread that pushes spa info uplink message to cloud that gets its data from these objects,
-    //       the method that performs this task is sendPeriodicSpaInfo(). Feel free to start defining
+    //       the method that performs this task is sendPeriodicSpaInfo(). Feel free to start filling out
     //       these classes to enable sendPeriodicSpaInfo() to build the SpaInfo uplink message and define it in bwg.proto as needed.
     //       I will connect the rs485 data flow in processPanelUpdateMessage, unless you want to try that out, feel free,
     //       would need to refer to the ICD for message layout of PanelUpdate message.
     //
-    //private PanelUpdateMessage lastKnownPanelUpdateMessage;
     //private SystemInformation lastKnownSystemInformation;
     //
+    private SpaStateInfo lastKnownSpaState = new SpaStateInfo();
 
     /**
      * Constructor
@@ -243,23 +244,18 @@ public class RS485DataHarvester implements Runnable {
             return;
         }
 
-        if (packetType == 0) {
+        if (packetType == 0x0) {
             processUnassignedDevicePoll();
-
-        } else if (packetType == 2) {
+        } else if (packetType == 0x2) {
             processAddressAssignment(message);
-
-        } else if (packetType == 4) {
+        } else if (packetType == 0x4) {
             processDevicePresentQuery();
-
-        } else if (packetType == 6) {
+        } else if (packetType == 0x6) {
             processDevicePollForDownlink();
+        } else if (packetType == 0x13) {
+            processPanelUpdateMessage(message);
         }
 
-        //
-        //if (packetType == PanelUpdateMessage_TYPE) {
-        //    processPanelUpdateMessage(msgBuffer, hdlcHeader.byteLength);
-        //}
         //if (packetType == SystemInformation_TYPE) {
         //    processSystemInformationMessage(msgBuffer, hdlcHeader.byteLength);
         //}
@@ -316,38 +312,17 @@ public class RS485DataHarvester implements Runnable {
     }
 
     private void processPanelUpdateMessage(byte[] message) {
-        // ... do conditional parsing using protobufs and header logic,etc
-        // for any sub/nested structs within the message
-        // PanelUpdateMessage lastKnownPanelUpdateMessage = new PanelUpdateMessage();
-        // lastKnownPanelUpdateMessage.setXYZ(...)
-        // setPanelUpdateMessage(lastKnownPanelUpdateMessage);
-    }
-
-    public void sendPeriodicSpaInfo(String hardwareId) {
-        //TODO - Marek
-        //Map<String, String> meta = newHashMap();
-        //Map<String, Double> measurement = newHashMap();
-        //buildControllerTemps(lastKnownPanelUpdateMessage, meta, measurement);
-        //meta.put("comment", "controller data harvest");
+        //TODO - Marek, parse this panel update message using PanelUpdate message, sect 3.1.4 from ICD,
+        // http://iotdev02/download/attachments/1015837/NGSC%20Communications%20ICD.doc?version=1&modificationDate=1454715406000&api=v2
         //
-        //processor.sendMeasurements(hardwareId, null, measurement, new Date().getTime(), meta);
+        // and update lastKnownSpaState
+        //
+
+        lastKnownSpaState.setLastUpdated(new Date());
+        // ...
     }
 
-    /*
-    private void buildControllerTemps(lastKnownPanelUpdateMessage controllerInfo, Map<String, String> meta, Map<String, Double> measurement) {
-        double pre = new controllerInfo.getPreHeaterTemp();
-        double post = new controllerInfo.getPostHeaterTemp();
-
-        if (processor.getOidProperties().getPreHeaterTemp() != null) {
-            measurement.put(processor.getOidProperties().getPreHeaterTemp(), pre);
-        }
-        if (processor.getOidProperties().getPostHeaterTemp() != null) {
-            measurement.put(processor.getOidProperties().getPostHeaterTemp(), post);
-        }
-
-        // ... other measurements ...
-
-        meta.put("heater_temp_delta", Double.toString(Math.abs(pre - post)));
+    public SpaStateInfo getLatestSpaInfo() {
+        return lastKnownSpaState;
     }
-    */
 }
