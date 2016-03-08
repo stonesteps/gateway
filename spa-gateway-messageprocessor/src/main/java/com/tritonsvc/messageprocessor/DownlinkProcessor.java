@@ -102,6 +102,11 @@ public class DownlinkProcessor {
                     try {
                         //TODO - need a targetTemp attrib on spa model, to hold last requested spa target temp, should update here
                         mqttSendService.sendMessage(downlinkTopic, messageData);
+                        if (spa.getCurrentState() == null) {
+                            spa.setCurrentState(new SpaState());
+                        }
+                        spa.getCurrentState().setTargetDesiredTemp(desiredTemp);
+                        spaRepository.save(spa);
                         sent = true;
                     } catch (Exception e) {
                         log.error("Error while sending downlink message", e);
@@ -140,7 +145,7 @@ public class DownlinkProcessor {
                         if (spa.getCurrentState() == null) {
                             spa.setCurrentState(new SpaState());
                         }
-                        setComponentState(ComponentType.PUMP, port, desiredState, spa.getCurrentState().getComponents());
+                        setComponentTargetState(ComponentType.PUMP, port, desiredState, spa.getCurrentState().getComponents());
                         spaRepository.save(spa);
                         sent = true;
                     } catch (Exception e) {
@@ -154,15 +159,15 @@ public class DownlinkProcessor {
         return sent;
     }
 
-    private void setComponentState(ComponentType type, String port, String value, Collection<ComponentState> componentStates) {
+    private void setComponentTargetState(ComponentType type, String port, String targetValue, Collection<ComponentState> componentStates) {
         for (ComponentState comp : componentStates) {
             if (Objects.equal(comp.getComponentType(), type.name()) && Objects.equal(comp.getPort(), port)) {
-                comp.setTargetValue(value);
+                comp.setTargetValue(targetValue);
                 return;
             }
         }
         ComponentState state = new ComponentState();
-        state.setTargetValue(value);
+        state.setTargetValue(targetValue);
         state.setComponentType(type.name());
         state.setPort(port);
         componentStates.add(state);
