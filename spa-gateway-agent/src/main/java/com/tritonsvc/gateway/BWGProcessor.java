@@ -18,6 +18,12 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelDisplayCode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
 import jdk.dio.uart.UARTConfig;
@@ -28,10 +34,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -152,17 +161,19 @@ public class BWGProcessor extends MQTTCommandProcessor {
         try {
             switch (request.getRequestType()) {
                 case HEATER:
-                    updateHeater(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+                    rs485DataHarvester.arePanelCommandsSafe(true);
+                    updateHeater(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId, rs485DataHarvester.requiresCelsius());
                     break;
                 case PUMPS:
+                    rs485DataHarvester.arePanelCommandsSafe(false);
                     updatePumps(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
                     break;
                 default:
                     sendAck(hardwareId, originatorId, AckResponseCode.ERROR, "not supported");
             }
         }
-        catch (RS485Exception ex) {
-            LOGGER.error("had rs485 problem when sending a command ", ex);
+        catch (Exception ex) {
+            LOGGER.error("had problem when sending a command ", ex);
             sendAck(hardwareId, originatorId, AckResponseCode.ERROR, ex.getMessage());
             return;
         }
@@ -171,7 +182,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
         sendAck(hardwareId, originatorId, AckResponseCode.RECEIVED, null);
     }
 
-    private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception{
+    private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId, boolean celsius) throws Exception{
         Integer temperature = null;
 
         if (metadataList != null && metadataList.size() > 0) {
@@ -183,14 +194,22 @@ public class BWGProcessor extends MQTTCommandProcessor {
         }
 
         if (temperature != null) {
+            if (celsius) {
+                // convert fahr temp into bwg celsius value
+                temperature = new BigDecimal(2 *
+                        (new BigDecimal((5.0/9.0)*(temperature - 32)).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue()))
+                        .setScale(0, BigDecimal.ROUND_HALF_UP).intValue();
+            }
+            rs485DataHarvester.prepareForTemperatureChangeRequest(temperature);
             rs485MessagePublisher.setTemperature(temperature, registeredAddress, originatorId, hardwareId);
         } else {
             throw new RS485Exception("Update heater command did not have required metadata param: " + SpaCommandAttribName.DESIREDTEMP.name());
         }
     }
 
-    private void updatePumps(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception{
+    private void updatePumps(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws Exception{
         Integer port = null;
+        String desiredState = null;
 
         if (metadataList != null && metadataList.size() > 0) {
             for (final RequestMetadata metadata : metadataList) {
@@ -202,16 +221,26 @@ public class BWGProcessor extends MQTTCommandProcessor {
                         throw new RS485Exception("Invalid pump port param, must be between 0 and 7 inclusive: " + (temp-1));
                     }
                 }
+                if (SpaCommandAttribName.DESIREDSTATE.equals(metadata.getName())) {
+                    desiredState = metadata.getValue();
+                }
             }
         }
 
-        // TODO - look at DESIREDSTATE, need to get the current state of pump from controller, then send sequence of button codes
-        // to get that state
-        if (port != null) {
+        if (port != null && desiredState != null) {
+            // make an attempt to detect current state and not change if already set to desired
+            // there's no certain way to know how many states a pump supports, so if current and desired are different, just send the
+            // button command regardless of the desiredState value.
+            String currentState = rs485DataHarvester.getComponentState(ComponentType.PUMP, port);
+            if (Objects.equals(desiredState, currentState)) {
+                LOGGER.info("Request to change pump {} to {} was already current state, not sending rs485 command" );
+                return;
+            }
+
             ButtonCode pumpButton = ButtonCode.valueOf("kJets<port>MetaButton".replaceAll("<port>", Integer.toString(port)));
             rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress, originatorId, hardwareId);
         } else {
-            throw new RS485Exception("Update pumps command did not have required port param");
+            throw new RS485Exception("Update pumps command did not have required port and desiredState param");
         }
     }
 
@@ -239,9 +268,29 @@ public class BWGProcessor extends MQTTCommandProcessor {
             return;
         }
 
-        PeriodicSpaInfoReport report = new PeriodicSpaInfoReport(rs485DataHarvester.getLatestSpaInfo(), getCloudDispatcher());
-        report.publishToCloud(registeredController.getHardwareId());
-        LOGGER.info("Finished data harvest periodic iteration");
+        boolean locked = false;
+        try {
+            rs485DataHarvester.getLatestSpaInfoLock().readLock().lockInterruptibly();
+            locked = true;
+            if (rs485DataHarvester.getLatestSpaInfo().hasController() == false) {
+                throw new RS485Exception("panel update message has not been received yet, cannot generate spa state yet.");
+            }
+
+            if (rs485DataHarvester.getLatestSpaInfo().hasComponents() == false ||
+                    rs485DataHarvester.getLatestSpaInfo().hasSystemInfo() == false ||
+                    rs485DataHarvester.getLatestSpaInfo().hasSetupParams() == false) {
+                rs485MessagePublisher.sendPanelRequest(rs485DataHarvester.getRegisteredAddress(), null);
+                LOGGER.info("do not have DeviceConfig, SystemInfo, SetupParams yet, sent panel request");
+            }
+            getCloudDispatcher().sendUplink(registeredController.getHardwareId(), null, UplinkCommandType.SPA_STATE, rs485DataHarvester.getLatestSpaInfo());
+            LOGGER.info("Finished data harvest periodic iteration");
+        } catch (Exception ex) {
+            LOGGER.error("error while processing data harvest", ex);
+        } finally {
+            if (locked) {
+                rs485DataHarvester.getLatestSpaInfoLock().readLock().unlock();
+            }
+        }
     }
 
     /**
@@ -351,17 +400,17 @@ public class BWGProcessor extends MQTTCommandProcessor {
         boolean readLocked = false;
         boolean writeLocked = false;
         try {
-            regLock.readLock().lock();
+            regLock.readLock().lockInterruptibly();
             readLocked = true;
             // only send reg if current one has not expired or is absent
             String registrationHashCode = generateRegistrationKey(parentHwId, deviceTypeName, identityAttributes);
-            if (isValidRegistration(registrationHashCode) ) {
+            if (isValidRegistration(registrationHashCode)) {
                 return getRegisteredHWIds().get(registrationHashCode);
             }
 
             regLock.readLock().unlock();
             readLocked = false;
-            regLock.writeLock().lock();
+            regLock.writeLock().lockInterruptibly();
             writeLocked = true;
             if (isValidRegistration(registrationHashCode)) {
                 return getRegisteredHWIds().get(registrationHashCode);
@@ -375,6 +424,8 @@ public class BWGProcessor extends MQTTCommandProcessor {
             commitData();
             super.sendRegistration(parentHwId, deviceTypeName, identityAttributes, registrationHashCode);
             return registeredDevice;
+        } catch (InterruptedException ex) {
+            throw Throwables.propagate(ex);
         } finally {
             if (readLocked) {
                 regLock.readLock().unlock();

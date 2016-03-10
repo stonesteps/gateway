@@ -104,36 +104,240 @@ message Uplink {
             repeated Metadata metadata = 3;
         }
 
+        // check for existence, some of these child components may be absent initially, Controller at a minimum
+        // will be here, but left as optional for processing ease in the agent.
+        //
+        // Some attributes have enums associated to them, however they are not typed by that enum
+        // that's because not all values have enum values assigned, this would cause potential runtime errors during ser/deser
         message SpaState {
-            required RunMode runMode = 1;
-            required uint32 desiredTemp = 2;
+            optional Controller controller = 1;
+            optional SetupParams setupParams = 2;
+            optional SystemInfo systemInfo = 3;
+            optional Components components = 4;
+        }
+
+        // this is the state of each known component attached to controller
+        // if a component doesn't exist on spa, then it will be absent here. use hasXX() methods first to check
+        message Components {
+            optional Constants.HeaterState heater1= 1;
+            optional Constants.HeaterState heater2= 2;
+            optional bool ozone = 3;
+            optional bool microSilk = 4;
+            optional bool aux1 = 5;
+            optional bool aux2 = 6;
+            optional bool aux3 = 7;
+            optional bool aux4 = 8;
+            optional bool mister1 = 9;
+            optional bool mister2 = 10;
+            optional bool mister3 = 11;
+            optional Constants.PumpState pump1 =12;
+            optional Constants.PumpState pump2 =13;
+            optional Constants.PumpState pump3 =14;
+            optional Constants.PumpState pump4 =15;
+            optional Constants.PumpState pump5 =16;
+            optional Constants.PumpState pump6 =17;
+            optional Constants.PumpState pump7 =18;
+            optional Constants.PumpState pump8 =19;
+            optional uint32 fiberWheel = 20;
+            optional Constants.BlowerState blower1 = 21;
+            optional Constants.BlowerState blower2 = 22;
+            optional Constants.LightState light1 = 23;
+            optional Constants.LightState light2 = 24;
+            optional Constants.LightState light3 = 25;
+            optional Constants.LightState light4 = 26;
+            required fixed64 lastUpdateTimestamp = 27;
+        }
+
+        // this is the state of spa as obtained from the PanelUpdate message
+        message Controller {
+            // HeaterMode enum applies here, this is called Run Mode in ICD, but it's really the heater
+            required uint32 heaterMode = 1;
+            // this is always in Fahrenheit
+            required uint32 currentWaterTemp = 2;
             required uint32 hour = 3;
             required uint32 minute = 4;
-            repeated Measurement measurement = 5;
-            repeated Component component = 6;
-            required fixed64 processedDate = 7;
-            required uint32 errorCode = 8;
+            required fixed64 lastUpdateTimestamp = 5;
+            required uint32 errorCode = 6;
+            // PanelDisplayCode enum applies here
+            required uint32 uiCode = 7;
+            required uint32 uiSubCode = 8;
+            required bool invert = 9;
+            required bool allSegsOn = 10;
+            required bool panelLock = 11;
+            required bool filter1 = 12;
+            required bool filter2 = 13;
+            required bool military = 14;
+            required bool celsius = 15;
+            required Constants.TempRange tempRange =16;
+            required bool primingMode =17;
+            required bool soundAlarm = 18;
+            required bool repeat = 19;
+            required Constants.PumpState circPump = 20;
+            required Constants.PanelMode panelMode = 21;
+            required Constants.SwimSpaMode swimSpaMode = 22;
+            // MessageSeverity enum applies here
+            required uint32 messageSeverity = 23;
+            required bool swimSpaModeChanging = 24;
+            required bool heaterCooling = 25;
+            required bool latchingMessage = 26;
+            required bool demoMode = 27;
+            required bool cleanupCycle = 28;
+            required bool timeNotSet = 29;
+            required bool lightCycleOn = 30;
+            // this is always in Fahrenheit
+            required uint32 targetWaterTemperature = 31;
+            required bool elapsedTimeDisplay = 32;
+            required uint32 tvLiftState = 33;
+            required bool settingsLock = 34;
+            required bool spaOverheatDisabled = 35;
+            required bool specialTimeouts = 36;
+            required bool ABDisplay = 37;
+            required bool stirring = 38;
+            required bool ecoMode = 39;
+            required bool soakMode = 40;
+            // BluetoothStatus enum applies here
+            required uint32 bluetoothStatus = 41;
+            required bool overrangeEnabled = 42;
+            required bool heatExternallyDisabled = 43;
+            required bool testMode = 44;
+            required bool tempLock = 45;
         }
 
-        message Component {
-            required string type = 1;
-            optional uint32 port = 2;
-            required string value = 3;
+        // This is the parameters that spa has been programmed with
+        message SetupParams {
+            required int32 lowRangeLow = 1;
+            required int32 lowRangeHigh = 2;
+            required int32 highRangeLow = 3;
+            required int32 highRangeHigh = 4;
+            required bool gfciEnabled = 5;
+            required bool drainModeEnabled = 6;
+            required fixed64 lastUpdateTimestamp = 7;
         }
 
-        enum RunMode {
-            REST = 1;
-            READY = 2;
+        // This is the 'About' for spa, has sw versions, etc
+        message SystemInfo {
+            // HeaterPower enum applies here
+            required int32 heaterPower = 1;
+            required int32 mfrSSID = 2;
+            required int32 modelSSID = 3;
+            required int32 versionSSID = 4;
+            required int32 minorVersion = 5;
+            required int32 swSignature = 6;
+            required int32 heaterType = 7;
+            required int32 currentSetup = 8;
+            required fixed64 lastUpdateTimestamp = 9;
         }
 
-        enum EventType {
-            NOTIFY = 1;
-            ALERT = 2;
+        message Constants {
+
+            enum HeaterPower {
+                VOLT_120 = 0;
+                VOLT_240 = 1;
+                ONETOTHREE_KW = 2;
+                THREETOSIX_KW = 3;
+            }
+
+            enum BluetoothStatus {
+                NOT_PRESENT = 0;
+                OFF = 1;
+                POWERING_UP = 2;
+                DISCOVERABLE = 3;
+                CONNECTED = 4;
+                LINEIN_MODE = 5;
+                MODE_CHANGING = 6;
+                POWERING_DOWN = 7;
+                IDLE = 8;
+                AMPLIFIER_COMMS_LOST = 15;
+            }
+
+            enum PanelDisplayCode {
+                STANDBY = 5;
+                DEMO = 0xF;
+            }
+
+            enum HeaterMode {
+                REST = 1;
+                READY = 2;
+            }
+
+            enum EventType {
+                NOTIFY = 1;
+                ALERT = 2;
+            }
+
+            enum HeaterState {
+                HEATER_OFF = 0;
+                HEATER_ON = 1;
+                HEATER_WAITING = 2;
+                HEATER_UNDEFINED = 3;
+            }
+
+            enum PumpState {
+                PUMP_OFF = 0;
+                PUMP_LOW = 1;
+                PUMP_HIGH = 2;
+                PUMP_UNDEFINED = 3;
+            }
+
+            enum LightState {
+                LIGHT_OFF = 0;
+                LIGHT_LOW = 1;
+                LIGHT_MED = 2;
+                LIGHT_HIGH = 3;
+            }
+
+            enum BlowerState {
+                BLOWER_OFF = 0;
+                BLOWER_LOW = 1;
+                BLOWER_MED = 2;
+                BLOWER_HIGH = 3;
+            }
+
+            enum TempRange {
+                LOW = 0;
+                HIGH = 1;
+            }
+
+            enum PanelMode {
+                PANEL_MODE_NGSC = 0;
+                PANEL_MODE_SWIM_SPA = 1;
+                PANEL_MODE_UNDEFINED_0 = 2;
+                PANEL_MODE_UNDEFINED_1 = 3;
+            }
+
+            enum SwimSpaMode {
+                SWIM_MODE_OTHER = 0;
+                SWIM_MODE_SPA = 1;
+                SWIM_MODE_SWIM = 2;
+                SWIM_MODE_SPILLOVER = 3;
+            }
+
+            enum MessageSeverity {
+                NONE = 0;
+                REMINDER = 1;
+                INFO = 2;
+                WARNING = 3;
+                ERROR = 4;
+                FATAL = 5;
+            }
+
+            enum ComponentType {
+                HEATER = 0;
+                OZONE = 1;
+                MICROSILK = 2;
+                AUX = 3;
+                MISTER = 4;
+                PUMP = 5;
+                FIBERWHEEL = 6;
+                BLOWER = 7;
+                LIGHT = 8;
+                AV = 9;
+            }
         }
 
         // A non-scheduled event
         message Event {
-            required EventType eventType = 1;
+            required Constants.EventType eventType = 1;
             optional fixed64 eventTimestamp = 2;
             repeated Metadata metadata = 3;
         }

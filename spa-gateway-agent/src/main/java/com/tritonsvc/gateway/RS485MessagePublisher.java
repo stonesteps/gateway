@@ -35,11 +35,11 @@ public class RS485MessagePublisher {
     /**
      * assemble the target temperature message and put it on downlink queue
      *
-     * @param newTemp
+     * @param newTempFahr
      * @param address
      * @throws RS485Exception
      */
-    public synchronized void setTemperature(int newTemp, byte address, String originatorId, String hardwareId) throws RS485Exception {
+    public synchronized void setTemperature(int newTempFahr, byte address, String originatorId, String hardwareId) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(8);
             bb.put(DELIMITER_BYTE); // start flag
@@ -47,7 +47,7 @@ public class RS485MessagePublisher {
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
             bb.put((byte) 0x20); // the set target temp packet type
-            bb.put((byte) (0xFF & newTemp));
+            bb.put((byte) (0xFF & newTempFahr));
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
             addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
@@ -111,6 +111,36 @@ public class RS485MessagePublisher {
         }
         catch (Throwable ex) {
             LOGGER.info("rs485 sending unnassigned device response got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+    public synchronized void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception {
+        try {
+
+            int request = 0x06;
+            if (faultLogEntryNumber != null) {
+                request |= 0x20;
+            }
+
+            ByteBuffer bb = ByteBuffer.allocate(10);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte)0x08); // length between flags
+            bb.put(address); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte)0x22); // the panel request packet type
+            bb.put((byte)(0xFF & request)); // requested messages
+            bb.put((byte) (faultLogEntryNumber != null ? (0xFF & faultLogEntryNumber) : 0x00)); // fault log entry number
+            bb.put((byte)0x01); // get device config
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            bb.position(0);
+
+            addToPending(new PendingRequest(bb.array(), "self", null));
+            LOGGER.info("sent panel request {}", printHexBinary(bb.array()));
+        }
+        catch (Throwable ex) {
+            LOGGER.info("rs485 sending panel request got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
     }
@@ -186,10 +216,14 @@ public class RS485MessagePublisher {
                 ByteBuffer bb = ByteBuffer.wrap(requestMessage.getPayload());
                 try {
                     processor.getRS485UART().write(bb);
-                    processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.OK, null);
+                    if (requestMessage.getHardwareId() != null) {
+                        processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.OK, null);
+                    }
                     LOGGER.info("sent queued downlink message, originator {}, as 485 poll response, payload {}, there are {} remaining, sent OK ack back to cloud", requestMessage.getOriginatorId(), printHexBinary(bb.array()), pendingDownlinks.size());
                 } catch (Exception ex) {
-                    processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.ERROR, "485 communication problem");
+                    if (requestMessage.getHardwareId() != null) {
+                        processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.ERROR, "485 communication problem");
+                    }
                     LOGGER.info("failed sending downlink message, originator {}, as 485 poll response, payload {}", requestMessage.getOriginatorId(), printHexBinary(bb.array()));
                     throw ex;
                 } finally {

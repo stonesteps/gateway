@@ -9,10 +9,10 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DeviceMeasurements;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.EventType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
@@ -212,7 +212,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
      * @param eventTimestampMillis
      * @param meta
      */
-	public void sendEvent(String hardwareId, EventType eventType, long eventTimestampMillis,  Map<String, String> meta ) {
+	public void sendEvent(String hardwareId, Constants.EventType eventType, long eventTimestampMillis, Map<String, String> meta ) {
 		Event.Builder eb = Event.newBuilder();
         eb.setEventTimestamp(eventTimestampMillis);
         eb.setEventType(eventType);
