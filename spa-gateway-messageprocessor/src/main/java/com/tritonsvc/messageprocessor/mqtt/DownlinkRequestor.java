@@ -4,12 +4,14 @@ import com.bwg.iot.model.ComponentState;
 import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaCommand;
 import com.bwg.iot.model.SpaState;
+import com.bwg.iot.model.util.SpaRequestUtil;
 import com.google.common.base.Objects;
 import com.tritonsvc.messageprocessor.MessageProcessorConfiguration;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.util.NumberHelper;
 import com.tritonsvc.messageprocessor.util.SpaDataHelper;
 import com.tritonsvc.spa.communication.proto.Bwg;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -87,9 +89,9 @@ public final class DownlinkRequestor {
 
             final String port = command.getValues().get(SpaCommand.ValueKeyName.PORT.getKeyName());
             final String desiredState = command.getValues().get(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName());
-            if (!validatePort(port, command.getRequestTypeId())) {
+            if (port != null && NumberUtils.isNumber(port) && !SpaRequestUtil.validPort(command.getRequestTypeId(), NumberUtils.createInteger(port))) {
                 log.error("Port passed with command is invalid {}", port);
-            } else if (!validateDesiredState(desiredState, command.getRequestTypeId())) {
+            } else if (!SpaRequestUtil.validState(command.getRequestTypeId(), desiredState)) {
                 log.error("Desired state passed with command is invalid {}", desiredState);
             } else {
                 final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(requestType, command.getValues());
@@ -103,8 +105,11 @@ public final class DownlinkRequestor {
                         if (spa.getCurrentState() == null) {
                             spa.setCurrentState(new SpaState());
                         }
-                        setComponentTargetState(com.bwg.iot.model.Component.ComponentType.PUMP, port, desiredState, spa.getCurrentState().getComponents());
-                        spaRepository.save(spa);
+                        com.bwg.iot.model.Component.ComponentType componentType = getComponentForRequestId(command.getRequestTypeId());
+                        if (componentType != null) {
+                            setComponentTargetState(componentType, port, desiredState, spa.getCurrentState().getComponents());
+                            spaRepository.save(spa);
+                        }
                         sent = true;
                     } catch (Exception e) {
                         log.error("Error while sending downlink message", e);
@@ -117,14 +122,18 @@ public final class DownlinkRequestor {
         return sent;
     }
 
-    private boolean validatePort(String port, Integer requestTypeId) {
-        // sometimes not required - optional
-        return true;
-    }
-
-    private boolean validateDesiredState(String desiredState, Integer requestTypeId) {
-        // for lights more available states
-        return true;
+    private com.bwg.iot.model.Component.ComponentType getComponentForRequestId(int requestTypeId) {
+        switch (requestTypeId) {
+            case 1: return com.bwg.iot.model.Component.ComponentType.PUMP;
+            case 2: return com.bwg.iot.model.Component.ComponentType.LIGHT;
+            case 3: return com.bwg.iot.model.Component.ComponentType.BLOWER;
+            case 4: return com.bwg.iot.model.Component.ComponentType.MISTER;
+            case 5: return com.bwg.iot.model.Component.ComponentType.FILTER;
+            case 9: return com.bwg.iot.model.Component.ComponentType.OZONE;
+            case 10: return com.bwg.iot.model.Component.ComponentType.MICROSILK;
+            case 11: return com.bwg.iot.model.Component.ComponentType.AUX;
+            default: return null;
+        }
     }
 
     private void setComponentTargetState(com.bwg.iot.model.Component.ComponentType type, String port, String targetValue, Collection<ComponentState> componentStates) {
