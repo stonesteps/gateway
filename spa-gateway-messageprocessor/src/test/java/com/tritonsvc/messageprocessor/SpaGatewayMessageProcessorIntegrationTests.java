@@ -19,7 +19,7 @@ import java.util.Collection;
 import java.util.HashMap;
 
 @RunWith(SpringJUnit4ClassRunner.class)
-@SpringApplicationConfiguration(classes = {SpaGatewayMessageProcessorApplication.class, UnitTestApplicationConfig.class})
+@SpringApplicationConfiguration(classes = SpaGatewayMessageProcessorApplication.class)
 public class SpaGatewayMessageProcessorIntegrationTests {
 
     @Autowired
