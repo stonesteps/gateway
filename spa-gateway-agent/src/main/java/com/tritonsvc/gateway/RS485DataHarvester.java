@@ -3,17 +3,23 @@ package com.tritonsvc.gateway;
 import com.google.common.base.Throwables;
 import com.google.common.primitives.Bytes;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BlowerState;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.AvailableStates;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelDisplayCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelMode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PumpState;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.QuadState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.SwimSpaMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TriState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Controller;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SetupParams;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SystemInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +33,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -76,12 +81,6 @@ public class RS485DataHarvester implements Runnable {
                 rejectCount.set(0);
             }
         });
-
-        spaState = (SpaState.newBuilder(spaState)
-                .setComponents(Components.newBuilder(spaState.getComponents()).setBlower2(BlowerState.BLOWER_HIGH)
-                        .build())
-                .build());
-
 
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
@@ -176,7 +175,7 @@ public class RS485DataHarvester implements Runnable {
      * @return
      * @throws Exception
      */
-    public String getComponentState(ComponentType type, int port) throws Exception {
+    public ComponentInfo getComponentState(ComponentType type, int port) throws Exception {
         boolean locked = false;
         try {
             getLatestSpaInfoLock().readLock().lockInterruptibly();
@@ -185,21 +184,21 @@ public class RS485DataHarvester implements Runnable {
                 case PUMP:
                     switch (port) {
                         case 1:
-                            return spaState.getComponents().hasPump1() ? spaState.getComponents().getPump1().name(): null;
+                            return spaState.getComponents().hasPump1() ? new ComponentInfo(spaState.getComponents().getPump1().getCurrentState().name(), spaState.getComponents().getPump1().getAvailableStates()): null;
                         case 2:
-                            return spaState.getComponents().hasPump2() ? spaState.getComponents().getPump2().name(): null;
+                            return spaState.getComponents().hasPump2() ? new ComponentInfo(spaState.getComponents().getPump2().getCurrentState().name(), spaState.getComponents().getPump2().getAvailableStates()) : null;
                         case 3:
-                            return spaState.getComponents().hasPump3() ? spaState.getComponents().getPump3().name(): null;
+                            return spaState.getComponents().hasPump3() ? new ComponentInfo(spaState.getComponents().getPump3().getCurrentState().name(), spaState.getComponents().getPump3().getAvailableStates()) : null;
                         case 4:
-                            return spaState.getComponents().hasPump4() ? spaState.getComponents().getPump4().name(): null;
+                            return spaState.getComponents().hasPump4() ? new ComponentInfo(spaState.getComponents().getPump4().getCurrentState().name(), spaState.getComponents().getPump4().getAvailableStates()) : null;
                         case 5:
-                            return spaState.getComponents().hasPump5() ? spaState.getComponents().getPump5().name(): null;
+                            return spaState.getComponents().hasPump5() ? new ComponentInfo(spaState.getComponents().getPump5().getCurrentState().name(), spaState.getComponents().getPump5().getAvailableStates()) : null;
                         case 6:
-                            return spaState.getComponents().hasPump6() ? spaState.getComponents().getPump6().name(): null;
+                            return spaState.getComponents().hasPump6() ? new ComponentInfo(spaState.getComponents().getPump6().getCurrentState().name(), spaState.getComponents().getPump6().getAvailableStates()) : null;
                         case 7:
-                            return spaState.getComponents().hasPump7() ? spaState.getComponents().getPump7().name(): null;
+                            return spaState.getComponents().hasPump7() ? new ComponentInfo(spaState.getComponents().getPump7().getCurrentState().name(), spaState.getComponents().getPump7().getAvailableStates()) : null;
                         case 8:
-                            return spaState.getComponents().hasPump8() ? spaState.getComponents().getPump8().name(): null;
+                            return spaState.getComponents().hasPump8() ? new ComponentInfo(spaState.getComponents().getPump8().getCurrentState().name(), spaState.getComponents().getPump8().getAvailableStates()) : null;
                     }
             }
         } finally {
@@ -491,6 +490,7 @@ public class RS485DataHarvester implements Runnable {
             if (components != null) {
                 builder.setComponents(components);
             }
+            builder.setLastUpdateTimestamp(new Date().getTime());
             spaState = builder.build();
         } catch (Exception ex) {
             throw Throwables.propagate(ex);
@@ -522,7 +522,38 @@ public class RS485DataHarvester implements Runnable {
 
         compsBuilder.setLastUpdateTimestamp(new Date().getTime());
         if (compsBuilder.hasAux1()) { compsBuilder.setAux1((0x08 & message[19]) > 0);}
-        if (compsBuilder.hasAux2()) { compsBuilder.setAux1((0x10 & message[19]) > 0);}
+        if (compsBuilder.hasAux2()) { compsBuilder.setAux2((0x10 & message[19]) > 0);}
+        if (compsBuilder.hasAux3()) { compsBuilder.setAux3((0x20 & message[19]) > 0);}
+        if (compsBuilder.hasAux4()) { compsBuilder.setAux4((0x40 & message[19]) > 0);}
+
+        if (compsBuilder.hasMister3()) { compsBuilder.setMister3((0x04 & message[19]) > 0);}
+        if (compsBuilder.hasMister2()) { compsBuilder.setMister2((0x02 & message[19]) > 0);}
+        if (compsBuilder.hasMister1()) { compsBuilder.setMister1((0x01 & message[19]) > 0);}
+
+        if (compsBuilder.hasMicroSilk()) { compsBuilder.setMicroSilk((0x02 & message[26]) > 0);}
+        if (compsBuilder.hasOzone()) { compsBuilder.setOzone((0x04 & message[14]) > 0);}
+
+        if (compsBuilder.hasHeater1()) { compsBuilder.setHeater1(HeaterState.valueOf((0x30 & message[14]) >> 4));}
+        if (compsBuilder.hasHeater2()) { compsBuilder.setHeater2(HeaterState.valueOf((0xC0 & message[14]) >> 6));}
+
+        if (compsBuilder.hasPump1()) { compsBuilder.setPump1(PumpComponent.newBuilder(compsBuilder.getPump1()).setCurrentState(TriState.valueOf(0x03 & message[15])));}
+        if (compsBuilder.hasPump2()) { compsBuilder.setPump2(PumpComponent.newBuilder(compsBuilder.getPump2()).setCurrentState(TriState.valueOf((0x0C & message[15]) >> 2)));}
+        if (compsBuilder.hasPump3()) { compsBuilder.setPump3(PumpComponent.newBuilder(compsBuilder.getPump3()).setCurrentState(TriState.valueOf((0x30 & message[15]) >> 4)));}
+        if (compsBuilder.hasPump4()) { compsBuilder.setPump4(PumpComponent.newBuilder(compsBuilder.getPump4()).setCurrentState(TriState.valueOf((0xC0 & message[15]) >> 6)));}
+        if (compsBuilder.hasPump5()) { compsBuilder.setPump5(PumpComponent.newBuilder(compsBuilder.getPump5()).setCurrentState(TriState.valueOf(0x03 & message[16])));}
+        if (compsBuilder.hasPump6()) { compsBuilder.setPump6(PumpComponent.newBuilder(compsBuilder.getPump6()).setCurrentState(TriState.valueOf((0x0C & message[16]) >> 2)));}
+        if (compsBuilder.hasPump7()) { compsBuilder.setPump7(PumpComponent.newBuilder(compsBuilder.getPump7()).setCurrentState(TriState.valueOf((0x30 & message[16]) >> 4)));}
+        if (compsBuilder.hasPump8()) { compsBuilder.setPump8(PumpComponent.newBuilder(compsBuilder.getPump8()).setCurrentState(TriState.valueOf((0xC0 & message[16]) >> 6)));}
+        if (compsBuilder.hasCirculationPump()) { compsBuilder.setCirculationPump(PumpComponent.newBuilder(compsBuilder.getCirculationPump()).setCurrentState(TriState.valueOf(0x03 & message[17])));}
+
+        if (compsBuilder.hasBlower1()) { compsBuilder.setBlower1(BlowerComponent.newBuilder(compsBuilder.getBlower1()).setCurrentState(QuadState.valueOf((0x0C & message[17]) >> 2)));}
+        if (compsBuilder.hasBlower2()) { compsBuilder.setBlower2(BlowerComponent.newBuilder(compsBuilder.getBlower2()).setCurrentState(QuadState.valueOf((0x30 & message[17]) >> 4)));}
+        if (compsBuilder.hasFiberWheel()) { compsBuilder.setFiberWheel(0xC0 & message[17] >> 6);}
+
+        if (compsBuilder.hasLight1()) { compsBuilder.setLight1(LightComponent.newBuilder(compsBuilder.getLight1()).setCurrentState(QuadState.valueOf(0x03 & message[18])));}
+        if (compsBuilder.hasLight2()) { compsBuilder.setLight2(LightComponent.newBuilder(compsBuilder.getLight2()).setCurrentState(QuadState.valueOf((0x0C & message[18]) >> 2)));}
+        if (compsBuilder.hasLight3()) { compsBuilder.setLight3(LightComponent.newBuilder(compsBuilder.getLight3()).setCurrentState(QuadState.valueOf((0x30 & message[18]) >> 4)));}
+        if (compsBuilder.hasLight4()) { compsBuilder.setLight4(LightComponent.newBuilder(compsBuilder.getLight4()).setCurrentState(QuadState.valueOf((0xC0 & message[18]) >> 6)));}
 
         return compsBuilder.build();
     }
@@ -535,7 +566,6 @@ public class RS485DataHarvester implements Runnable {
                 .setAllSegsOn((0x40 & message[13]) > 0)
                 .setBluetoothStatus((0xF0 & message[27]) >> 4)
                 .setCelsius(isCelsius.get())
-                .setCircPump(PumpState.valueOf(0x03 & message[17]))
                 .setCleanupCycle((0x08 & message[23]) > 0)
                 .setCurrentWaterTemp(bwgTempToFahrenheit(isCelsius.get(), (0xFF & message[6])))
                 .setDemoMode((0x10 & message[23]) > 0)
@@ -548,7 +578,7 @@ public class RS485DataHarvester implements Runnable {
                 .setInvert((0x80 & message[13]) > 0)
                 .setLastUpdateTimestamp(new Date().getTime())
                 .setLatchingMessage((0x20 & message[23]) > 0)
-                .setLightCycleOn((0x01 & message[23]) > 0)
+                .setLightCycle((0x01 & message[23]) > 0)
                 .setMessageSeverity((0x0F & message[22]))
                 .setMilitary((0x02 & message[13]) > 0)
                 .setMinute(0xFF & message[8])
@@ -586,7 +616,39 @@ public class RS485DataHarvester implements Runnable {
     }
 
     private void processSystemInfoMessage(byte[] message) {
+        long signature = (0xFF & message[17]) << 24;
+        signature |= (0xFF & message[18]) << 16;
+        signature |= (0xFF & message[18]) << 8;
+        signature |= (0xFF & message[18]);
 
+        SystemInfo systemInfo = SystemInfo.newBuilder()
+                .setLastUpdateTimestamp(new Date().getTime())
+                .setCurrentSetup(0xFF & message[16])
+                .setHeaterPower(0x0F & message[21])
+                .setHeaterType((0xF0 & message[21]) >> 4)
+                .setMfrSSID(0xFF & message[4])
+                .setSwSignature((int)(0xFFFFFFFF & signature))
+                .setMinorVersion(0xFF & message[7])
+                .setModelSSID(0xFF & message[5])
+                .setVersionSSID(0xFF & message[6])
+                .build();
+
+        boolean wLocked = false;
+        try {
+            getLatestSpaInfoLock().writeLock().lockInterruptibly();
+            wLocked = true;
+            SpaState.Builder builder = SpaState.newBuilder(spaState);
+            builder.setSystemInfo(systemInfo);
+            builder.setLastUpdateTimestamp(new Date().getTime());
+            spaState = builder.build();
+        } catch (Exception ex) {
+            throw Throwables.propagate(ex);
+        }
+        finally {
+            if (wLocked) {
+                getLatestSpaInfoLock().writeLock().unlock();
+            }
+        }
     }
 
     private void processSetupParamsMessage(byte[] message) {
@@ -611,6 +673,7 @@ public class RS485DataHarvester implements Runnable {
             wLocked = true;
             SpaState.Builder builder = SpaState.newBuilder(spaState);
             builder.setSetupParams(setupParams);
+            builder.setLastUpdateTimestamp(new Date().getTime());
             spaState = builder.build();
         } catch (Exception ex) {
             throw Throwables.propagate(ex);
@@ -623,7 +686,217 @@ public class RS485DataHarvester implements Runnable {
     }
 
     private void processDeviceConfigsMessage(byte[] message) {
+        boolean rLocked = false;
+        Components.Builder compsBuilder = Components.newBuilder();
+        Components components;
+        try {
+            getLatestSpaInfoLock().readLock().lockInterruptibly();
+            rLocked = true;
+            if (spaState.hasComponents()) {
+                compsBuilder.mergeFrom(spaState.getComponents());
+            }
+        } catch (Exception ex) {
+            throw Throwables.propagate(ex);
+        } finally {
+            if (rLocked) {
+                getLatestSpaInfoLock().readLock().unlock();
+            }
+        }
 
+        int value = (0x03 & message[4]);
+        if ( value > 0) {
+            compsBuilder.setPump1(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearPump1();
+        }
+
+        value = ((0x0C & message[4]) >> 2);
+        if ( value > 0) {
+            compsBuilder.setPump2(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearPump2();
+        }
+
+        value = ((0x30 & message[4]) >> 4);
+        if ( value > 0) {
+            compsBuilder.setPump3(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearPump3();
+        }
+
+        value = ((0xC0 & message[4]) >> 6);
+        if ( value > 0) {
+            compsBuilder.setPump4(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearPump4();
+        }
+
+        value = (0x03 & message[5]);
+        if ( value > 0) {
+            compsBuilder.setPump5(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearPump5();
+        }
+
+        value = ((0x0C & message[5]) >> 2);
+        if ( value > 0) {
+            compsBuilder.setPump6(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearPump6();
+        }
+
+        value = ((0x30 & message[5]) >> 4);
+        if ( value > 0) {
+            compsBuilder.setPump7(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearPump7();
+        }
+
+        value = ((0xC0 & message[5]) >> 6);
+        if ( value > 0) {
+            compsBuilder.setPump8(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearPump8();
+        }
+
+        value = (0x03 & message[6]);
+        if ( value > 0) {
+            compsBuilder.setLight1(LightComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearLight1();
+        }
+
+        value = ((0x0C & message[6]) >> 2);
+        if ( value > 0) {
+            compsBuilder.setLight2(LightComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearLight2();
+        }
+
+        value = ((0x30 & message[6]) >> 4);
+        if ( value > 0) {
+            compsBuilder.setLight3(LightComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearLight3();
+        }
+
+        value = ((0xC0 & message[6]) >> 6);
+        if ( value > 0) {
+            compsBuilder.setLight4(LightComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearLight4();
+        }
+
+        value = (0x03 & message[7]);
+        if ( value > 0) {
+            compsBuilder.setBlower1(BlowerComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearBlower1();
+        }
+
+        value = ((0x0C & message[7]) >> 2);
+        if ( value > 0) {
+            compsBuilder.setBlower2(BlowerComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+        } else {
+            compsBuilder.clearBlower2();
+        }
+
+        if ((0x10 & message[7]) > 0) {
+            compsBuilder.setHeater1(HeaterState.HEATER_UNDEFINED);
+        } else {
+            compsBuilder.clearHeater1();
+        }
+
+        if ((0x20 & message[7]) > 0) {
+            compsBuilder.setHeater2(HeaterState.HEATER_UNDEFINED);
+        } else {
+            compsBuilder.clearHeater2();
+        }
+
+        if ((0x40 & message[7]) > 0) {
+            compsBuilder.setOzone(false);
+        } else {
+            compsBuilder.clearOzone();
+        }
+
+        if ((0x80 & message[7]) > 0) {
+            compsBuilder.setCirculationPump(PumpComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
+        } else {
+            compsBuilder.clearCirculationPump();
+        }
+
+        if ((0x01 & message[8]) > 0) {
+            compsBuilder.setAux1(false);
+        } else {
+            compsBuilder.clearAux1();
+        }
+
+        if ((0x02 & message[8]) > 0) {
+            compsBuilder.setAux2(false);
+        } else {
+            compsBuilder.clearAux2();
+        }
+
+        if ((0x04 & message[8]) > 0) {
+            compsBuilder.setAux3(false);
+        } else {
+            compsBuilder.clearAux3();
+        }
+
+        if ((0x08 & message[8]) > 0) {
+            compsBuilder.setAux4(false);
+        } else {
+            compsBuilder.clearAux4();
+        }
+
+        if ((0x10 & message[8]) > 0) {
+            compsBuilder.setMister1(false);
+        } else {
+            compsBuilder.clearMister1();
+        }
+
+        if ((0x20 & message[8]) > 0) {
+            compsBuilder.setMister2(false);
+        } else {
+            compsBuilder.clearMister2();
+        }
+
+        if ((0x40 & message[8]) > 0) {
+            compsBuilder.setMister3(false);
+        } else {
+            compsBuilder.clearMister3();
+        }
+
+        if ((0x80 & message[8]) > 0) {
+            compsBuilder.setMicroSilk(false);
+        } else {
+            compsBuilder.clearMicroSilk();
+        }
+
+        if ((0xFF & message[9]) > 0) {
+            compsBuilder.setFiberWheel((0xFF & message[9]));
+        } else {
+            compsBuilder.clearFiberWheel();
+        }
+
+        compsBuilder.setLastUpdateTimestamp(new Date().getTime());
+        components = compsBuilder.build();
+        boolean wLocked = false;
+        try {
+            getLatestSpaInfoLock().writeLock().lockInterruptibly();
+            wLocked = true;
+            SpaState.Builder builder = SpaState.newBuilder(spaState);
+            builder.setComponents(components);
+            builder.setLastUpdateTimestamp(new Date().getTime());
+            spaState = builder.build();
+        } catch (Exception ex) {
+            throw Throwables.propagate(ex);
+        }
+        finally {
+            if (wLocked) {
+                getLatestSpaInfoLock().writeLock().unlock();
+            }
+        }
     }
 
     private boolean withinHighRange(int tempFahr) {

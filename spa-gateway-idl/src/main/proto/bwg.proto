@@ -114,13 +114,18 @@ message Uplink {
             optional SetupParams setupParams = 2;
             optional SystemInfo systemInfo = 3;
             optional Components components = 4;
+            required fixed64 lastUpdateTimestamp = 5;
         }
 
         // this is the state of each known component attached to controller
         // if a component doesn't exist on spa, then it will be absent here. use hasXX() methods first to check
+        // if a component supports requests, the number of requestable states it will support is carried in AvailableStates
+        // or if the datatype of component is bool that means the component only supports binary ON/OFF state
         message Components {
+            // the heater state is read-only, there is no command to change it's state
             optional Constants.HeaterState heater1= 1;
             optional Constants.HeaterState heater2= 2;
+            // ON/OFF components
             optional bool ozone = 3;
             optional bool microSilk = 4;
             optional bool aux1 = 5;
@@ -130,22 +135,40 @@ message Uplink {
             optional bool mister1 = 9;
             optional bool mister2 = 10;
             optional bool mister3 = 11;
-            optional Constants.PumpState pump1 =12;
-            optional Constants.PumpState pump2 =13;
-            optional Constants.PumpState pump3 =14;
-            optional Constants.PumpState pump4 =15;
-            optional Constants.PumpState pump5 =16;
-            optional Constants.PumpState pump6 =17;
-            optional Constants.PumpState pump7 =18;
-            optional Constants.PumpState pump8 =19;
+            // Multi-state components
+            optional PumpComponent pump1 =12;
+            optional PumpComponent pump2 =13;
+            optional PumpComponent pump3 =14;
+            optional PumpComponent pump4 =15;
+            optional PumpComponent pump5 =16;
+            optional PumpComponent pump6 =17;
+            optional PumpComponent pump7 =18;
+            optional PumpComponent pump8 =19;
+            optional PumpComponent circulationPump = 28;
+            optional BlowerComponent blower1 = 21;
+            optional BlowerComponent blower2 = 22;
+            optional LightComponent light1 = 23;
+            optional LightComponent light2 = 24;
+            optional LightComponent light3 = 25;
+            optional LightComponent light4 = 26;
+            // not sure about fiber wheel, leaving in here, but wouldn't refer to it in upper levels yet
             optional uint32 fiberWheel = 20;
-            optional Constants.BlowerState blower1 = 21;
-            optional Constants.BlowerState blower2 = 22;
-            optional Constants.LightState light1 = 23;
-            optional Constants.LightState light2 = 24;
-            optional Constants.LightState light3 = 25;
-            optional Constants.LightState light4 = 26;
             required fixed64 lastUpdateTimestamp = 27;
+
+            message PumpComponent {
+                optional Constants.TriState currentState = 1;
+                required Constants.AvailableStates availableStates = 2;
+            }
+
+            message BlowerComponent {
+                optional Constants.QuadState currentState = 1;
+                required Constants.AvailableStates availableStates = 2;
+            }
+
+            message LightComponent {
+                optional Constants.QuadState currentState = 1;
+                required Constants.AvailableStates availableStates = 2;
+            }
         }
 
         // this is the state of spa as obtained from the PanelUpdate message
@@ -172,7 +195,6 @@ message Uplink {
             required bool primingMode =17;
             required bool soundAlarm = 18;
             required bool repeat = 19;
-            required Constants.PumpState circPump = 20;
             required Constants.PanelMode panelMode = 21;
             required Constants.SwimSpaMode swimSpaMode = 22;
             // MessageSeverity enum applies here
@@ -183,7 +205,7 @@ message Uplink {
             required bool demoMode = 27;
             required bool cleanupCycle = 28;
             required bool timeNotSet = 29;
-            required bool lightCycleOn = 30;
+            required bool lightCycle = 30;
             // this is always in Fahrenheit
             required uint32 targetWaterTemperature = 31;
             required bool elapsedTimeDisplay = 32;
@@ -218,17 +240,24 @@ message Uplink {
         message SystemInfo {
             // HeaterPower enum applies here
             required int32 heaterPower = 1;
-            required int32 mfrSSID = 2;
-            required int32 modelSSID = 3;
-            required int32 versionSSID = 4;
-            required int32 minorVersion = 5;
-            required int32 swSignature = 6;
-            required int32 heaterType = 7;
-            required int32 currentSetup = 8;
+            required uint32 mfrSSID = 2;
+            required uint32 modelSSID = 3;
+            required uint32 versionSSID = 4;
+            required uint32 minorVersion = 5;
+            required uint32 swSignature = 6;
+            required uint32 heaterType = 7;
+            required uint32 currentSetup = 8;
             required fixed64 lastUpdateTimestamp = 9;
         }
 
         message Constants {
+
+            enum AvailableStates {
+                UNARY = 1;
+                BINARY = 2;
+                TRIPLE = 3;
+                QUAD = 4;
+            }
 
             enum HeaterPower {
                 VOLT_120 = 0;
@@ -272,25 +301,17 @@ message Uplink {
                 HEATER_UNDEFINED = 3;
             }
 
-            enum PumpState {
-                PUMP_OFF = 0;
-                PUMP_LOW = 1;
-                PUMP_HIGH = 2;
-                PUMP_UNDEFINED = 3;
+            enum QuadState {
+                QUAD_OFF = 0;
+                QUAD_LOW = 1;
+                QUAD_MED = 2;
+                QUAD_HIGH = 3;
             }
 
-            enum LightState {
-                LIGHT_OFF = 0;
-                LIGHT_LOW = 1;
-                LIGHT_MED = 2;
-                LIGHT_HIGH = 3;
-            }
-
-            enum BlowerState {
-                BLOWER_OFF = 0;
-                BLOWER_LOW = 1;
-                BLOWER_MED = 2;
-                BLOWER_HIGH = 3;
+            enum TriState {
+                TRI_OFF = 0;
+                TRI_LOW = 1;
+                TRI_HIGH = 2;
             }
 
             enum TempRange {

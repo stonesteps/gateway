@@ -1,7 +1,6 @@
 package com.tritonsvc.agent;
 
 import com.google.common.base.Throwables;
-import com.google.common.primitives.Ints;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
@@ -41,7 +40,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
 	private Properties configProps;
     private String homePath;
     private GatewayEventDispatcher eventDispatcher;
-    private int controllerUpdateInterval = 300;
+    private int controllerUpdateInterval = 3;
     private final ScheduledExecutorService scheduledExecutorService =  new ScheduledThreadPoolExecutor(3);
 
     protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId);
@@ -68,9 +67,6 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
 
     @Override
     public void executeStartup() {
-        if (Ints.tryParse(configProps.getProperty(AgentConfiguration.CONTROLLER_UPDATE_INTERVAL)) != null) {
-            controllerUpdateInterval = Ints.tryParse(configProps.getProperty(AgentConfiguration.CONTROLLER_UPDATE_INTERVAL));
-        }
         handleStartup(gwSerialNumber, configProps, homePath, scheduledExecutorService);
         kickOffDataHarvest();
     }
@@ -245,13 +241,13 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
     // after 30 seconds from start, and once every X minutes send up to cloud whatever system states
     // the X reporting interval should be settable via other reuest messages like setSystemStateReportInterval(), etc
     private void kickOffDataHarvest() {
-        scheduledExecutorService.scheduleAtFixedRate ((Runnable) () -> {
+        scheduledExecutorService.scheduleWithFixedDelay ((Runnable) () -> {
             try {
                 processDataHarvestIteration();
             }
             catch (Exception ex) {
                 LOGGER.error("unable to obtain controller device info", ex);
             }
-        }, 30, controllerUpdateInterval, TimeUnit.SECONDS);
+        }, controllerUpdateInterval, controllerUpdateInterval, TimeUnit.SECONDS);
     }
 }

@@ -18,11 +18,10 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.AvailableStates;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelDisplayCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.QuadState;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TriState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
@@ -35,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -65,6 +65,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
     private RS485MessagePublisher rs485MessagePublisher;
     private UART rs485Uart;
     private String homePath;
+    private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
 
     @Override
     public void handleShutdown() {
@@ -227,21 +228,53 @@ public class BWGProcessor extends MQTTCommandProcessor {
             }
         }
 
+        if (port == null || desiredState == null) {
+            throw new RS485Exception("Update pumps command did not have required port and desiredState param");
+        }
+
         if (port != null && desiredState != null) {
             // make an attempt to detect current state and not change if already set to desired
-            // there's no certain way to know how many states a pump supports, so if current and desired are different, just send the
-            // button command regardless of the desiredState value.
-            String currentState = rs485DataHarvester.getComponentState(ComponentType.PUMP, port);
-            if (Objects.equals(desiredState, currentState)) {
+            ComponentInfo currentState = rs485DataHarvester.getComponentState(ComponentType.PUMP, port);
+            if (Objects.equals(desiredState, currentState.getCurrentState())) {
                 LOGGER.info("Request to change pump {} to {} was already current state, not sending rs485 command" );
                 return;
             }
 
+            TriState[] availableStates = getAvailableTriStates(currentState.getNumberOfSupportedStates());
+            TriState currentCompState = TriState.valueOf(currentState.getCurrentState());
             ButtonCode pumpButton = ButtonCode.valueOf("kJets<port>MetaButton".replaceAll("<port>", Integer.toString(port)));
-            rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress, originatorId, hardwareId);
-        } else {
-            throw new RS485Exception("Update pumps command did not have required port and desiredState param");
+
+            int currentIndex = Arrays.asList(availableStates).indexOf(currentCompState);
+            int desiredIndex = Arrays.asList(availableStates).indexOf(TriState.valueOf(desiredState));
+
+            if (currentIndex < 0 || desiredIndex < 0) {
+                LOGGER.warn("Pump command request state {} or current state {} were not valid, ignoring, will send one button command", desiredState, currentState.getCurrentState());
+                rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress, originatorId, hardwareId);
+                return;
+            }
+
+            // this sends multiple button commands to get to the desired state within available states for compnonent
+            while (currentIndex != desiredIndex) {
+                rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress, originatorId, hardwareId);
+                currentIndex = (currentIndex + 1) % availableStates.length;
+            }
         }
+    }
+
+    private TriState[] getAvailableTriStates(AvailableStates available) {
+        if (available.getNumber() > 2) {
+            return TriState.values();
+        }
+        return new TriState[] {TriState.TRI_OFF, TriState.TRI_HIGH};
+    }
+
+    private QuadState[] getAvailableQuadStates(AvailableStates available) {
+        if (available.getNumber() > 3) {
+            return QuadState.values();
+        } else if (available.getNumber() > 2) {
+            return new QuadState[] {QuadState.QUAD_OFF, QuadState.QUAD_LOW, QuadState.QUAD_HIGH};
+        }
+        return new QuadState[] {QuadState.QUAD_OFF, QuadState.QUAD_HIGH};
     }
 
     @Override
@@ -282,7 +315,12 @@ public class BWGProcessor extends MQTTCommandProcessor {
                 rs485MessagePublisher.sendPanelRequest(rs485DataHarvester.getRegisteredAddress(), null);
                 LOGGER.info("do not have DeviceConfig, SystemInfo, SetupParams yet, sent panel request");
             }
-            getCloudDispatcher().sendUplink(registeredController.getHardwareId(), null, UplinkCommandType.SPA_STATE, rs485DataHarvester.getLatestSpaInfo());
+
+            // this loop runs often(once every 3 seconds), but only send up to cloud when timestamps on state data change
+            if ( lastSpaDetailsSent.get() != rs485DataHarvester.getLatestSpaInfo().getLastUpdateTimestamp()) {
+                getCloudDispatcher().sendUplink(registeredController.getHardwareId(), null, UplinkCommandType.SPA_STATE, rs485DataHarvester.getLatestSpaInfo());
+                lastSpaDetailsSent.set(rs485DataHarvester.getLatestSpaInfo().getLastUpdateTimestamp());
+            }
             LOGGER.info("Finished data harvest periodic iteration");
         } catch (Exception ex) {
             LOGGER.error("error while processing data harvest", ex);

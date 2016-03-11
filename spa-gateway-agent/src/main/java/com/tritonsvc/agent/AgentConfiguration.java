@@ -27,10 +27,7 @@ public interface AgentConfiguration {
 	/** Optional property for keepalive on MQTT, defaults to 30 seconds */
 	public static final String MQTT_KEEPALIVE = "mqtt.keepalive.seconds";
 
-    /** Optional property for how often the controller status info should be sent */
-    public static final String CONTROLLER_UPDATE_INTERVAL = "bwg.controller.update_interval_seconds";
-
-	/** Optional Property for serial port that rs485 is located **/
+  	/** Optional Property for serial port that rs485 is located **/
 	public static final String RS485_LINUX_SERIAL_PORT = "rs485.port";
 
 	/** Optional Property for serial port that rs485 is located **/
