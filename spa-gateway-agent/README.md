@@ -6,34 +6,50 @@ in a Google Protocol Buffers format that follows the Spa Gateway IDL encoding(re
 
 
 ##Dev environment note, you must have a MQTT broker available and configured
-Install a local MQTT broker on your machine,
-mosquitto is good, quick install for Mac/homebrew - http://mosquitto.org/download/
+Install a local MQTT broker on your machine, mosquitto is good, quick install for Mac/homebrew - http://mosquitto.org/download/
+
+
 enable mosquitto as service:
+
 ln -sfv /usr/local/opt/mosquitto/*.plist ~/Library/LaunchAgents
+
 launchctl load ~/Library/LaunchAgents/homebrew.mxcl.mosquitto.plist
+
 run mosquitton now:
+
 launchctl [start|stop] homebrew.mxcl.mosquitto
 
 
 ##Agent Usage Example
 create a directory called 'gateway_agent'
-copy src/config/config.properties, src/config/logback.xml into 'gateway_agent'
+copy config/config.properties, config/logback.xml into 'gateway_agent'
+     
      
 If you plan to run the agent on target(armv7 processor) with a connection to a real spa rs485:
-copy lib/armv7/libdio.so and src/config/dio.policy to 'gateway_agent'
+copy lib/armv7/libdio.so and config/dio.policy to 'gateway_agent'
+
 
 If you want to just simulate mock data and are not connecting to a real Spa controller,
 then in config.properties, make sure to specify:
 command.processor.classname=com.tritonsvc.gateway.MockProcessor
 
-Using IDE, define run/debug launch config for AgentLoader.java and set Program Arguments to have one argument
+
+Optional - If wanting to run agent from IDE, define run/debug launch config for AgentLoader.java and set Program Arguments to have one argument
 which should be set to the 'gateway_agent' directory specified as full path, now execute AgentLoader.
 
+
 Using standalone built jar: 
-mvn clean install
-kick off the agent as configured for MockProcessor:
-java -jar target/spa-gateway-agent-0.0.1-SNAPSHOT.jar <gateway_agent directory path>
-kick off the agent as configured for BWGProcessor which attempts to make real rs485 connection on 
+run mvn clean install from 'spa' directory
+
+
+this will create spa/spa-gateway-agent/target/spa-gateway-agent-0.0.1-SNAPSHOT.jar
+
+
+To kick off the agent as configured for MockProcessor from 'spa' directory:
+java -jar spa-gateway-agent/target/spa-gateway-agent-0.0.1-SNAPSHOT.jar <gateway_agent directory path>
+
+
+To kick off the agent as configured for BWGProcessor from 'spa' directory, which will attempt to make real rs485 connection on 
 serial port configured in config.properties(requires armv7 processor):
 java -Djava.library.path=<gateway_agent directory path> -Djava.security.policy=<gateway_agent directory path>/dio.policy -jar spa-gateway-agent-0.0.1-SNAPSHOT.jar
 
