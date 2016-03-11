@@ -36,6 +36,11 @@ public final class SpaDataHelper {
         return value;
     }
 
+    public static Bwg.Downlink.Model.RequestType getRequestTypeByCode(Integer code) {
+        if (code == null) return null;
+        return Bwg.Downlink.Model.RequestType.valueOf(code.intValue());
+    }
+
     public static RequestMetadata buildRequestMetadata(final String name, final String value) {
         final RequestMetadata.Builder builder = RequestMetadata.newBuilder();
 
@@ -169,4 +174,5 @@ public final class SpaDataHelper {
 
         return builder.build();
     }
+
 }

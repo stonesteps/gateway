@@ -10,14 +10,9 @@ import com.google.common.primitives.Ints;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.gateway.DeviceRegistration.DeviceRegistrationSerializer;
+import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
 import jdk.dio.uart.UARTConfig;
@@ -38,7 +33,6 @@ import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Gateway Agent processing, collects WSN data also.
- * 
  */
 public class BWGProcessor extends MQTTCommandProcessor {
 
@@ -157,6 +151,27 @@ public class BWGProcessor extends MQTTCommandProcessor {
                 case PUMPS:
                     updatePumps(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
                     break;
+                case LIGHTS:
+                    updateLights(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+                    break;
+                case BLOWER:
+                    updateBlower(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+                    break;
+                case MISTER:
+                    updateMister(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+                    break;
+                case FILTER:
+                    updateFilter(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+                    break;
+                case OZONE:
+                    updateOzone(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+                    break;
+                case MICROSILK:
+                    updateMicrosilk(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+                    break;
+                case AUX:
+                    updateAux(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+                    break;
                 default:
                     sendAck(hardwareId, originatorId, AckResponseCode.ERROR, "not supported");
             }
@@ -190,16 +205,51 @@ public class BWGProcessor extends MQTTCommandProcessor {
     }
 
     private void updatePumps(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception{
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kJets<port>MetaButton", 1, 8);
+    }
+
+    private void updateLights(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception {
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kLight<port>MetaButton", 1, 4);
+    }
+
+    private void updateBlower(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception {
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kBlower<port>MetaButton", 1, 2);
+    }
+
+    private void updateMister(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception {
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kMister<port>MetaButton", 1, 3);
+    }
+
+    private void updateFilter(List<RequestMetadata> metadataList, Byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception {
+        // FIXME implement me
+        throw new RS485Exception("Update filter state not implemented yet");
+    }
+
+    private void updateOzone(List<RequestMetadata> metadataList, Byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception {
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, ButtonCode.kOzoneMetaButton);
+    }
+
+    private void updateMicrosilk(List<RequestMetadata> metadataList, Byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception {
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, ButtonCode.kMicroSilkQuietMetaButton);
+    }
+
+    private void updateAux(List<RequestMetadata> metadataList, Byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception {
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kOption<port>MetaButton", 1, 4);
+    }
+
+    private void updatePeripherlal(final List<RequestMetadata> metadataList, final byte registeredAddress,
+                                   final String originatorId, final String hardwareId, final String buttonCodeTemplate,
+                                   final int minPort, final int maxPort) throws RS485Exception {
         Integer port = null;
 
-        if (metadataList != null && metadataList.size() > 0) {
+        if (metadataList != null && metadataList.size() > 0 && minPort > 0 && maxPort > 0) {
             for (final RequestMetadata metadata : metadataList) {
                 if (SpaCommandAttribName.PORT.equals(metadata.getName())) {
                     Integer temp = new Integer(metadata.getValue()) + 1;
-                    if (temp > 0 && temp < 9) {
+                    if (temp >= minPort && temp <= maxPort) {
                         port = temp;
                     } else {
-                        throw new RS485Exception("Invalid pump port param, must be between 0 and 7 inclusive: " + (temp-1));
+                        throw new RS485Exception("Invalid pump port param, must be between " + (minPort - 1) + " and " + (maxPort - 1) + " inclusive: " + (temp - 1));
                     }
                 }
             }
@@ -208,11 +258,18 @@ public class BWGProcessor extends MQTTCommandProcessor {
         // TODO - look at DESIREDSTATE, need to get the current state of pump from controller, then send sequence of button codes
         // to get that state
         if (port != null) {
-            ButtonCode pumpButton = ButtonCode.valueOf("kJets<port>MetaButton".replaceAll("<port>", Integer.toString(port)));
-            rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress, originatorId, hardwareId);
+            ButtonCode buttonCode = ButtonCode.valueOf(buttonCodeTemplate.replaceAll("<port>", Integer.toString(port)));
+            rs485MessagePublisher.sendButtonCode(buttonCode, registeredAddress, originatorId, hardwareId);
         } else {
-            throw new RS485Exception("Update pumps command did not have required port param");
+            throw new RS485Exception("Update component command did not have required port param");
         }
+    }
+
+    private void updatePeripherlal(final List<RequestMetadata> metadataList, final byte registeredAddress,
+                                   final String originatorId, final String hardwareId, final ButtonCode buttonCode) throws RS485Exception {
+        // TODO - look at DESIREDSTATE, need to get the current state of pump from controller, then send sequence of button codes
+        // to get that state
+        rs485MessagePublisher.sendButtonCode(buttonCode, registeredAddress, originatorId, hardwareId);
     }
 
     @Override
