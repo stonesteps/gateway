@@ -1,5 +1,6 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
+import com.bwg.iot.model.Component.ComponentType;
 import com.bwg.iot.model.Spa;
 import com.tritonsvc.messageprocessor.MessageProcessorConfiguration;
 import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
@@ -134,13 +135,13 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         }
 
         boolean newController = false;
-        Page<com.bwg.iot.model.Component> page = componentRepository.findBySpaIdAndComponentType(spa.get_id(), registerDeviceMessage.getDeviceTypeName(), new PageRequest(0,1));
+        Page<com.bwg.iot.model.Component> page = componentRepository.findBySpaIdAndComponentType(spa.get_id(), ComponentType.CONTROLLER.name(), new PageRequest(0,1));
         com.bwg.iot.model.Component controller;
 
         if (page.getTotalElements() < 1) {
             log.info("Creating new controller object");
             controller = new com.bwg.iot.model.Component();
-            controller.setComponentType(registerDeviceMessage.getDeviceTypeName());
+            controller.setComponentType(ComponentType.CONTROLLER.name());
             controller.setDealerId(spa.getDealerId());
             controller.setOemId(spa.getOemId());
             controller.setSpaId(spa.get_id());
