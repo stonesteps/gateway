@@ -2,19 +2,15 @@ package com.tritonsvc.messageprocessor;
 
 import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaCommand;
-import com.bwg.iot.model.SpaCommandAttributeName;
-import com.bwg.iot.model.SpaCommandAttributeValue;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
 import com.tritonsvc.messageprocessor.util.SpaDataHelper;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.SpringApplicationConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -35,11 +31,10 @@ public class SpaGatewayMessageProcessorIntegrationTests {
     @Autowired
     private MqttSendService mqttSendService;
 
-    @Value("${uplinkTopicName:BWG/spa/uplink}")
-    private String uplinkTopicName;
+    @Autowired
+    private MessageProcessorConfiguration messageProcessorConfiguration;
 
     @Test
-    @Ignore
     public void handleRegisterDevice() throws Exception {
 
         // wait some time
@@ -49,13 +44,12 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         final Collection<Bwg.Metadata> metadata = new ArrayList<>();
         metadata.add(SpaDataHelper.buildMetadata("serialName", "ABC"));
         final Bwg.Uplink.Model.RegisterDevice registerDevice = SpaDataHelper.buildRegisterDevice(null, "gateway", metadata);
-        mqttSendService.sendMessage(uplinkTopicName, SpaDataHelper.buildUplinkMessage("1", "1", Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
+        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), SpaDataHelper.buildUplinkMessage("1", "1", Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
 
         Thread.sleep(10000);
     }
 
     @Test
-    @Ignore
     public void processHeaterCommand() throws Exception {
         spaRepository.deleteAll();
         spaCommandRepository.deleteAll();
@@ -64,7 +58,7 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         final Spa spa = createSpa("1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
-        values.put(SpaCommandAttributeName.DESIRED_TEMP, "78.0");
+        values.put(SpaCommand.ValueKeyName.DESIRED_TEMP.getKeyName(), "78.0");
         final SpaCommand command = createSpaCommand(spa, SpaCommand.RequestType.HEATER.getCode(), values);
 
         // wait some time
@@ -76,7 +70,6 @@ public class SpaGatewayMessageProcessorIntegrationTests {
     }
 
     @Test
-    @Ignore
     public void processLightsCommand() throws Exception {
         spaRepository.deleteAll();
         spaCommandRepository.deleteAll();
@@ -85,7 +78,8 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         final Spa spa = createSpa("1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
-        values.put(SpaCommandAttributeName.DESIRED_STATE, SpaCommandAttributeValue.ON);
+        values.put(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName(), SpaCommand.OnOff.ON.toString());
+        values.put(SpaCommand.ValueKeyName.PORT.getKeyName(), String.valueOf(0));
         final SpaCommand command = createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
 
         // wait some time
