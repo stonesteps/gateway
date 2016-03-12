@@ -126,15 +126,15 @@ message Uplink {
             optional Constants.HeaterState heater1= 1;
             optional Constants.HeaterState heater2= 2;
             // ON/OFF components
-            optional bool ozone = 3;
-            optional bool microSilk = 4;
-            optional bool aux1 = 5;
-            optional bool aux2 = 6;
-            optional bool aux3 = 7;
-            optional bool aux4 = 8;
-            optional bool mister1 = 9;
-            optional bool mister2 = 10;
-            optional bool mister3 = 11;
+            optional ToggleComponent ozone = 3;
+            optional ToggleComponent microSilk = 4;
+            optional ToggleComponent aux1 = 5;
+            optional ToggleComponent aux2 = 6;
+            optional ToggleComponent aux3 = 7;
+            optional ToggleComponent aux4 = 8;
+            optional ToggleComponent mister1 = 9;
+            optional ToggleComponent mister2 = 10;
+            optional ToggleComponent mister3 = 11;
             // Multi-state components
             optional PumpComponent pump1 =12;
             optional PumpComponent pump2 =13;
@@ -154,6 +154,11 @@ message Uplink {
             // not sure about fiber wheel, leaving in here, but wouldn't refer to it in upper levels yet
             optional uint32 fiberWheel = 20;
             required fixed64 lastUpdateTimestamp = 27;
+
+            message ToggleComponent {
+                optional Constants.BinaryState currentState = 1;
+                required Constants.AvailableStates availableStates = 2;
+            }
 
             message PumpComponent {
                 optional Constants.TriState currentState = 1;
@@ -312,6 +317,11 @@ message Uplink {
                 TRI_OFF = 0;
                 TRI_LOW = 1;
                 TRI_HIGH = 2;
+            }
+
+            enum BinaryState {
+                BINARY_OFF = 0;
+                BINARY_ON = 1;
             }
 
             enum TempRange {

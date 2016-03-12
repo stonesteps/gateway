@@ -19,6 +19,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttrib
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.AvailableStates;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BinaryState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.QuadState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TriState;
@@ -43,6 +44,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -65,6 +67,9 @@ public class BWGProcessor extends MQTTCommandProcessor {
     private UART rs485Uart;
     private String homePath;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
+    private static List<ComponentType> quadStateComponents = newArrayList(ComponentType.BLOWER, ComponentType.LIGHT);
+    private static List<ComponentType> triStateComponents = newArrayList(ComponentType.PUMP);
+
 
     @Override
     public void handleShutdown() {
@@ -229,19 +234,19 @@ public class BWGProcessor extends MQTTCommandProcessor {
     }
 
     private void updatePumps(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws Exception {
-        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kJets<port>MetaButton", 1, 8);
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kJets<port>MetaButton", 1, 8, ComponentType.PUMP);
     }
 
     private void updateLights(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws Exception {
-        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kLight<port>MetaButton", 1, 4);
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kLight<port>MetaButton", 1, 4, ComponentType.LIGHT);
     }
 
     private void updateBlower(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws Exception {
-        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kBlower<port>MetaButton", 1, 2);
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kBlower<port>MetaButton", 1, 2, ComponentType.BLOWER);
     }
 
     private void updateMister(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId) throws Exception {
-        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kMister<port>MetaButton", 1, 3);
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kMister<port>MetaButton", 1, 3, ComponentType.MISTER);
     }
 
     private void updateFilter(List<RequestMetadata> metadataList, Byte registeredAddress, String originatorId, String hardwareId) throws RS485Exception {
@@ -258,12 +263,12 @@ public class BWGProcessor extends MQTTCommandProcessor {
     }
 
     private void updateAux(List<RequestMetadata> metadataList, Byte registeredAddress, String originatorId, String hardwareId) throws Exception {
-        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kOption<port>MetaButton", 1, 4);
+        updatePeripherlal(metadataList, registeredAddress, originatorId, hardwareId, "kOption<port>MetaButton", 1, 4, ComponentType.AUX);
     }
 
     private void updatePeripherlal(final List<RequestMetadata> metadataList, final byte registeredAddress,
                                    final String originatorId, final String hardwareId, final String buttonCodeTemplate,
-                                   final int minPort, final int maxPort) throws Exception {
+                                   final int minPort, final int maxPort, ComponentType componentType) throws Exception {
         Integer port = null;
         String desiredState = null;
 
@@ -274,7 +279,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
                     if (temp >= minPort && temp <= maxPort) {
                         port = temp;
                     } else {
-                        throw new RS485Exception("Invalid port param, must be between " + (minPort - 1) + " and " + (maxPort - 1) + " inclusive: " + (temp - 1));
+                        throw new RS485Exception("Invalid port param for " + componentType.name() + ", must be between " + (minPort - 1) + " and " + (maxPort - 1) + " inclusive: " + (temp - 1));
                     }
                 }
                 if (SpaCommandAttribName.DESIREDSTATE.equals(metadata.getName())) {
@@ -284,52 +289,67 @@ public class BWGProcessor extends MQTTCommandProcessor {
         }
 
         if (port == null || desiredState == null) {
-            throw new RS485Exception("Update pumps command did not have required port and desiredState param");
+            throw new RS485Exception("Device command for " + componentType.name() + " did not have required port and desiredState param");
+        }
+        ButtonCode deviceButton = ButtonCode.valueOf(buttonCodeTemplate.replaceAll("<port>", Integer.toString(port)));
+
+        ComponentInfo currentState = rs485DataHarvester.getComponentState(componentType, port);
+        if (currentState == null) {
+            LOGGER.error("Request for state for port {} of component {} was not found, resorting to sending button command", port, componentType.name());
+            rs485MessagePublisher.sendButtonCode(deviceButton, registeredAddress, originatorId, hardwareId);
+            return;
         }
 
-        if (port != null && desiredState != null) {
-            // make an attempt to detect current state and not change if already set to desired
-            ComponentInfo currentState = rs485DataHarvester.getComponentState(ComponentType.PUMP, port);
-            if (Objects.equals(desiredState, currentState.getCurrentState())) {
-                LOGGER.info("Request to change pump {} to {} was already current state, not sending rs485 command" );
-                return;
-            }
+        if (Objects.equals(desiredState, currentState.getCurrentState())) {
+            LOGGER.info("Request to change {} to {} was already current state, not sending rs485 command" , componentType.name(), desiredState);
+            return;
+        }
 
-            TriState[] availableStates = getAvailableTriStates(currentState.getNumberOfSupportedStates());
-            TriState currentCompState = TriState.valueOf(currentState.getCurrentState());
-            ButtonCode pumpButton = ButtonCode.valueOf("kJets<port>MetaButton".replaceAll("<port>", Integer.toString(port)));
+        int currentIndex;
+        int desiredIndex;
+        List<?> availableStates;
 
-            int currentIndex = Arrays.asList(availableStates).indexOf(currentCompState);
-            int desiredIndex = Arrays.asList(availableStates).indexOf(TriState.valueOf(desiredState));
+        if (quadStateComponents.contains(componentType)) {
+            availableStates = getAvailableQuadStates(currentState.getNumberOfSupportedStates());
+            currentIndex = availableStates.indexOf(QuadState.valueOf(currentState.getCurrentState()));
+            desiredIndex = availableStates.indexOf(QuadState.valueOf(desiredState));
+        } else if (triStateComponents.contains(componentType)) {
+            availableStates = getAvailableTriStates(currentState.getNumberOfSupportedStates());
+            currentIndex = availableStates.indexOf(TriState.valueOf(currentState.getCurrentState()));
+            desiredIndex = availableStates.indexOf(TriState.valueOf(desiredState));
+        } else {
+            availableStates = newArrayList(BinaryState.values());
+            currentIndex = availableStates.indexOf(BinaryState.valueOf(currentState.getCurrentState()));
+            desiredIndex = availableStates.indexOf(BinaryState.valueOf(desiredState));
+        }
 
-            if (currentIndex < 0 || desiredIndex < 0) {
-                LOGGER.warn("Pump command request state {} or current state {} were not valid, ignoring, will send one button command", desiredState, currentState.getCurrentState());
-                rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress, originatorId, hardwareId);
-                return;
-            }
+        if (currentIndex < 0 || desiredIndex < 0) {
+            LOGGER.warn("Pump command request state {} or current state {} were not valid, ignoring, will send one button command", desiredState, currentState.getCurrentState());
+            rs485MessagePublisher.sendButtonCode(deviceButton, registeredAddress, originatorId, hardwareId);
+            return;
+        }
 
-            // this sends multiple button commands to get to the desired state within available states for compnonent
-            while (currentIndex != desiredIndex) {
-                rs485MessagePublisher.sendButtonCode(pumpButton, registeredAddress, originatorId, hardwareId);
-                currentIndex = (currentIndex + 1) % availableStates.length;
-            }
+        // this sends multiple button commands to get to the desired state within available states for compnonent
+        while (currentIndex != desiredIndex) {
+            rs485MessagePublisher.sendButtonCode(deviceButton, registeredAddress, originatorId, hardwareId);
+            currentIndex = (currentIndex + 1) % availableStates.size();
         }
     }
 
-    private TriState[] getAvailableTriStates(AvailableStates available) {
+    private List<TriState> getAvailableTriStates(AvailableStates available) {
         if (available.getNumber() > 2) {
-            return TriState.values();
+            return newArrayList(TriState.values());
         }
-        return new TriState[] {TriState.TRI_OFF, TriState.TRI_HIGH};
+        return newArrayList(new TriState[] {TriState.TRI_OFF, TriState.TRI_HIGH});
     }
 
-    private QuadState[] getAvailableQuadStates(AvailableStates available) {
+    private List<QuadState> getAvailableQuadStates(AvailableStates available) {
         if (available.getNumber() > 3) {
-            return QuadState.values();
+            return newArrayList(QuadState.values());
         } else if (available.getNumber() > 2) {
-            return new QuadState[]{QuadState.QUAD_OFF, QuadState.QUAD_LOW, QuadState.QUAD_HIGH};
+            return newArrayList(new QuadState[]{QuadState.QUAD_OFF, QuadState.QUAD_LOW, QuadState.QUAD_HIGH});
         }
-        return new QuadState[]{QuadState.QUAD_OFF, QuadState.QUAD_HIGH};
+        return newArrayList(new QuadState[]{QuadState.QUAD_OFF, QuadState.QUAD_HIGH});
     }
 
     @Override

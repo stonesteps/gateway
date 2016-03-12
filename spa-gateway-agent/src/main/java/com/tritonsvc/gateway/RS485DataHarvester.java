@@ -6,7 +6,9 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.AvailableStates;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BinaryState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterState;
@@ -521,17 +523,17 @@ public class RS485DataHarvester implements Runnable {
         }
 
         compsBuilder.setLastUpdateTimestamp(new Date().getTime());
-        if (compsBuilder.hasAux1()) { compsBuilder.setAux1((0x08 & message[19]) > 0);}
-        if (compsBuilder.hasAux2()) { compsBuilder.setAux2((0x10 & message[19]) > 0);}
-        if (compsBuilder.hasAux3()) { compsBuilder.setAux3((0x20 & message[19]) > 0);}
-        if (compsBuilder.hasAux4()) { compsBuilder.setAux4((0x40 & message[19]) > 0);}
+        if (compsBuilder.hasAux1()) { compsBuilder.setAux1(ToggleComponent.newBuilder(compsBuilder.getAux1()).setCurrentState(BinaryState.valueOf(0x08 & message[19])));}
+        if (compsBuilder.hasAux2()) { compsBuilder.setAux2(ToggleComponent.newBuilder(compsBuilder.getAux2()).setCurrentState(BinaryState.valueOf(0x10 & message[19])));}
+        if (compsBuilder.hasAux3()) { compsBuilder.setAux3(ToggleComponent.newBuilder(compsBuilder.getAux3()).setCurrentState(BinaryState.valueOf(0x20 & message[19])));}
+        if (compsBuilder.hasAux4()) { compsBuilder.setAux4(ToggleComponent.newBuilder(compsBuilder.getAux4()).setCurrentState(BinaryState.valueOf(0x40 & message[19])));}
 
-        if (compsBuilder.hasMister3()) { compsBuilder.setMister3((0x04 & message[19]) > 0);}
-        if (compsBuilder.hasMister2()) { compsBuilder.setMister2((0x02 & message[19]) > 0);}
-        if (compsBuilder.hasMister1()) { compsBuilder.setMister1((0x01 & message[19]) > 0);}
+        if (compsBuilder.hasMister3()) { compsBuilder.setMister3(ToggleComponent.newBuilder(compsBuilder.getMister3()).setCurrentState(BinaryState.valueOf(0x04 & message[19])));}
+        if (compsBuilder.hasMister2()) { compsBuilder.setMister2(ToggleComponent.newBuilder(compsBuilder.getMister2()).setCurrentState(BinaryState.valueOf(0x02 & message[19])));}
+        if (compsBuilder.hasMister1()) { compsBuilder.setMister1(ToggleComponent.newBuilder(compsBuilder.getMister1()).setCurrentState(BinaryState.valueOf(0x01 & message[19])));}
 
-        if (compsBuilder.hasMicroSilk()) { compsBuilder.setMicroSilk((0x02 & message[26]) > 0);}
-        if (compsBuilder.hasOzone()) { compsBuilder.setOzone((0x04 & message[14]) > 0);}
+        if (compsBuilder.hasMicroSilk()) { compsBuilder.setMicroSilk(ToggleComponent.newBuilder(compsBuilder.getMicroSilk()).setCurrentState(BinaryState.valueOf(0x02 & message[26])));}
+        if (compsBuilder.hasOzone()) { compsBuilder.setOzone(ToggleComponent.newBuilder(compsBuilder.getOzone()).setCurrentState(BinaryState.valueOf(0x04 & message[14])));}
 
         if (compsBuilder.hasHeater1()) { compsBuilder.setHeater1(HeaterState.valueOf((0x30 & message[14]) >> 4));}
         if (compsBuilder.hasHeater2()) { compsBuilder.setHeater2(HeaterState.valueOf((0xC0 & message[14]) >> 6));}
@@ -814,7 +816,7 @@ public class RS485DataHarvester implements Runnable {
         }
 
         if ((0x40 & message[7]) > 0) {
-            compsBuilder.setOzone(false);
+            compsBuilder.setOzone(ToggleComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
         } else {
             compsBuilder.clearOzone();
         }
@@ -826,49 +828,49 @@ public class RS485DataHarvester implements Runnable {
         }
 
         if ((0x01 & message[8]) > 0) {
-            compsBuilder.setAux1(false);
+            compsBuilder.setAux1(ToggleComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
         } else {
             compsBuilder.clearAux1();
         }
 
         if ((0x02 & message[8]) > 0) {
-            compsBuilder.setAux2(false);
+            compsBuilder.setAux2(ToggleComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
         } else {
             compsBuilder.clearAux2();
         }
 
         if ((0x04 & message[8]) > 0) {
-            compsBuilder.setAux3(false);
+            compsBuilder.setAux3(ToggleComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
         } else {
             compsBuilder.clearAux3();
         }
 
         if ((0x08 & message[8]) > 0) {
-            compsBuilder.setAux4(false);
+            compsBuilder.setAux4(ToggleComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
         } else {
             compsBuilder.clearAux4();
         }
 
         if ((0x10 & message[8]) > 0) {
-            compsBuilder.setMister1(false);
+            compsBuilder.setMister1(ToggleComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
         } else {
             compsBuilder.clearMister1();
         }
 
         if ((0x20 & message[8]) > 0) {
-            compsBuilder.setMister2(false);
+            compsBuilder.setMister2(ToggleComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
         } else {
             compsBuilder.clearMister2();
         }
 
         if ((0x40 & message[8]) > 0) {
-            compsBuilder.setMister3(false);
+            compsBuilder.setMister3(ToggleComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
         } else {
             compsBuilder.clearMister3();
         }
 
         if ((0x80 & message[8]) > 0) {
-            compsBuilder.setMicroSilk(false);
+            compsBuilder.setMicroSilk(ToggleComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
         } else {
             compsBuilder.clearMicroSilk();
         }
