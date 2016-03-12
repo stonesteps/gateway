@@ -340,16 +340,16 @@ public class BWGProcessor extends MQTTCommandProcessor {
         if (available.getNumber() > 2) {
             return newArrayList(TriState.values());
         }
-        return newArrayList(new TriState[] {TriState.TRI_OFF, TriState.TRI_HIGH});
+        return newArrayList(TriState.TRI_OFF, TriState.TRI_HIGH);
     }
 
     private List<QuadState> getAvailableQuadStates(AvailableStates available) {
         if (available.getNumber() > 3) {
             return newArrayList(QuadState.values());
         } else if (available.getNumber() > 2) {
-            return newArrayList(new QuadState[]{QuadState.QUAD_OFF, QuadState.QUAD_LOW, QuadState.QUAD_HIGH});
+            return newArrayList(QuadState.QUAD_OFF, QuadState.QUAD_LOW, QuadState.QUAD_HIGH);
         }
-        return newArrayList(new QuadState[]{QuadState.QUAD_OFF, QuadState.QUAD_HIGH});
+        return newArrayList(QuadState.QUAD_OFF, QuadState.QUAD_HIGH);
     }
 
     @Override
