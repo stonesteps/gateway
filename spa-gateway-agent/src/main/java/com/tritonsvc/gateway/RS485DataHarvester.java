@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -64,6 +65,7 @@ public class RS485DataHarvester implements Runnable {
     private AtomicInteger HighHigh = new AtomicInteger(0);
     private AtomicInteger LowHigh = new AtomicInteger(0);
     private AtomicInteger LowLow = new AtomicInteger(0);
+    private AtomicReference<byte[]> lastPanelUpdate = new AtomicReference<>(new byte[]{});
 
     final ReentrantReadWriteLock spaStateLock = new ReentrantReadWriteLock();
     private SpaState spaState = SpaState.newBuilder().build();
@@ -474,13 +476,19 @@ public class RS485DataHarvester implements Runnable {
     }
 
     private void processPanelUpdateMessage(byte[] message) {
+        if (Arrays.equals(lastPanelUpdate.get(), message)) {
+            // dedupe panel updates, they come often, and are usually the exact same, skip if so
+            return;
+        }
+
+        lastPanelUpdate.set(message);
         isCelsius.set((0x01 & message[13]) > 0);
         Controller controller = buildControllerMessageFromPanelUpdate(message);
         Components components = null;
         try {
             components = buildComponentsMessageFromPanelUpdate(message);
         } catch (IllegalStateException ex) {
-            LOGGER.warn("device config is not present, will not include component state from panel update yet");
+            // the device config message hasn't arrived yet, so the presence of components cannot be recorded yet
         }
 
         boolean wLocked = false;

@@ -106,7 +106,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
             return;
         }
 
-        if (response.getState() == RegistrationAckState.ALREADY_REGISTERED) {
+        if (response.getState() == RegistrationAckState.ALREADY_REGISTERED && getRegisteredHWIds().containsKey(originatorId)) {
             LOGGER.info("confirmed registration state in cloud for id {}", hardwareId);
             return;
         }
@@ -392,11 +392,11 @@ public class BWGProcessor extends MQTTCommandProcessor {
             }
 
             // this loop runs often(once every 3 seconds), but only send up to cloud when timestamps on state data change
-            if ( lastSpaDetailsSent.get() != rs485DataHarvester.getLatestSpaInfo().getLastUpdateTimestamp()) {
+            if ( rs485DataHarvester.getLatestSpaInfo().hasLastUpdateTimestamp() && lastSpaDetailsSent.get() != rs485DataHarvester.getLatestSpaInfo().getLastUpdateTimestamp()) {
                 getCloudDispatcher().sendUplink(registeredController.getHardwareId(), null, UplinkCommandType.SPA_STATE, rs485DataHarvester.getLatestSpaInfo());
                 lastSpaDetailsSent.set(rs485DataHarvester.getLatestSpaInfo().getLastUpdateTimestamp());
+                LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
             }
-            LOGGER.info("Finished data harvest periodic iteration");
         } catch (Exception ex) {
             LOGGER.error("error while processing data harvest", ex);
         } finally {
@@ -459,7 +459,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
      * @return
      */
     public DeviceRegistration obtainSpaRegistration() {
-        return sendRegistration(null, "gateway", ImmutableMap.of("serialNumber", gwSerialNumber));
+        return sendRegistration(null, gwSerialNumber, "gateway", newHashMap());
     }
 
     /**
@@ -468,7 +468,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
      * @return
      */
     public DeviceRegistration obtainControllerRegistration(String spaHardwareId) {
-        return sendRegistration(spaHardwareId, "controller", newHashMap());
+        return sendRegistration(spaHardwareId, gwSerialNumber, "controller", newHashMap());
     }
 
     /**
@@ -478,7 +478,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
      * @return
      */
     public DeviceRegistration obtainMoteRegistration(String spaHardwareId, String macAddress) {
-        return sendRegistration(spaHardwareId, "mote", ImmutableMap.of("mac", macAddress));
+        return sendRegistration(spaHardwareId, gwSerialNumber, "mote", ImmutableMap.of("mac", macAddress));
     }
 
     private void validateOidProperties() {
@@ -509,7 +509,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
         registeredHwIds = mapDb.hashMap("registeredHwIds", Serializer.STRING, new DeviceRegistrationSerializer());
     }
 
-    private DeviceRegistration sendRegistration(String parentHwId, String deviceTypeName, Map<String, String> identityAttributes) {
+    private DeviceRegistration sendRegistration(String parentHwId, String spaSerialNumber, String deviceTypeName, Map<String, String> identityAttributes) {
         boolean readLocked = false;
         boolean writeLocked = false;
         try {
@@ -535,7 +535,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
             registeredDevice.setLastTime(System.currentTimeMillis());
             getRegisteredHWIds().put(registrationHashCode, registeredDevice);
             commitData();
-            super.sendRegistration(parentHwId, deviceTypeName, identityAttributes, registrationHashCode);
+            super.sendRegistration(parentHwId, spaSerialNumber, deviceTypeName, identityAttributes, registrationHashCode);
             return registeredDevice;
         } catch (InterruptedException ex) {
             throw Throwables.propagate(ex);

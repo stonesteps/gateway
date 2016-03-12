@@ -14,9 +14,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.SpringApplicationConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
+
+import static junit.framework.TestCase.assertNotNull;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = SpaGatewayMessageProcessorApplication.class)
@@ -41,12 +41,13 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         Thread.sleep(5000);
 
         // send register message
-        final Collection<Bwg.Metadata> metadata = new ArrayList<>();
-        metadata.add(SpaDataHelper.buildMetadata("serialName", "ABC"));
-        final Bwg.Uplink.Model.RegisterDevice registerDevice = SpaDataHelper.buildRegisterDevice(null, "gateway", metadata);
-        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), SpaDataHelper.buildUplinkMessage("1", "1", Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
+        final Bwg.Uplink.Model.RegisterDevice registerDevice = SpaDataHelper.buildRegisterDevice(null, "gateway", "ABC", null);
+        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), SpaDataHelper.buildUplinkMessage("1", null, Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
 
         Thread.sleep(10000);
+
+        final Spa processed = spaRepository.findBySerialNumber("ABC");
+        assertNotNull(processed);
     }
 
     @Test

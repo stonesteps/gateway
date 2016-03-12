@@ -87,8 +87,15 @@ public final class SpaDataHelper {
         return builder.build();
     }
 
+    public static Bwg.Downlink.Model.RegistrationResponse buildComponentRegistrationResponse(final Bwg.Downlink.Model.RegistrationAckState state) {
+        final Bwg.Downlink.Model.RegistrationResponse.Builder builder = Bwg.Downlink.Model.RegistrationResponse.newBuilder();
+        builder.setState(state);
+        return builder.build();
+    }
+
     public static Bwg.Uplink.Model.RegisterDevice buildRegisterDevice(final String parentDeviceHardwareId,
                                                                       final String deviceTypeName,
+                                                                      final String spaSerialNumber,
                                                                       final Iterable<? extends Bwg.Metadata> metadata) {
 
         final Bwg.Uplink.Model.RegisterDevice.Builder builder = Bwg.Uplink.Model.RegisterDevice.newBuilder();
@@ -99,6 +106,7 @@ public final class SpaDataHelper {
             builder.addAllMetadata(metadata);
         }
         builder.setDeviceTypeName(deviceTypeName);
+        builder.setSpaSerialNumber(spaSerialNumber);
 
         return builder.build();
     }

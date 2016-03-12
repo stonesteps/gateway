@@ -4,7 +4,6 @@ import com.bwg.iot.model.ComponentState;
 import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaCommand;
 import com.bwg.iot.model.SpaState;
-import com.bwg.iot.model.util.SpaRequestUtil;
 import com.google.common.base.Objects;
 import com.tritonsvc.messageprocessor.MessageProcessorConfiguration;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
@@ -89,10 +88,10 @@ public final class DownlinkRequestor {
 
             final String port = command.getValues().get(SpaCommand.ValueKeyName.PORT.getKeyName());
             final String desiredState = command.getValues().get(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName());
-            if (port != null && NumberUtils.isNumber(port) && !SpaRequestUtil.validPort(command.getRequestTypeId(), NumberUtils.createInteger(port))) {
+            if (port != null && NumberUtils.isNumber(port) /* && !SpaRequestUtil.validPort(command.getRequestTypeId(), NumberUtils.createInteger(port))*/) {
                 log.error("Port passed with command is invalid {}", port);
-            } else if (!SpaRequestUtil.validState(command.getRequestTypeId(), desiredState)) {
-                log.error("Desired state passed with command is invalid {}", desiredState);
+            //} else if (!SpaRequestUtil.validState(command.getRequestTypeId(), desiredState)) {
+                //log.error("Desired state passed with command is invalid {}", desiredState);
             } else {
                 final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(requestType, command.getValues());
                 final byte[] messageData = SpaDataHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);

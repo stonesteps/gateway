@@ -41,7 +41,7 @@ public class MockProcessor extends MQTTCommandProcessor {
 
 	@Override
 	public void handleStartup(String hardwareId, Properties configProps, String homePath, ScheduledExecutorService executorService) {
-        sendRegistration(null, "gateway", ImmutableMap.of("serialNumber", "mockSerialNumber"),"spa_originatorid");
+        sendRegistration(null, "gateway", "mockSerialNumber",newHashMap(), "spa_originatorid");
 		LOGGER.info("Sent registration information.");
 	}
 
@@ -98,19 +98,19 @@ public class MockProcessor extends MQTTCommandProcessor {
     public void processDataHarvestIteration() {
 
         if (registeredSpa.getHardwareId() == null) {
-            sendRegistration(null, "gateway", ImmutableMap.of("serialNumber", "mockSerialNumber"),"spa_originatorid");
+            sendRegistration(null, "gateway", "mockSerialNumber", newHashMap(),"spa_originatorid");
             LOGGER.info("resent spa gateway registration");
             return;
         }
 
         if (registeredController.getHardwareId() == null) {
-            sendRegistration(registeredSpa.getHardwareId(), "controller", newHashMap(),"controller_originatorid");
+            sendRegistration(registeredSpa.getHardwareId(), "controller",  "mockSerialNumber", newHashMap(),"controller_originatorid");
             LOGGER.info("resent controller registration");
             return;
         }
 
         if (registeredMote.getHardwareId() == null) {
-            sendRegistration(registeredSpa.getHardwareId(), "mote", ImmutableMap.of("mac", "mockMAC"),"mote_originatorid");
+            sendRegistration(registeredSpa.getHardwareId(), "mote",  "mockSerialNumber", ImmutableMap.of("mac", "mockMAC"),"mote_originatorid");
             LOGGER.info("resent mote registration");
             return;
         }
