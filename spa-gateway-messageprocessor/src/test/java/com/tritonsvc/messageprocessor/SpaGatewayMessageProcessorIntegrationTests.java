@@ -2,8 +2,6 @@ package com.tritonsvc.messageprocessor;
 
 import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaCommand;
-import com.bwg.iot.model.SpaCommandAttributeName;
-import com.bwg.iot.model.SpaCommandAttributeValue;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
@@ -64,7 +62,7 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         final Spa spa = createSpa("1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
-        values.put(SpaCommandAttributeName.DESIRED_TEMP, "78.0");
+        values.put(SpaCommand.ValueKeyName.DESIRED_TEMP.getKeyName(), "78.0");
         final SpaCommand command = createSpaCommand(spa, SpaCommand.RequestType.HEATER.getCode(), values);
 
         // wait some time
@@ -85,7 +83,7 @@ public class SpaGatewayMessageProcessorIntegrationTests {
         final Spa spa = createSpa("1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
-        values.put(SpaCommandAttributeName.DESIRED_STATE, SpaCommandAttributeValue.ON);
+        values.put(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName(), SpaCommand.OnOff.ON.toString());
         final SpaCommand command = createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
 
         // wait some time
