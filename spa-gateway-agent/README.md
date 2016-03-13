@@ -22,11 +22,12 @@ launchctl [start|stop] homebrew.mxcl.mosquitto
 
 ##Agent Usage Example
 create a directory called 'gateway_agent'
-copy config/config.properties, config/logback.xml into 'gateway_agent'
+copy config/config.properties, config/logback.xml into 'gateway_agent' directory
      
      
-If you plan to run the agent on target(armv7 processor) with a connection to a real spa rs485:
-copy lib/armv7/libdio.so and config/dio.policy to 'gateway_agent'
+If you plan to run the agent on target platform(armv7 processor) with a connection to a real spa rs485:
+copy lib/armv7/libdio.so and config/dio.policy to 'gateway_agent' directory also. This is not required 
+if you plan to run the MockProcessor.
 
 
 If you want to just simulate mock data and are not connecting to a real Spa controller,

@@ -1,29 +1,29 @@
 package com.tritonsvc.gateway;
 
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.AvailableStates;
+import java.util.List;
 
 /**
  * pojo to carry component meta info
  */
 public class ComponentInfo {
     String currentState;
-    AvailableStates numberOfSupportedStates;
+    List<?> supportedStates;
 
     /**
      * constructor
      * @param currentState
-     * @param numberOfSupportedStates
+     * @param supportedStates
      */
-    public ComponentInfo(String currentState, AvailableStates numberOfSupportedStates) {
+    public ComponentInfo(String currentState, List<?> supportedStates) {
         this.currentState = currentState;
-        this.numberOfSupportedStates = numberOfSupportedStates;
+        this.supportedStates = supportedStates;
     }
 
     public String getCurrentState() {
         return currentState;
     }
 
-    public AvailableStates getNumberOfSupportedStates() {
-        return numberOfSupportedStates;
+    public List<?> getNumberOfSupportedStates() {
+        return supportedStates;
     }
 }

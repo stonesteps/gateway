@@ -217,11 +217,13 @@ public class RS485MessagePublisher {
                 try {
                     processor.getRS485UART().write(bb);
                     if (requestMessage.getHardwareId() != null) {
+                        // if hardwareid is not present, this was a message initiated by the agent not the cloud, don't send an ack up to cloud in this case
                         processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.OK, null);
                     }
-                    LOGGER.info("sent queued downlink message, originator {}, as 485 poll response, payload {}, there are {} remaining, sent OK ack back to cloud", requestMessage.getOriginatorId(), printHexBinary(bb.array()), pendingDownlinks.size());
+                    LOGGER.info("sent queued downlink message, originator {}, as 485 poll response, payload {}, there are {} remaining", requestMessage.getOriginatorId(), printHexBinary(bb.array()), pendingDownlinks.size());
                 } catch (Exception ex) {
                     if (requestMessage.getHardwareId() != null) {
+                        // if hardwareid is not present, this was a message initiated by the agent not the cloud, don't send an ack up to cloud in this case
                         processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.ERROR, "485 communication problem");
                     }
                     LOGGER.info("failed sending downlink message, originator {}, as 485 poll response, payload {}", requestMessage.getOriginatorId(), printHexBinary(bb.array()));
@@ -260,7 +262,7 @@ public class RS485MessagePublisher {
 
     private void addToPending(PendingRequest request) throws Exception{
         if (pendingDownlinks.offer(request, 5000, TimeUnit.MILLISECONDS)) {
-            LOGGER.info("put cloud request, originator id {} in downlink queue, payload {}", request.getOriginatorId(), printHexBinary(request.getPayload()));
+            LOGGER.info("put rs485 request, originator id {} in downlink queue, payload {}", request.getOriginatorId(), printHexBinary(request.getPayload()));
         } else {
             throw new Exception("downlink queue is full");
         }

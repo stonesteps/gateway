@@ -73,7 +73,8 @@ message Uplink {
             optional string parentDeviceHardwareId = 2; // this could be blank if it's the gateway
                                                         // or if its any device under the gateway, this id should be
                                                         // the registered id
-            repeated Metadata metadata = 3; // this can be a key/value of whatever attributes a device can provide
+            required string spaSerialNumber = 3; // any component sending a reg, should include the spa's serial number here
+            repeated Metadata metadata = 4; // this can be a key/value of whatever attributes a device can provide
                                             // unique identification, would be serial number for gateway, may be mac address
                                             // for others
         }
@@ -114,7 +115,7 @@ message Uplink {
             optional SetupParams setupParams = 2;
             optional SystemInfo systemInfo = 3;
             optional Components components = 4;
-            required fixed64 lastUpdateTimestamp = 5;
+            optional fixed64 lastUpdateTimestamp = 5;
         }
 
         // this is the state of each known component attached to controller
@@ -123,18 +124,24 @@ message Uplink {
         // or if the datatype of component is bool that means the component only supports binary ON/OFF state
         message Components {
             // the heater state is read-only, there is no command to change it's state
-            optional Constants.HeaterState heater1= 1;
-            optional Constants.HeaterState heater2= 2;
+            enum HeaterState {
+                HEATER_OFF = 0;
+                HEATER_ON = 1;
+                HEATER_WAITING = 2;
+                HEATER_UNDEFINED = 3;
+            }
+            optional HeaterState heater1= 1;
+            optional HeaterState heater2= 2;
             // ON/OFF components
-            optional bool ozone = 3;
-            optional bool microSilk = 4;
-            optional bool aux1 = 5;
-            optional bool aux2 = 6;
-            optional bool aux3 = 7;
-            optional bool aux4 = 8;
-            optional bool mister1 = 9;
-            optional bool mister2 = 10;
-            optional bool mister3 = 11;
+            optional ToggleComponent ozone = 3;
+            optional ToggleComponent microSilk = 4;
+            optional ToggleComponent aux1 = 5;
+            optional ToggleComponent aux2 = 6;
+            optional ToggleComponent aux3 = 7;
+            optional ToggleComponent aux4 = 8;
+            optional ToggleComponent mister1 = 9;
+            optional ToggleComponent mister2 = 10;
+            optional ToggleComponent mister3 = 11;
             // Multi-state components
             optional PumpComponent pump1 =12;
             optional PumpComponent pump2 =13;
@@ -155,19 +162,45 @@ message Uplink {
             optional uint32 fiberWheel = 20;
             required fixed64 lastUpdateTimestamp = 27;
 
+            message ToggleComponent {
+                optional State currentState = 1;
+                repeated State availableStates = 2;
+                enum State {
+                    OFF = 0;
+                    ON = 1;
+                }
+            }
+
             message PumpComponent {
-                optional Constants.TriState currentState = 1;
-                required Constants.AvailableStates availableStates = 2;
+                optional State currentState = 1;
+                repeated State availableStates = 2;
+                enum State {
+                    OFF = 0;
+                    LOW = 1;
+                    HIGH = 2;
+                }
             }
 
             message BlowerComponent {
-                optional Constants.QuadState currentState = 1;
-                required Constants.AvailableStates availableStates = 2;
+                optional State currentState = 1;
+                repeated State availableStates = 2;
+                enum State {
+                    OFF = 0;
+                    LOW = 1;
+                    MED = 2;
+                    HIGH = 3;
+                }
             }
 
             message LightComponent {
-                optional Constants.QuadState currentState = 1;
-                required Constants.AvailableStates availableStates = 2;
+                optional State currentState = 1;
+                repeated State availableStates = 2;
+                enum State {
+                    OFF = 0;
+                    LOW = 1;
+                    MED = 2;
+                    HIGH = 3;
+                }
             }
         }
 
@@ -252,13 +285,6 @@ message Uplink {
 
         message Constants {
 
-            enum AvailableStates {
-                UNARY = 1;
-                BINARY = 2;
-                TRIPLE = 3;
-                QUAD = 4;
-            }
-
             enum HeaterPower {
                 VOLT_120 = 0;
                 VOLT_240 = 1;
@@ -292,26 +318,6 @@ message Uplink {
             enum EventType {
                 NOTIFY = 1;
                 ALERT = 2;
-            }
-
-            enum HeaterState {
-                HEATER_OFF = 0;
-                HEATER_ON = 1;
-                HEATER_WAITING = 2;
-                HEATER_UNDEFINED = 3;
-            }
-
-            enum QuadState {
-                QUAD_OFF = 0;
-                QUAD_LOW = 1;
-                QUAD_MED = 2;
-                QUAD_HIGH = 3;
-            }
-
-            enum TriState {
-                TRI_OFF = 0;
-                TRI_LOW = 1;
-                TRI_HIGH = 2;
             }
 
             enum TempRange {
@@ -399,12 +405,15 @@ message Downlink {
 
         // Acknowledges prior registration uplink, the hardwareId returned in header will be
         // the generated id field in the mongodb that was created in the cloud when registration message was received
+
+        // this reg response is for controller, and anything other than the spa gateway reg
         message RegistrationResponse {
             required RegistrationAckState state = 1;
             optional RegistrationAckError errorType = 2;
             optional string errorMessage = 3;
         }
 
+        // this is the response for the spa gateway reg only
         message SpaRegistrationResponse {
             required RegistrationAckState state = 1;
             optional RegistrationAckError errorType = 2;
@@ -422,6 +431,9 @@ message Downlink {
             DIAG_REPORT = 6;
             PANEL = 7; // LOCK or UNLOCK
             HEATER = 8;
+            OZONE = 9;
+            MICROSILK = 10;
+            AUX = 11;
         }
 
         enum SpaCommandAttribName {

@@ -6,16 +6,13 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.AvailableStates;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelDisplayCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelMode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.QuadState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.SwimSpaMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TriState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Controller;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SetupParams;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
@@ -26,7 +23,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -38,12 +37,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static javax.xml.bind.DatatypeConverter.printHexBinary;
 
 /**
  * WSN data collection thread, keeps the thread running/fresh at all times unless interrupted
  */
 public class RS485DataHarvester implements Runnable {
+    public static final int MAX_485_REG_WAIT = 10000;
     private static Logger LOGGER = LoggerFactory.getLogger(RS485DataHarvester.class);
     private BWGProcessor processor;
     private static byte delimiter = (byte)0x7e; // this is the HDLC delimeter flag
@@ -62,6 +63,7 @@ public class RS485DataHarvester implements Runnable {
     private AtomicInteger HighHigh = new AtomicInteger(0);
     private AtomicInteger LowHigh = new AtomicInteger(0);
     private AtomicInteger LowLow = new AtomicInteger(0);
+    private AtomicReference<byte[]> lastPanelUpdate = new AtomicReference<>(new byte[]{});
 
     final ReentrantReadWriteLock spaStateLock = new ReentrantReadWriteLock();
     private SpaState spaState = SpaState.newBuilder().build();
@@ -180,25 +182,76 @@ public class RS485DataHarvester implements Runnable {
         try {
             getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
+            if (!spaState.hasComponents()) {
+                return null;
+            }
             switch (type) {
+                case LIGHT:
+                    switch (port) {
+                        case 1:
+                            return spaState.getComponents().hasLight1() ? new ComponentInfo(spaState.getComponents().getLight1().getCurrentState().name(), spaState.getComponents().getLight1().getAvailableStatesList()): null;
+                        case 2:
+                            return spaState.getComponents().hasLight2() ? new ComponentInfo(spaState.getComponents().getLight2().getCurrentState().name(), spaState.getComponents().getLight2().getAvailableStatesList()): null;
+                        case 3:
+                            return spaState.getComponents().hasLight3() ? new ComponentInfo(spaState.getComponents().getLight3().getCurrentState().name(), spaState.getComponents().getLight3().getAvailableStatesList()): null;
+                        case 4:
+                            return spaState.getComponents().hasLight4() ? new ComponentInfo(spaState.getComponents().getLight4().getCurrentState().name(), spaState.getComponents().getLight4().getAvailableStatesList()): null;
+                    }
+                case AUX:
+                    switch (port) {
+                        case 1:
+                            return spaState.getComponents().hasAux1() ? new ComponentInfo(spaState.getComponents().getAux1().getCurrentState().name(), spaState.getComponents().getAux1().getAvailableStatesList()): null;
+                        case 2:
+                            return spaState.getComponents().hasAux2() ? new ComponentInfo(spaState.getComponents().getAux2().getCurrentState().name(), spaState.getComponents().getAux2().getAvailableStatesList()): null;
+                        case 3:
+                            return spaState.getComponents().hasAux3() ? new ComponentInfo(spaState.getComponents().getAux3().getCurrentState().name(), spaState.getComponents().getAux3().getAvailableStatesList()): null;
+                        case 4:
+                            return spaState.getComponents().hasAux4() ? new ComponentInfo(spaState.getComponents().getAux4().getCurrentState().name(), spaState.getComponents().getAux4().getAvailableStatesList()): null;
+
+                    }
+                case MISTER:
+                    switch (port) {
+                        case 1:
+                            return spaState.getComponents().hasMister1() ? new ComponentInfo(spaState.getComponents().getMister1().getCurrentState().name(), spaState.getComponents().getMister1().getAvailableStatesList()): null;
+                        case 2:
+                            return spaState.getComponents().hasMister2() ? new ComponentInfo(spaState.getComponents().getMister2().getCurrentState().name(), spaState.getComponents().getMister2().getAvailableStatesList()): null;
+                        case 3:
+                            return spaState.getComponents().hasMister3() ? new ComponentInfo(spaState.getComponents().getMister3().getCurrentState().name(), spaState.getComponents().getMister3().getAvailableStatesList()): null;
+
+                    }
+                case BLOWER:
+                    switch (port) {
+                        case 1:
+                            return spaState.getComponents().hasBlower1() ? new ComponentInfo(spaState.getComponents().getBlower1().getCurrentState().name(), spaState.getComponents().getBlower1().getAvailableStatesList()): null;
+                        case 2:
+                            return spaState.getComponents().hasBlower2() ? new ComponentInfo(spaState.getComponents().getBlower2().getCurrentState().name(), spaState.getComponents().getBlower2().getAvailableStatesList()): null;
+                    }
                 case PUMP:
                     switch (port) {
                         case 1:
-                            return spaState.getComponents().hasPump1() ? new ComponentInfo(spaState.getComponents().getPump1().getCurrentState().name(), spaState.getComponents().getPump1().getAvailableStates()): null;
+                            return spaState.getComponents().hasPump1() ? new ComponentInfo(spaState.getComponents().getPump1().getCurrentState().name(), spaState.getComponents().getPump1().getAvailableStatesList()): null;
                         case 2:
-                            return spaState.getComponents().hasPump2() ? new ComponentInfo(spaState.getComponents().getPump2().getCurrentState().name(), spaState.getComponents().getPump2().getAvailableStates()) : null;
+                            return spaState.getComponents().hasPump2() ? new ComponentInfo(spaState.getComponents().getPump2().getCurrentState().name(), spaState.getComponents().getPump2().getAvailableStatesList()) : null;
                         case 3:
-                            return spaState.getComponents().hasPump3() ? new ComponentInfo(spaState.getComponents().getPump3().getCurrentState().name(), spaState.getComponents().getPump3().getAvailableStates()) : null;
+                            return spaState.getComponents().hasPump3() ? new ComponentInfo(spaState.getComponents().getPump3().getCurrentState().name(), spaState.getComponents().getPump3().getAvailableStatesList()) : null;
                         case 4:
-                            return spaState.getComponents().hasPump4() ? new ComponentInfo(spaState.getComponents().getPump4().getCurrentState().name(), spaState.getComponents().getPump4().getAvailableStates()) : null;
+                            return spaState.getComponents().hasPump4() ? new ComponentInfo(spaState.getComponents().getPump4().getCurrentState().name(), spaState.getComponents().getPump4().getAvailableStatesList()) : null;
                         case 5:
-                            return spaState.getComponents().hasPump5() ? new ComponentInfo(spaState.getComponents().getPump5().getCurrentState().name(), spaState.getComponents().getPump5().getAvailableStates()) : null;
+                            return spaState.getComponents().hasPump5() ? new ComponentInfo(spaState.getComponents().getPump5().getCurrentState().name(), spaState.getComponents().getPump5().getAvailableStatesList()) : null;
                         case 6:
-                            return spaState.getComponents().hasPump6() ? new ComponentInfo(spaState.getComponents().getPump6().getCurrentState().name(), spaState.getComponents().getPump6().getAvailableStates()) : null;
+                            return spaState.getComponents().hasPump6() ? new ComponentInfo(spaState.getComponents().getPump6().getCurrentState().name(), spaState.getComponents().getPump6().getAvailableStatesList()) : null;
                         case 7:
-                            return spaState.getComponents().hasPump7() ? new ComponentInfo(spaState.getComponents().getPump7().getCurrentState().name(), spaState.getComponents().getPump7().getAvailableStates()) : null;
+                            return spaState.getComponents().hasPump7() ? new ComponentInfo(spaState.getComponents().getPump7().getCurrentState().name(), spaState.getComponents().getPump7().getAvailableStatesList()) : null;
                         case 8:
-                            return spaState.getComponents().hasPump8() ? new ComponentInfo(spaState.getComponents().getPump8().getCurrentState().name(), spaState.getComponents().getPump8().getAvailableStates()) : null;
+                            return spaState.getComponents().hasPump8() ? new ComponentInfo(spaState.getComponents().getPump8().getCurrentState().name(), spaState.getComponents().getPump8().getAvailableStatesList()) : null;
+                    }
+                case OZONE:
+                    if (spaState.getComponents().hasOzone()) {
+                        return new ComponentInfo(spaState.getComponents().getOzone().getCurrentState().name(), spaState.getComponents().getOzone().getAvailableStatesList());
+                    }
+                case MICROSILK:
+                    if (spaState.getComponents().hasMicroSilk()) {
+                        return new ComponentInfo(spaState.getComponents().getMicroSilk().getCurrentState().name(), spaState.getComponents().getMicroSilk().getAvailableStatesList());
                     }
             }
         } finally {
@@ -422,9 +475,9 @@ public class RS485DataHarvester implements Runnable {
     }
 
     private void processUnassignedDevicePoll() {
-        if (System.currentTimeMillis() - registrationLastAttempt.get() > 60000) {
+        if (System.currentTimeMillis() - registrationLastAttempt.get() > MAX_485_REG_WAIT) {
             synchronized(registrationLastAttempt) {
-                if (System.currentTimeMillis() - registrationLastAttempt.get() > 60000) {
+                if (System.currentTimeMillis() - registrationLastAttempt.get() > MAX_485_REG_WAIT) {
                     byte[] requestKey = new byte[2];
                     new Random().nextBytes(requestKey);
                     int requestId = (0xFF00 & (requestKey[0] << 8)) | (0xFF & requestKey[1]);
@@ -472,13 +525,19 @@ public class RS485DataHarvester implements Runnable {
     }
 
     private void processPanelUpdateMessage(byte[] message) {
+        if (Arrays.equals(lastPanelUpdate.get(), message)) {
+            // dedupe panel updates, they come often, and are usually the exact same, skip if so
+            return;
+        }
+
+        lastPanelUpdate.set(message);
         isCelsius.set((0x01 & message[13]) > 0);
         Controller controller = buildControllerMessageFromPanelUpdate(message);
         Components components = null;
         try {
             components = buildComponentsMessageFromPanelUpdate(message);
         } catch (IllegalStateException ex) {
-            LOGGER.warn("device config is not present, will not include component state from panel update yet");
+            // the device config message hasn't arrived yet, so the presence of components cannot be recorded yet
         }
 
         boolean wLocked = false;
@@ -521,39 +580,40 @@ public class RS485DataHarvester implements Runnable {
         }
 
         compsBuilder.setLastUpdateTimestamp(new Date().getTime());
-        if (compsBuilder.hasAux1()) { compsBuilder.setAux1((0x08 & message[19]) > 0);}
-        if (compsBuilder.hasAux2()) { compsBuilder.setAux2((0x10 & message[19]) > 0);}
-        if (compsBuilder.hasAux3()) { compsBuilder.setAux3((0x20 & message[19]) > 0);}
-        if (compsBuilder.hasAux4()) { compsBuilder.setAux4((0x40 & message[19]) > 0);}
+        if (compsBuilder.hasAux1()) { compsBuilder.setAux1(ToggleComponent.newBuilder(compsBuilder.getAux1()).setCurrentState(ToggleComponent.State.valueOf(0x08 & message[19])));}
+        if (compsBuilder.hasAux2()) { compsBuilder.setAux2(ToggleComponent.newBuilder(compsBuilder.getAux2()).setCurrentState(ToggleComponent.State.valueOf(0x10 & message[19])));}
+        if (compsBuilder.hasAux3()) { compsBuilder.setAux3(ToggleComponent.newBuilder(compsBuilder.getAux3()).setCurrentState(ToggleComponent.State.valueOf(0x20 & message[19])));}
+        if (compsBuilder.hasAux4()) { compsBuilder.setAux4(ToggleComponent.newBuilder(compsBuilder.getAux4()).setCurrentState(ToggleComponent.State.valueOf(0x40 & message[19])));}
 
-        if (compsBuilder.hasMister3()) { compsBuilder.setMister3((0x04 & message[19]) > 0);}
-        if (compsBuilder.hasMister2()) { compsBuilder.setMister2((0x02 & message[19]) > 0);}
-        if (compsBuilder.hasMister1()) { compsBuilder.setMister1((0x01 & message[19]) > 0);}
+        if (compsBuilder.hasMister3()) { compsBuilder.setMister3(ToggleComponent.newBuilder(compsBuilder.getMister3()).setCurrentState(ToggleComponent.State.valueOf(0x04 & message[19])));}
+        if (compsBuilder.hasMister2()) { compsBuilder.setMister2(ToggleComponent.newBuilder(compsBuilder.getMister2()).setCurrentState(ToggleComponent.State.valueOf(0x02 & message[19])));}
+        if (compsBuilder.hasMister1()) { compsBuilder.setMister1(ToggleComponent.newBuilder(compsBuilder.getMister1()).setCurrentState(ToggleComponent.State.valueOf(0x01 & message[19])));}
 
-        if (compsBuilder.hasMicroSilk()) { compsBuilder.setMicroSilk((0x02 & message[26]) > 0);}
-        if (compsBuilder.hasOzone()) { compsBuilder.setOzone((0x04 & message[14]) > 0);}
+        if (compsBuilder.hasMicroSilk()) { compsBuilder.setMicroSilk(ToggleComponent.newBuilder(compsBuilder.getMicroSilk()).setCurrentState(ToggleComponent.State.valueOf(0x02 & message[26])));}
+        if (compsBuilder.hasOzone()) { compsBuilder.setOzone(ToggleComponent.newBuilder(compsBuilder.getOzone()).setCurrentState(ToggleComponent.State.valueOf(0x04 & message[14])));}
 
-        if (compsBuilder.hasHeater1()) { compsBuilder.setHeater1(HeaterState.valueOf((0x30 & message[14]) >> 4));}
-        if (compsBuilder.hasHeater2()) { compsBuilder.setHeater2(HeaterState.valueOf((0xC0 & message[14]) >> 6));}
+        if (compsBuilder.hasHeater1()) { compsBuilder.setHeater1(Components.HeaterState.valueOf((0x30 & message[14]) >> 4));}
+        if (compsBuilder.hasHeater2()) { compsBuilder.setHeater2(Components.HeaterState.valueOf((0xC0 & message[14]) >> 6));}
 
-        if (compsBuilder.hasPump1()) { compsBuilder.setPump1(PumpComponent.newBuilder(compsBuilder.getPump1()).setCurrentState(TriState.valueOf(0x03 & message[15])));}
-        if (compsBuilder.hasPump2()) { compsBuilder.setPump2(PumpComponent.newBuilder(compsBuilder.getPump2()).setCurrentState(TriState.valueOf((0x0C & message[15]) >> 2)));}
-        if (compsBuilder.hasPump3()) { compsBuilder.setPump3(PumpComponent.newBuilder(compsBuilder.getPump3()).setCurrentState(TriState.valueOf((0x30 & message[15]) >> 4)));}
-        if (compsBuilder.hasPump4()) { compsBuilder.setPump4(PumpComponent.newBuilder(compsBuilder.getPump4()).setCurrentState(TriState.valueOf((0xC0 & message[15]) >> 6)));}
-        if (compsBuilder.hasPump5()) { compsBuilder.setPump5(PumpComponent.newBuilder(compsBuilder.getPump5()).setCurrentState(TriState.valueOf(0x03 & message[16])));}
-        if (compsBuilder.hasPump6()) { compsBuilder.setPump6(PumpComponent.newBuilder(compsBuilder.getPump6()).setCurrentState(TriState.valueOf((0x0C & message[16]) >> 2)));}
-        if (compsBuilder.hasPump7()) { compsBuilder.setPump7(PumpComponent.newBuilder(compsBuilder.getPump7()).setCurrentState(TriState.valueOf((0x30 & message[16]) >> 4)));}
-        if (compsBuilder.hasPump8()) { compsBuilder.setPump8(PumpComponent.newBuilder(compsBuilder.getPump8()).setCurrentState(TriState.valueOf((0xC0 & message[16]) >> 6)));}
-        if (compsBuilder.hasCirculationPump()) { compsBuilder.setCirculationPump(PumpComponent.newBuilder(compsBuilder.getCirculationPump()).setCurrentState(TriState.valueOf(0x03 & message[17])));}
+        if (compsBuilder.hasPump1()) { compsBuilder.setPump1(PumpComponent.newBuilder(compsBuilder.getPump1()).setCurrentState(PumpComponent.State.valueOf(0x03 & message[15])));}
+        if (compsBuilder.hasPump2()) { compsBuilder.setPump2(PumpComponent.newBuilder(compsBuilder.getPump2()).setCurrentState(PumpComponent.State.valueOf((0x0C & message[15]) >> 2)));}
+        if (compsBuilder.hasPump3()) { compsBuilder.setPump3(PumpComponent.newBuilder(compsBuilder.getPump3()).setCurrentState(PumpComponent.State.valueOf((0x30 & message[15]) >> 4)));}
+        if (compsBuilder.hasPump4()) { compsBuilder.setPump4(PumpComponent.newBuilder(compsBuilder.getPump4()).setCurrentState(PumpComponent.State.valueOf((0xC0 & message[15]) >> 6)));}
+        if (compsBuilder.hasPump5()) { compsBuilder.setPump5(PumpComponent.newBuilder(compsBuilder.getPump5()).setCurrentState(PumpComponent.State.valueOf(0x03 & message[16])));}
+        if (compsBuilder.hasPump6()) { compsBuilder.setPump6(PumpComponent.newBuilder(compsBuilder.getPump6()).setCurrentState(PumpComponent.State.valueOf((0x0C & message[16]) >> 2)));}
+        if (compsBuilder.hasPump7()) { compsBuilder.setPump7(PumpComponent.newBuilder(compsBuilder.getPump7()).setCurrentState(PumpComponent.State.valueOf((0x30 & message[16]) >> 4)));}
+        if (compsBuilder.hasPump8()) { compsBuilder.setPump8(PumpComponent.newBuilder(compsBuilder.getPump8()).setCurrentState(PumpComponent.State.valueOf((0xC0 & message[16]) >> 6)));}
+        boolean circPumpOn = (0x03 & message[17]) > 0;
+        if (compsBuilder.hasCirculationPump()) { compsBuilder.setCirculationPump(PumpComponent.newBuilder(compsBuilder.getCirculationPump()).setCurrentState(circPumpOn ? PumpComponent.State.HIGH : PumpComponent.State.OFF));}
 
-        if (compsBuilder.hasBlower1()) { compsBuilder.setBlower1(BlowerComponent.newBuilder(compsBuilder.getBlower1()).setCurrentState(QuadState.valueOf((0x0C & message[17]) >> 2)));}
-        if (compsBuilder.hasBlower2()) { compsBuilder.setBlower2(BlowerComponent.newBuilder(compsBuilder.getBlower2()).setCurrentState(QuadState.valueOf((0x30 & message[17]) >> 4)));}
+        if (compsBuilder.hasBlower1()) { compsBuilder.setBlower1(BlowerComponent.newBuilder(compsBuilder.getBlower1()).setCurrentState(BlowerComponent.State.valueOf((0x0C & message[17]) >> 2)));}
+        if (compsBuilder.hasBlower2()) { compsBuilder.setBlower2(BlowerComponent.newBuilder(compsBuilder.getBlower2()).setCurrentState(BlowerComponent.State.valueOf((0x30 & message[17]) >> 4)));}
         if (compsBuilder.hasFiberWheel()) { compsBuilder.setFiberWheel(0xC0 & message[17] >> 6);}
 
-        if (compsBuilder.hasLight1()) { compsBuilder.setLight1(LightComponent.newBuilder(compsBuilder.getLight1()).setCurrentState(QuadState.valueOf(0x03 & message[18])));}
-        if (compsBuilder.hasLight2()) { compsBuilder.setLight2(LightComponent.newBuilder(compsBuilder.getLight2()).setCurrentState(QuadState.valueOf((0x0C & message[18]) >> 2)));}
-        if (compsBuilder.hasLight3()) { compsBuilder.setLight3(LightComponent.newBuilder(compsBuilder.getLight3()).setCurrentState(QuadState.valueOf((0x30 & message[18]) >> 4)));}
-        if (compsBuilder.hasLight4()) { compsBuilder.setLight4(LightComponent.newBuilder(compsBuilder.getLight4()).setCurrentState(QuadState.valueOf((0xC0 & message[18]) >> 6)));}
+        if (compsBuilder.hasLight1()) { compsBuilder.setLight1(LightComponent.newBuilder(compsBuilder.getLight1()).setCurrentState(LightComponent.State.valueOf(0x03 & message[18])));}
+        if (compsBuilder.hasLight2()) { compsBuilder.setLight2(LightComponent.newBuilder(compsBuilder.getLight2()).setCurrentState(LightComponent.State.valueOf((0x0C & message[18]) >> 2)));}
+        if (compsBuilder.hasLight3()) { compsBuilder.setLight3(LightComponent.newBuilder(compsBuilder.getLight3()).setCurrentState(LightComponent.State.valueOf((0x30 & message[18]) >> 4)));}
+        if (compsBuilder.hasLight4()) { compsBuilder.setLight4(LightComponent.newBuilder(compsBuilder.getLight4()).setCurrentState(LightComponent.State.valueOf((0xC0 & message[18]) >> 6)));}
 
         return compsBuilder.build();
     }
@@ -685,6 +745,35 @@ public class RS485DataHarvester implements Runnable {
         }
     }
 
+    private List<PumpComponent.State> getAvailablePumpStates(int available) {
+        if (available > 2) {
+            return newArrayList(PumpComponent.State.values());
+        }
+        return newArrayList(PumpComponent.State.OFF, PumpComponent.State.HIGH);
+    }
+
+    private List<LightComponent.State> getAvailableLightStates(int available) {
+        if (available > 3) {
+            return newArrayList(LightComponent.State.values());
+        } else if (available > 2) {
+            return newArrayList(LightComponent.State.OFF, LightComponent.State.LOW, LightComponent.State.HIGH);
+        }
+        return newArrayList(LightComponent.State.OFF, LightComponent.State.HIGH);
+    }
+
+    private List<BlowerComponent.State> getAvailableBlowerStates(int available) {
+        if (available > 3) {
+            return newArrayList(BlowerComponent.State.values());
+        } else if (available > 2) {
+            return newArrayList(BlowerComponent.State.OFF, BlowerComponent.State.LOW, BlowerComponent.State.HIGH);
+        }
+        return newArrayList(BlowerComponent.State.OFF, BlowerComponent.State.HIGH);
+    }
+
+    private List<ToggleComponent.State> getAvailableToggleStates() {
+        return newArrayList(ToggleComponent.State.OFF, ToggleComponent.State.ON);
+    }
+
     private void processDeviceConfigsMessage(byte[] message) {
         boolean rLocked = false;
         Components.Builder compsBuilder = Components.newBuilder();
@@ -705,170 +794,170 @@ public class RS485DataHarvester implements Runnable {
 
         int value = (0x03 & message[4]);
         if ( value > 0) {
-            compsBuilder.setPump1(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setPump1(PumpComponent.newBuilder().addAllAvailableStates(getAvailablePumpStates(value)));
         } else {
             compsBuilder.clearPump1();
         }
 
         value = ((0x0C & message[4]) >> 2);
         if ( value > 0) {
-            compsBuilder.setPump2(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setPump2(PumpComponent.newBuilder().addAllAvailableStates(getAvailablePumpStates(value)));
         } else {
             compsBuilder.clearPump2();
         }
 
         value = ((0x30 & message[4]) >> 4);
         if ( value > 0) {
-            compsBuilder.setPump3(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setPump3(PumpComponent.newBuilder().addAllAvailableStates(getAvailablePumpStates(value)));
         } else {
             compsBuilder.clearPump3();
         }
 
         value = ((0xC0 & message[4]) >> 6);
         if ( value > 0) {
-            compsBuilder.setPump4(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setPump4(PumpComponent.newBuilder().addAllAvailableStates(getAvailablePumpStates(value)));
         } else {
             compsBuilder.clearPump4();
         }
 
         value = (0x03 & message[5]);
         if ( value > 0) {
-            compsBuilder.setPump5(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setPump5(PumpComponent.newBuilder().addAllAvailableStates(getAvailablePumpStates(value)));
         } else {
             compsBuilder.clearPump5();
         }
 
         value = ((0x0C & message[5]) >> 2);
         if ( value > 0) {
-            compsBuilder.setPump6(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setPump6(PumpComponent.newBuilder().addAllAvailableStates(getAvailablePumpStates(value)));
         } else {
             compsBuilder.clearPump6();
         }
 
         value = ((0x30 & message[5]) >> 4);
         if ( value > 0) {
-            compsBuilder.setPump7(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setPump7(PumpComponent.newBuilder().addAllAvailableStates(getAvailablePumpStates(value)));
         } else {
             compsBuilder.clearPump7();
         }
 
         value = ((0xC0 & message[5]) >> 6);
         if ( value > 0) {
-            compsBuilder.setPump8(PumpComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setPump8(PumpComponent.newBuilder().addAllAvailableStates(getAvailablePumpStates(value)));
         } else {
             compsBuilder.clearPump8();
         }
 
         value = (0x03 & message[6]);
         if ( value > 0) {
-            compsBuilder.setLight1(LightComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setLight1(LightComponent.newBuilder().addAllAvailableStates(getAvailableLightStates(value)));
         } else {
             compsBuilder.clearLight1();
         }
 
         value = ((0x0C & message[6]) >> 2);
         if ( value > 0) {
-            compsBuilder.setLight2(LightComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setLight2(LightComponent.newBuilder().addAllAvailableStates(getAvailableLightStates(value)));
         } else {
             compsBuilder.clearLight2();
         }
 
         value = ((0x30 & message[6]) >> 4);
         if ( value > 0) {
-            compsBuilder.setLight3(LightComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setLight3(LightComponent.newBuilder().addAllAvailableStates(getAvailableLightStates(value)));
         } else {
             compsBuilder.clearLight3();
         }
 
         value = ((0xC0 & message[6]) >> 6);
         if ( value > 0) {
-            compsBuilder.setLight4(LightComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setLight4(LightComponent.newBuilder().addAllAvailableStates(getAvailableLightStates(value)));
         } else {
             compsBuilder.clearLight4();
         }
 
         value = (0x03 & message[7]);
         if ( value > 0) {
-            compsBuilder.setBlower1(BlowerComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setBlower1(BlowerComponent.newBuilder().addAllAvailableStates(getAvailableBlowerStates(value)));
         } else {
             compsBuilder.clearBlower1();
         }
 
         value = ((0x0C & message[7]) >> 2);
         if ( value > 0) {
-            compsBuilder.setBlower2(BlowerComponent.newBuilder().setAvailableStates(AvailableStates.valueOf(value)));
+            compsBuilder.setBlower2(BlowerComponent.newBuilder().addAllAvailableStates(getAvailableBlowerStates(value)));
         } else {
             compsBuilder.clearBlower2();
         }
 
         if ((0x10 & message[7]) > 0) {
-            compsBuilder.setHeater1(HeaterState.HEATER_UNDEFINED);
+            compsBuilder.setHeater1(Components.HeaterState.HEATER_UNDEFINED);
         } else {
             compsBuilder.clearHeater1();
         }
 
         if ((0x20 & message[7]) > 0) {
-            compsBuilder.setHeater2(HeaterState.HEATER_UNDEFINED);
+            compsBuilder.setHeater2(Components.HeaterState.HEATER_UNDEFINED);
         } else {
             compsBuilder.clearHeater2();
         }
 
         if ((0x40 & message[7]) > 0) {
-            compsBuilder.setOzone(false);
+            compsBuilder.setOzone(ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates()));
         } else {
             compsBuilder.clearOzone();
         }
 
         if ((0x80 & message[7]) > 0) {
-            compsBuilder.setCirculationPump(PumpComponent.newBuilder().setAvailableStates(AvailableStates.BINARY));
+            compsBuilder.setCirculationPump(PumpComponent.newBuilder().addAllAvailableStates(getAvailablePumpStates(2)));
         } else {
             compsBuilder.clearCirculationPump();
         }
 
         if ((0x01 & message[8]) > 0) {
-            compsBuilder.setAux1(false);
+            compsBuilder.setAux1(ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates()));
         } else {
             compsBuilder.clearAux1();
         }
 
         if ((0x02 & message[8]) > 0) {
-            compsBuilder.setAux2(false);
+            compsBuilder.setAux2(ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates()));
         } else {
             compsBuilder.clearAux2();
         }
 
         if ((0x04 & message[8]) > 0) {
-            compsBuilder.setAux3(false);
+            compsBuilder.setAux3(ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates()));
         } else {
             compsBuilder.clearAux3();
         }
 
         if ((0x08 & message[8]) > 0) {
-            compsBuilder.setAux4(false);
+            compsBuilder.setAux4(ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates()));
         } else {
             compsBuilder.clearAux4();
         }
 
         if ((0x10 & message[8]) > 0) {
-            compsBuilder.setMister1(false);
+            compsBuilder.setMister1(ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates()));
         } else {
             compsBuilder.clearMister1();
         }
 
         if ((0x20 & message[8]) > 0) {
-            compsBuilder.setMister2(false);
+            compsBuilder.setMister2(ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates()));
         } else {
             compsBuilder.clearMister2();
         }
 
         if ((0x40 & message[8]) > 0) {
-            compsBuilder.setMister3(false);
+            compsBuilder.setMister3(ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates()));
         } else {
             compsBuilder.clearMister3();
         }
 
         if ((0x80 & message[8]) > 0) {
-            compsBuilder.setMicroSilk(false);
+            compsBuilder.setMicroSilk(ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates()));
         } else {
             compsBuilder.clearMicroSilk();
         }

@@ -36,6 +36,11 @@ public final class SpaDataHelper {
         return value;
     }
 
+    public static Bwg.Downlink.Model.RequestType getRequestTypeByCode(Integer code) {
+        if (code == null) return null;
+        return Bwg.Downlink.Model.RequestType.valueOf(code.intValue());
+    }
+
     public static RequestMetadata buildRequestMetadata(final String name, final String value) {
         final RequestMetadata.Builder builder = RequestMetadata.newBuilder();
 
@@ -59,7 +64,7 @@ public final class SpaDataHelper {
         builder.setRequestType(type);
 
         if (values != null && values.size() > 0) {
-            for (final Map.Entry<String, String> entry: values.entrySet()) {
+            for (final Map.Entry<String, String> entry : values.entrySet()) {
                 builder.addMetadata(buildRequestMetadata(entry.getKey(), entry.getValue()));
             }
         }
@@ -82,8 +87,15 @@ public final class SpaDataHelper {
         return builder.build();
     }
 
+    public static Bwg.Downlink.Model.RegistrationResponse buildComponentRegistrationResponse(final Bwg.Downlink.Model.RegistrationAckState state) {
+        final Bwg.Downlink.Model.RegistrationResponse.Builder builder = Bwg.Downlink.Model.RegistrationResponse.newBuilder();
+        builder.setState(state);
+        return builder.build();
+    }
+
     public static Bwg.Uplink.Model.RegisterDevice buildRegisterDevice(final String parentDeviceHardwareId,
                                                                       final String deviceTypeName,
+                                                                      final String spaSerialNumber,
                                                                       final Iterable<? extends Bwg.Metadata> metadata) {
 
         final Bwg.Uplink.Model.RegisterDevice.Builder builder = Bwg.Uplink.Model.RegisterDevice.newBuilder();
@@ -94,6 +106,7 @@ public final class SpaDataHelper {
             builder.addAllMetadata(metadata);
         }
         builder.setDeviceTypeName(deviceTypeName);
+        builder.setSpaSerialNumber(spaSerialNumber);
 
         return builder.build();
     }
@@ -169,4 +182,5 @@ public final class SpaDataHelper {
 
         return builder.build();
     }
+
 }
