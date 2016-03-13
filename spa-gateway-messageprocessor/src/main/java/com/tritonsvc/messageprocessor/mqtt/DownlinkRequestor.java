@@ -88,10 +88,10 @@ public final class DownlinkRequestor {
 
             final String port = command.getValues().get(SpaCommand.ValueKeyName.PORT.getKeyName());
             final String desiredState = command.getValues().get(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName());
-            if (port != null && NumberUtils.isNumber(port) /* && !SpaRequestUtil.validPort(command.getRequestTypeId(), NumberUtils.createInteger(port))*/) {
+            if (port != null && !NumberUtils.isNumber(port)) {
+                // all other port/state validation will be done down on the gateway via the agent and spa controller
+                // the controller reports which ports are valid and which states are available on each port
                 log.error("Port passed with command is invalid {}", port);
-            //} else if (!SpaRequestUtil.validState(command.getRequestTypeId(), desiredState)) {
-                //log.error("Desired state passed with command is invalid {}", desiredState);
             } else {
                 final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(requestType, command.getValues());
                 final byte[] messageData = SpaDataHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);

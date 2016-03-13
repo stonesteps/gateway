@@ -124,8 +124,14 @@ message Uplink {
         // or if the datatype of component is bool that means the component only supports binary ON/OFF state
         message Components {
             // the heater state is read-only, there is no command to change it's state
-            optional Constants.HeaterState heater1= 1;
-            optional Constants.HeaterState heater2= 2;
+            enum HeaterState {
+                HEATER_OFF = 0;
+                HEATER_ON = 1;
+                HEATER_WAITING = 2;
+                HEATER_UNDEFINED = 3;
+            }
+            optional HeaterState heater1= 1;
+            optional HeaterState heater2= 2;
             // ON/OFF components
             optional ToggleComponent ozone = 3;
             optional ToggleComponent microSilk = 4;
@@ -157,23 +163,44 @@ message Uplink {
             required fixed64 lastUpdateTimestamp = 27;
 
             message ToggleComponent {
-                optional Constants.BinaryState currentState = 1;
-                required Constants.AvailableStates availableStates = 2;
+                optional State currentState = 1;
+                repeated State availableStates = 2;
+                enum State {
+                    OFF = 0;
+                    ON = 1;
+                }
             }
 
             message PumpComponent {
-                optional Constants.TriState currentState = 1;
-                required Constants.AvailableStates availableStates = 2;
+                optional State currentState = 1;
+                repeated State availableStates = 2;
+                enum State {
+                    OFF = 0;
+                    LOW = 1;
+                    HIGH = 2;
+                }
             }
 
             message BlowerComponent {
-                optional Constants.QuadState currentState = 1;
-                required Constants.AvailableStates availableStates = 2;
+                optional State currentState = 1;
+                repeated State availableStates = 2;
+                enum State {
+                    OFF = 0;
+                    LOW = 1;
+                    MED = 2;
+                    HIGH = 3;
+                }
             }
 
             message LightComponent {
-                optional Constants.QuadState currentState = 1;
-                required Constants.AvailableStates availableStates = 2;
+                optional State currentState = 1;
+                repeated State availableStates = 2;
+                enum State {
+                    OFF = 0;
+                    LOW = 1;
+                    MED = 2;
+                    HIGH = 3;
+                }
             }
         }
 
@@ -258,13 +285,6 @@ message Uplink {
 
         message Constants {
 
-            enum AvailableStates {
-                UNARY = 1;
-                BINARY = 2;
-                TRIPLE = 3;
-                QUAD = 4;
-            }
-
             enum HeaterPower {
                 VOLT_120 = 0;
                 VOLT_240 = 1;
@@ -298,31 +318,6 @@ message Uplink {
             enum EventType {
                 NOTIFY = 1;
                 ALERT = 2;
-            }
-
-            enum HeaterState {
-                HEATER_OFF = 0;
-                HEATER_ON = 1;
-                HEATER_WAITING = 2;
-                HEATER_UNDEFINED = 3;
-            }
-
-            enum QuadState {
-                QUAD_OFF = 0;
-                QUAD_LOW = 1;
-                QUAD_MED = 2;
-                QUAD_HIGH = 3;
-            }
-
-            enum TriState {
-                TRI_OFF = 0;
-                TRI_LOW = 1;
-                TRI_HIGH = 2;
-            }
-
-            enum BinaryState {
-                BINARY_OFF = 0;
-                BINARY_ON = 1;
             }
 
             enum TempRange {

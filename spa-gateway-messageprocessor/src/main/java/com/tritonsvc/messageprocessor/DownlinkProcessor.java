@@ -54,10 +54,15 @@ public class DownlinkProcessor {
         if (command == null) {
             log.error("Spa command is null, not processing");
         } else if (command.getRequestTypeId() != null) {
-            if (SpaCommand.RequestType.HEATER.getCode() == command.getRequestTypeId().intValue()) {
-                sent = downlinkRequestor.sendHeaterUpdateCommand(command);
-            } else {
-                sent = downlinkRequestor.sendPeripheralStateUpdateCommand(command);
+            try {
+                if (SpaCommand.RequestType.HEATER.getCode() == command.getRequestTypeId().intValue()) {
+                    sent = downlinkRequestor.sendHeaterUpdateCommand(command);
+                } else {
+                    sent = downlinkRequestor.sendPeripheralStateUpdateCommand(command);
+                }
+            } catch (Throwable th) {
+                // squash everything, need to return from here in all cases
+                // so command can be marked processed
             }
         }
 
