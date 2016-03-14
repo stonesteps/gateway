@@ -359,6 +359,7 @@ message Uplink {
                 BLOWER = 7;
                 LIGHT = 8;
                 AV = 9;
+                CIRCULATION_PUMP = 10;
             }
         }
 
