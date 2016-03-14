@@ -7,5 +7,6 @@ import org.springframework.data.mongodb.repository.MongoRepository;
  * Spa repo
  */
 public interface SpaRepository extends MongoRepository<Spa, String> {
-    public Spa findBySerialNumber(String serialNumber);
+
+    Spa findOneBySerialNumber(final String serialNumber);
 }

@@ -16,7 +16,6 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
@@ -24,7 +23,6 @@ import org.springframework.util.StringUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
 
 /**
  * Created by holow on 2/22/2016.
@@ -89,7 +87,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         }
 
         boolean newSpa = false;
-        Spa spa = spaRepository.findBySerialNumber(serialNumber);
+        Spa spa = spaRepository.findOneBySerialNumber(serialNumber);
 
         if (spa == null) {
             log.info("Creating new spa object");
@@ -120,7 +118,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
     }
 
     private void handleControllerRegistration(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final RegisterDevice registerDeviceMessage) {
-        Spa spa = spaRepository.findBySerialNumber(registerDeviceMessage.getSpaSerialNumber());
+        Spa spa = spaRepository.findOneBySerialNumber(registerDeviceMessage.getSpaSerialNumber());
         final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(registerDeviceMessage.getSpaSerialNumber());
 
         if (spa == null) {
