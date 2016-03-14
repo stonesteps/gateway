@@ -4,6 +4,7 @@ import com.bwg.iot.model.ComponentState;
 import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaCommand;
 import com.bwg.iot.model.SpaState;
+import com.bwg.iot.model.util.SpaRequestUtil;
 import com.google.common.base.Objects;
 import com.tritonsvc.messageprocessor.MessageProcessorConfiguration;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
@@ -88,10 +89,14 @@ public final class DownlinkRequestor {
 
             final String port = command.getValues().get(SpaCommand.ValueKeyName.PORT.getKeyName());
             final String desiredState = command.getValues().get(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName());
-            if (port != null && !NumberUtils.isNumber(port)) {
-                // all other port/state validation will be done down on the gateway via the agent and spa controller
-                // the controller reports which ports are valid and which states are available on each port
+            if (port == null && SpaRequestUtil.portRequired(command.getRequestTypeId())) {
+                log.error("Port is required");
+            } else if (port != null && SpaRequestUtil.portRequired(command.getRequestTypeId()) && !NumberUtils.isNumber(port)) {
                 log.error("Port passed with command is invalid {}", port);
+            } else if (port != null && SpaRequestUtil.portRequired(command.getRequestTypeId()) && !SpaRequestUtil.validPort(command.getRequestTypeId(), NumberUtils.toInt(port))) {
+                log.error("Port passed with command is invalid {}, out of range", port);
+            } else if (!SpaRequestUtil.validState(command.getRequestTypeId(), desiredState)) {
+                log.error("Desired state passed with command is invalid {} for request {}", desiredState, requestType);
             } else {
                 final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(requestType, command.getValues());
                 final byte[] messageData = SpaDataHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
@@ -123,15 +128,24 @@ public final class DownlinkRequestor {
 
     private com.bwg.iot.model.Component.ComponentType getComponentForRequestId(int requestTypeId) {
         switch (requestTypeId) {
-            case 1: return com.bwg.iot.model.Component.ComponentType.PUMP;
-            case 2: return com.bwg.iot.model.Component.ComponentType.LIGHT;
-            case 3: return com.bwg.iot.model.Component.ComponentType.BLOWER;
-            case 4: return com.bwg.iot.model.Component.ComponentType.MISTER;
-            case 5: return com.bwg.iot.model.Component.ComponentType.FILTER;
-            case 9: return com.bwg.iot.model.Component.ComponentType.OZONE;
-            case 10: return com.bwg.iot.model.Component.ComponentType.MICROSILK;
-            case 11: return com.bwg.iot.model.Component.ComponentType.AUX;
-            default: return null;
+            case 1:
+                return com.bwg.iot.model.Component.ComponentType.PUMP;
+            case 2:
+                return com.bwg.iot.model.Component.ComponentType.LIGHT;
+            case 3:
+                return com.bwg.iot.model.Component.ComponentType.BLOWER;
+            case 4:
+                return com.bwg.iot.model.Component.ComponentType.MISTER;
+            case 5:
+                return com.bwg.iot.model.Component.ComponentType.FILTER;
+            case 9:
+                return com.bwg.iot.model.Component.ComponentType.OZONE;
+            case 10:
+                return com.bwg.iot.model.Component.ComponentType.MICROSILK;
+            case 11:
+                return com.bwg.iot.model.Component.ComponentType.AUX;
+            default:
+                return null;
         }
     }
 

@@ -1,5 +1,7 @@
 package com.tritonsvc.messageprocessor;
 
+import com.bwg.iot.model.LightState;
+import com.bwg.iot.model.ProcessedResult;
 import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaCommand;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
@@ -57,6 +59,7 @@ public class DownlinkProcessorTests {
         final SpaCommand processed = spaCommandRepository.findOne(command.get_id());
         Assert.assertNotNull(processed);
         Assert.assertNotNull(processed.getProcessedTimestamp());
+        Assert.assertEquals(ProcessedResult.SENT, processed.getProcessedResult());
     }
 
     @Test
@@ -65,7 +68,8 @@ public class DownlinkProcessorTests {
         final Spa spa = unitTestHelper.createSpa("1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
-        values.put(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName(), SpaCommand.LightState.HIGH.toString());
+        values.put(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName(), LightState.HIGH.toString());
+        values.put(SpaCommand.ValueKeyName.PORT.getKeyName(), String.valueOf(0));
         final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
 
         // wait some time (commands processed every 5s)
@@ -74,5 +78,24 @@ public class DownlinkProcessorTests {
         final SpaCommand processed = spaCommandRepository.findOne(command.get_id());
         Assert.assertNotNull(processed);
         Assert.assertNotNull(processed.getProcessedTimestamp());
+        Assert.assertEquals(ProcessedResult.SENT, processed.getProcessedResult());
+    }
+
+    @Test
+    public void processLightsCommandFailed() throws Exception {
+        // create spa (with serialNumber)
+        final Spa spa = unitTestHelper.createSpa("1");
+        // and command with metadata
+        final HashMap<String, String> values = new HashMap<>();
+        values.put(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName(), LightState.HIGH.toString());
+        final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
+
+        // wait some time (commands processed every 5s)
+        Thread.sleep(10000);
+
+        final SpaCommand processed = spaCommandRepository.findOne(command.get_id());
+        Assert.assertNotNull(processed);
+        Assert.assertNotNull(processed.getProcessedTimestamp());
+        Assert.assertEquals(ProcessedResult.INVALID, processed.getProcessedResult());
     }
 }
