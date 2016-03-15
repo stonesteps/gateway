@@ -14,8 +14,6 @@ import org.springframework.data.mongodb.config.AbstractMongoConfiguration;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import java.io.File;
-import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.HashMap;
 
