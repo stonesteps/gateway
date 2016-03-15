@@ -14,7 +14,9 @@ import org.springframework.data.mongodb.config.AbstractMongoConfiguration;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.HashMap;
 
 /**
@@ -45,8 +47,8 @@ public class UnitTestHelper extends AbstractMongoConfiguration {
     }
 
     @PostConstruct
-    public void startMqttBroker() throws IOException {
-        mqttServer.startServer();
+    public void startMqttBroker() throws Exception {
+        mqttServer.startServer(Paths.get(UnitTestHelper.class.getResource("/moquette.conf").toURI()).toFile());
     }
 
     @PreDestroy
