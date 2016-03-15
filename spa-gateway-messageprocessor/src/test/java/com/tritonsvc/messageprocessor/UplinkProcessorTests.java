@@ -50,7 +50,7 @@ public class UplinkProcessorTests {
         mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), SpaDataHelper.buildUplinkMessage("1", "1", Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
 
         // wait for message to be delivered and processed
-        Thread.sleep(1000);
+        Thread.sleep(5000);
 
         final Spa spa = spaRepository.findOneBySerialNumber("1");
         Assert.assertNotNull(spa);
