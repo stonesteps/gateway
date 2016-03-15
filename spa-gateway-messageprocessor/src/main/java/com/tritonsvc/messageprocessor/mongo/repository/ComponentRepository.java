@@ -13,4 +13,7 @@ import org.springframework.data.rest.core.annotation.RestResource;
 public interface ComponentRepository extends MongoRepository<Component, String> {
     Page<Component> findBySpaIdAndComponentType(@Param("spaId") String spaId, @Param("componentType") String type, Pageable p);
     Page<Component> findByComponentTypeAndSerialNumber(@Param("componentType") String type, @Param("serialNumber") String serialNumber, Pageable p);
+
+    Component findOneBySpaIdAndComponentTypeAndPort(@Param("spaId") String spaId, @Param("componentType") String type, @Param("port") String port);
+    Component findOneBySpaIdAndComponentTypeAndPortIsNull(@Param("spaId") String spaId, @Param("componentType") String type);
 }
