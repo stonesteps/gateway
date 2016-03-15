@@ -419,8 +419,8 @@ message Downlink {
             required RegistrationAckState state = 1;
             optional RegistrationAckError errorType = 2;
             optional string errorMessage = 3;
-            required string p2pAPSSID = 4;
-            required string p2pAPPassword = 5;
+            optional string p2pAPSSID = 4;
+            optional string p2pAPPassword = 5;
         }
 
         enum RequestType {

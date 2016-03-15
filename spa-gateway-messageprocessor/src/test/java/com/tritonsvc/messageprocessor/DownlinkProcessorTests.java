@@ -1,5 +1,6 @@
 package com.tritonsvc.messageprocessor;
 
+import com.bwg.iot.model.Component;
 import com.bwg.iot.model.LightState;
 import com.bwg.iot.model.ProcessedResult;
 import com.bwg.iot.model.Spa;
@@ -47,7 +48,8 @@ public class DownlinkProcessorTests {
     @Test
     public void processHeaterCommand() throws Exception {
         // create spa (with serialNumber)
-        final Spa spa = unitTestHelper.createSpa("1");
+        final Spa spa = unitTestHelper.createSpa();
+        unitTestHelper.createGateway(spa, "1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
         values.put(SpaCommand.ValueKeyName.DESIRED_TEMP.getKeyName(), "78.0");
@@ -65,7 +67,8 @@ public class DownlinkProcessorTests {
     @Test
     public void processLightsCommand() throws Exception {
         // create spa (with serialNumber)
-        final Spa spa = unitTestHelper.createSpa("1");
+        final Spa spa = unitTestHelper.createSpa();
+        unitTestHelper.createGateway(spa, "1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
         values.put(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName(), LightState.HIGH.toString());
@@ -84,7 +87,8 @@ public class DownlinkProcessorTests {
     @Test
     public void processLightsCommandFailed() throws Exception {
         // create spa (with serialNumber)
-        final Spa spa = unitTestHelper.createSpa("1");
+        final Spa spa = unitTestHelper.createSpa();
+        unitTestHelper.createGateway(spa, "1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
         values.put(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName(), LightState.HIGH.toString());

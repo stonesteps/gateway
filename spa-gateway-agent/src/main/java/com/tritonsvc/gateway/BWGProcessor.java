@@ -138,8 +138,8 @@ public class BWGProcessor extends MQTTCommandProcessor {
         if (getRegisteredHWIds().containsKey(originatorId)) {
             DeviceRegistration registered = getRegisteredHWIds().get(originatorId);
             registered.setHardwareId(hardwareId);
-            registered.getMeta().put("apSSID", response.getP2PAPSSID());
-            registered.getMeta().put("apPassword", response.getP2PAPPassword());
+            registered.getMeta().put("apSSID", response.hasP2PAPSSID() ? response.getP2PAPPassword() : null);
+            registered.getMeta().put("apPassword", response.hasP2PAPPassword() ? response.getP2PAPPassword() : null);
             getRegisteredHWIds().put(originatorId, registered);
             commitData();
             LOGGER.info("received successful spa registration, originatorid {} for hardwareid {} ", originatorId, hardwareId);

@@ -80,7 +80,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         if (StringUtils.isEmpty(serialNumber)) {
             try {
                 final SpaRegistrationResponse registrationResponse = SpaDataHelper.buildSpaRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR, null);
-                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), null, DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
+                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), "invalid", DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
             } catch (Exception e) {
                 log.error("Error while sending downlink gateway registration message", e);
                 return;
@@ -88,9 +88,8 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         }
 
         String regTimestamp = new SimpleDateFormat(DATE_FORMAT).format(new Date());
-        boolean newSpa = false;
         boolean dirtyGateway = false;
-        Page<com.bwg.iot.model.Component> results = componentRepository.findByComponentTypeAndSerialNumber(ComponentType.PUMP.name(), serialNumber, new PageRequest(0,1));
+        Page<com.bwg.iot.model.Component> results = componentRepository.findByComponentTypeAndSerialNumber(ComponentType.GATEWAY.name(), serialNumber, new PageRequest(0,1));
         com.bwg.iot.model.Component gatewayComponent;
         if (results.getTotalElements() < 1) {
             gatewayComponent = new com.bwg.iot.model.Component();
@@ -100,8 +99,9 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
             dirtyGateway = true;
         } else {
             gatewayComponent = results.iterator().next();
-            if (gatewayComponent.getRegistrationDate() == null) {
+            if (gatewayComponent.getRegistrationDate() == null || gatewayComponent.getSerialNumber() == null || !gatewayComponent.getSerialNumber().equals(serialNumber)) {
                 gatewayComponent.setRegistrationDate(regTimestamp);
+                gatewayComponent.setSerialNumber(serialNumber);
                 dirtyGateway = true;
             }
         }
@@ -111,15 +111,13 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         if (spa == null) {
             log.info("Creating new spa object");
             spa = new Spa();
-            newSpa = true;
-
-            spa.setP2pAPPassword(generateRandomString());
-            spa.setP2pAPSSID(generateRandomString());
             spa.setSerialNumber(serialNumber);
         }
 
-        if (spa.getRegistrationDate() == null) {
+        if (spa.getRegistrationDate() == null || spa.getP2pAPPassword() == null || spa.getP2pAPSSID() == null) {
             spa.setRegistrationDate(regTimestamp);
+            spa.setP2pAPPassword(generateRandomString());
+            spa.setP2pAPSSID(generateRandomString());
             spaRepository.save(spa);
         }
 
@@ -129,7 +127,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         }
 
         try {
-            final SpaRegistrationResponse registrationResponse = SpaDataHelper.buildSpaRegistrationResponse(newSpa ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED, spa);
+            final SpaRegistrationResponse registrationResponse = SpaDataHelper.buildSpaRegistrationResponse(dirtyGateway ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED, spa);
             mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), spa.get_id(), DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
             log.info("sent spa registration response {} {}",spa.get_id(), serialNumber);
         } catch (Exception e) {
@@ -142,13 +140,14 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
     }
 
     private void handleControllerRegistration(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final RegisterDevice registerDeviceMessage) {
-        Spa spa = spaRepository.findOneBySerialNumber(registerDeviceMessage.getSpaSerialNumber());
+        Spa spa = spaRepository.findOne(registerDeviceMessage.getParentDeviceHardwareId());
+        com.bwg.iot.model.Component gateway = componentRepository.findOneBySpaIdAndComponentTypeAndPortIsNull(registerDeviceMessage.getParentDeviceHardwareId(), ComponentType.GATEWAY.name());
         final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(registerDeviceMessage.getSpaSerialNumber());
 
-        if (spa == null) {
+        if (spa == null || gateway == null) {
             try {
                 final SpaRegistrationResponse registrationResponse = SpaDataHelper.buildSpaRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR, null);
-                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), null, DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
+                mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), "invalid", DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
             } catch (Exception e) {
                 log.error("Error while sending downlink gateway registration message", e);
             }

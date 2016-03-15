@@ -126,7 +126,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         if (port != null) {
             component = componentRepository.findOneBySpaIdAndComponentTypeAndPort(spaId, componentType, port.toString());
         } else {
-            component = componentRepository.findOneBySpaIdAndComponentTypeAndPort(spaId, componentType, port.toString());
+            component = componentRepository.findOneBySpaIdAndComponentTypeAndPortIsNull(spaId, componentType);
         }
         if (component != null) {
             componentState.setName(component.getName());

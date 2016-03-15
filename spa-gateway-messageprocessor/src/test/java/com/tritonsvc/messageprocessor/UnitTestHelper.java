@@ -1,9 +1,12 @@
 package com.tritonsvc.messageprocessor;
 
+import com.bwg.iot.model.Component;
+import com.bwg.iot.model.Component.ComponentType;
 import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaCommand;
 import com.github.fakemongo.Fongo;
 import com.mongodb.Mongo;
+import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import io.moquette.server.Server;
@@ -30,6 +33,9 @@ public class UnitTestHelper extends AbstractMongoConfiguration {
     private SpaRepository spaRepository;
 
     @Autowired
+    private ComponentRepository componentRepository;
+
+    @Autowired
     private SpaCommandRepository spaCommandRepository;
 
     private final Server mqttServer = new Server();
@@ -54,11 +60,19 @@ public class UnitTestHelper extends AbstractMongoConfiguration {
         mqttServer.stopServer();
     }
 
-    public Spa createSpa(final String serialNumber) {
+    public Spa createSpa() {
         final Spa spa = new Spa();
-        spa.setSerialNumber(serialNumber);
         spaRepository.save(spa);
         return spa;
+    }
+
+    public Component createGateway(Spa spa, String serialNumber) {
+        Component gateway = new Component();
+        gateway.setSerialNumber(serialNumber);
+        gateway.setSpaId(spa.get_id());
+        gateway.setComponentType(ComponentType.GATEWAY.name());
+        componentRepository.save(gateway);
+        return gateway;
     }
 
     public SpaCommand createSpaCommand(Spa spa, int requestType, HashMap<String, String> values) {

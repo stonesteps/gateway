@@ -50,6 +50,7 @@ public class UplinkProcessorTests {
     public void cleanup() {
         spaRepository.deleteAll();
         spaCommandRepository.deleteAll();
+        componentRepository.deleteAll();
     }
 
     @Test

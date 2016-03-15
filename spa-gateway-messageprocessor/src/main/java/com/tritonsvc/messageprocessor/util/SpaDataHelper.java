@@ -175,9 +175,7 @@ public final class SpaDataHelper {
 
     private static Bwg.Downlink.DownlinkHeader buildDownlinkHeader(final String hardwareId, final Bwg.Downlink.DownlinkCommandType downlinkCommandType) {
         final Bwg.Downlink.DownlinkHeader.Builder builder = Bwg.Downlink.DownlinkHeader.newBuilder();
-        if (hardwareId != null) {
-            builder.setHardwareId(hardwareId);
-        }
+        builder.setHardwareId(hardwareId);
         builder.setCommandType(downlinkCommandType);
 
         return builder.build();

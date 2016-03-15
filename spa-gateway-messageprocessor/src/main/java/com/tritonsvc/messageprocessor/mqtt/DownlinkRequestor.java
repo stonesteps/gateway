@@ -1,5 +1,6 @@
 package com.tritonsvc.messageprocessor.mqtt;
 
+import com.bwg.iot.model.Component.ComponentType;
 import com.bwg.iot.model.ComponentState;
 import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaCommand;
@@ -7,6 +8,7 @@ import com.bwg.iot.model.SpaState;
 import com.bwg.iot.model.util.SpaRequestUtil;
 import com.google.common.base.Objects;
 import com.tritonsvc.messageprocessor.MessageProcessorConfiguration;
+import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.util.NumberHelper;
 import com.tritonsvc.messageprocessor.util.SpaDataHelper;
@@ -15,6 +17,8 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -29,6 +33,9 @@ public final class DownlinkRequestor {
 
     @Autowired
     private SpaRepository spaRepository;
+
+    @Autowired
+    private ComponentRepository componentRepository;
 
     @Autowired
     private MqttSendService mqttSendService;
@@ -51,7 +58,11 @@ public final class DownlinkRequestor {
                 final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(Bwg.Downlink.Model.RequestType.HEATER, command.getValues());
                 final byte[] messageData = SpaDataHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
                 if (messageData != null && messageData.length > 0) {
-                    final String serialNumber = spa.getSerialNumber();
+                    String serialNumber = getGatewaySerialNumber(spa.get_id());
+                    if (serialNumber == null) {
+                        log.error("Error, not gateway serial number is available for spa with db id {}", spa.get_id());
+                        return false;
+                    }
                     final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(serialNumber);
                     log.info("Sending downlink message to topic {}", downlinkTopic);
                     try {
@@ -101,7 +112,11 @@ public final class DownlinkRequestor {
                 final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(requestType, command.getValues());
                 final byte[] messageData = SpaDataHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
                 if (messageData != null && messageData.length > 0) {
-                    final String serialNumber = spa.getSerialNumber();
+                    String serialNumber = getGatewaySerialNumber(spa.get_id());
+                    if (serialNumber == null) {
+                        log.error("Error, not gateway serial number is available for spa with db id {}", spa.get_id());
+                        return false;
+                    }
                     final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(serialNumber);
                     log.info("Sending downlink message to topic {}", downlinkTopic);
                     try {
@@ -147,6 +162,14 @@ public final class DownlinkRequestor {
             default:
                 return null;
         }
+    }
+
+    private String getGatewaySerialNumber(String spaId) {
+        Page<com.bwg.iot.model.Component> results = componentRepository.findBySpaIdAndComponentType(spaId, ComponentType.GATEWAY.name(), new PageRequest(0,1));
+        if (results.getTotalElements() < 1) {
+            return null;
+        }
+        return results.getContent().get(0).getSerialNumber();
     }
 
     private void setComponentTargetState(com.bwg.iot.model.Component.ComponentType type, String port, String targetValue, Collection<ComponentState> componentStates) {
