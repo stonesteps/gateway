@@ -1,6 +1,9 @@
 package com.tritonsvc.messageprocessor;
 
+import com.bwg.iot.model.Component;
+import com.bwg.iot.model.Component.ComponentType;
 import com.bwg.iot.model.Spa;
+import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
@@ -13,10 +16,15 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.SpringApplicationConfiguration;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.util.ArrayList;
 import java.util.Collection;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = {SpaGatewayMessageProcessorApplication.class, UnitTestHelper.class})
@@ -27,6 +35,9 @@ public class UplinkProcessorTests {
 
     @Autowired
     private SpaCommandRepository spaCommandRepository;
+
+    @Autowired
+    private ComponentRepository componentRepository;
 
     @Autowired
     private MqttSendService mqttSendService;
@@ -50,10 +61,12 @@ public class UplinkProcessorTests {
         mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), SpaDataHelper.buildUplinkMessage("1", "1", Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
 
         // wait for message to be delivered and processed
-        Thread.sleep(5000);
+        Thread.sleep(1000);
 
-        final Spa spa = spaRepository.findOneBySerialNumber("1");
-        Assert.assertNotNull(spa);
-        Assert.assertEquals("1", spa.getSerialNumber());
+        final Page<Component> gateway = componentRepository.findByComponentTypeAndSerialNumber(ComponentType.GATEWAY.name(), "1", new PageRequest(0,1));
+        assertEquals(gateway.getContent().get(0).getSerialNumber(), "1");
+
+        final Spa spa = spaRepository.findOne(gateway.getContent().get(0).getSpaId());
+        assertNotNull(spa);
     }
 }
