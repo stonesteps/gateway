@@ -11,7 +11,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -53,6 +55,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         spaStateEntity.setCleanupCycle(spaState.getController().getCleanupCycle());
         spaStateEntity.setErrorCode(spaState.getController().getErrorCode());
         spaStateEntity.setMessageSeverity(spaState.getController().getMessageSeverity());
+        spaStateEntity.setUplinkTimestamp(new SimpleDateFormat(DATE_FORMAT).format(new Date(spaState.getLastUpdateTimestamp())));
 
         if (spaState.hasComponents()) {
             updateComponents(spa.getCurrentState(), spaState.getComponents());
