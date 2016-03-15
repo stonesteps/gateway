@@ -1,8 +1,9 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
 import com.bwg.iot.model.ComponentState;
+import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaState;
-import com.tritonsvc.messageprocessor.mongo.repository.SpaStateRepository;
+import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
@@ -22,7 +23,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
     private static final Logger log = LoggerFactory.getLogger(SpaStateMessageHandler.class);
 
     @Autowired
-    private SpaStateRepository spaStateRepository;
+    private SpaRepository spaRepository;
 
     @Override
     public Class<Bwg.Uplink.Model.SpaState> handles() {
@@ -33,14 +34,30 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
     public void processMessage(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final Bwg.Uplink.Model.SpaState spaState) {
         log.info("Processing spa state message for originator {}, and spa {}", header.getOriginator(), uplinkHeader.getHardwareId());
 
-        SpaState spaStateEntity = spaStateRepository.findOne(uplinkHeader.getHardwareId());
-        if (spaStateEntity == null) {
-            spaStateEntity = new SpaState();
+        Spa spa = spaRepository.findOne(uplinkHeader.getHardwareId());
+        if (spa == null) {
+            log.error("received spa state for unknown spa id {}", uplinkHeader.getHardwareId());
+            return;
         }
 
-        if (spaState.hasComponents()) {
-            updateComponents(spaStateEntity, spaState.getComponents());
+        SpaState spaEntityState = spa.getCurrentState();
+        if (spaEntityState == null) {
+            spaEntityState = new SpaState();
+            spa.setCurrentState(spaEntityState);
         }
+
+        spaEntityState.setDesiredTemp(Integer.toString(spaState.getController().getTargetWaterTemperature()));
+        spaEntityState.setCurrentTemp(Integer.toString(spaState.getController().getCurrentWaterTemp()));
+        spaEntityState.setFilterCycle1Active(spaState.getController().getFilter1());
+        spaEntityState.setFilterCycle2Active(spaState.getController().getFilter2());
+        spaEntityState.setCleanupCycle(spaState.getController().getCleanupCycle());
+        spaEntityState.setErrorCode(spaState.getController().getErrorCode());
+        spaEntityState.setMessageSeverity(spaState.getController().getMessageSeverity());
+
+        if (spaState.hasComponents()) {
+            updateComponents(spa.getCurrentState(), spaState.getComponents());
+        }
+        spaRepository.save(spa);
     }
 
     private void updateComponents(final SpaState spaStateEntity, final Bwg.Uplink.Model.Components components) {

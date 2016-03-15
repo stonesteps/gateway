@@ -11,6 +11,6 @@ import org.springframework.data.rest.core.annotation.RestResource;
  * access to all components of a spa
  */
 public interface ComponentRepository extends MongoRepository<Component, String> {
-    public Page findBySpaIdAndComponentType(@Param("spaId") String spaId, @Param("componentType") String type, Pageable p);
-
+    Page<Component> findBySpaIdAndComponentType(@Param("spaId") String spaId, @Param("componentType") String type, Pageable p);
+    Page<Component> findByComponentTypeAndSerialNumber(@Param("componentType") String type, @Param("serialNumber") String serialNumber, Pageable p);
 }

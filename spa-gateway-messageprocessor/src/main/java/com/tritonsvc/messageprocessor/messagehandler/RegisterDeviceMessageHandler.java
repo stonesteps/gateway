@@ -83,11 +83,30 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
                 mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), null, DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
             } catch (Exception e) {
                 log.error("Error while sending downlink gateway registration message", e);
+                return;
             }
         }
 
+        String regTimestamp = new SimpleDateFormat(DATE_FORMAT).format(new Date());
         boolean newSpa = false;
-        Spa spa = spaRepository.findOneBySerialNumber(serialNumber);
+        boolean dirtyGateway = false;
+        Page<com.bwg.iot.model.Component> results = componentRepository.findByComponentTypeAndSerialNumber(ComponentType.PUMP.name(), serialNumber, new PageRequest(0,1));
+        com.bwg.iot.model.Component gatewayComponent;
+        if (results.getTotalElements() < 1) {
+            gatewayComponent = new com.bwg.iot.model.Component();
+            gatewayComponent.setComponentType(ComponentType.GATEWAY.name());
+            gatewayComponent.setSerialNumber(serialNumber);
+            gatewayComponent.setRegistrationDate(regTimestamp);
+            dirtyGateway = true;
+        } else {
+            gatewayComponent = results.iterator().next();
+            if (gatewayComponent.getRegistrationDate() == null) {
+                gatewayComponent.setRegistrationDate(regTimestamp);
+                dirtyGateway = true;
+            }
+        }
+
+        Spa spa = (gatewayComponent.getSpaId() != null ? spaRepository.findOne(gatewayComponent.getSpaId()) : null);
 
         if (spa == null) {
             log.info("Creating new spa object");
@@ -100,9 +119,14 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         }
 
         if (spa.getRegistrationDate() == null) {
-            spa.setRegistrationDate(new SimpleDateFormat(DATE_FORMAT).format(new Date()));
+            spa.setRegistrationDate(regTimestamp);
+            spaRepository.save(spa);
         }
-        spaRepository.save(spa);
+
+        if (dirtyGateway) {
+            gatewayComponent.setSpaId(spa.get_id());
+            componentRepository.save(gatewayComponent);
+        }
 
         try {
             final SpaRegistrationResponse registrationResponse = SpaDataHelper.buildSpaRegistrationResponse(newSpa ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED, spa);

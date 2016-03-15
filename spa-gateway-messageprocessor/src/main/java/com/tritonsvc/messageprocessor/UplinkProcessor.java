@@ -8,6 +8,7 @@ import com.tritonsvc.messageprocessor.mqtt.MqttSubscribeService;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +67,10 @@ public class UplinkProcessor implements MessageListener {
             if (uplinkHeader.getCommand() == UplinkCommandType.ACKNOWLEDGEMENT) {
                 final DownlinkAcknowledge ack = DownlinkAcknowledge.parseDelimitedFrom(stream);
                 handleMessage(DownlinkAcknowledge.class, header, uplinkHeader, ack);
+            }
+            if (uplinkHeader.getCommand() == UplinkCommandType.SPA_STATE) {
+                final SpaState state = SpaState.parseDelimitedFrom(stream);
+                handleMessage(SpaState.class, header, uplinkHeader, state);
             }
 
         } catch (Exception e) {
