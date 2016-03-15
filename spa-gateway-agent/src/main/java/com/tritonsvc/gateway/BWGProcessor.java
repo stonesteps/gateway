@@ -106,7 +106,9 @@ public class BWGProcessor extends MQTTCommandProcessor {
             return;
         }
 
-        if (response.getState() == RegistrationAckState.ALREADY_REGISTERED && getRegisteredHWIds().containsKey(originatorId)) {
+        if (response.getState() == RegistrationAckState.ALREADY_REGISTERED &&
+                getRegisteredHWIds().containsKey(originatorId) &&
+                getRegisteredHWIds().get(originatorId).getHardwareId().equals(hardwareId)) {
             LOGGER.info("confirmed registration state in cloud for id {}", hardwareId);
             return;
         }
@@ -130,7 +132,9 @@ public class BWGProcessor extends MQTTCommandProcessor {
             return;
         }
 
-        if (response.getState() == RegistrationAckState.ALREADY_REGISTERED) {
+        if (response.getState() == RegistrationAckState.ALREADY_REGISTERED &&
+                getRegisteredHWIds().containsKey(originatorId) &&
+                getRegisteredHWIds().get(originatorId).getHardwareId().equals(hardwareId)) {
             LOGGER.info("confirmed registration state in cloud for spa id = {}", hardwareId);
             return;
         }
