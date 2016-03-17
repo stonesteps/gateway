@@ -264,7 +264,11 @@ public class RS485MessagePublisher {
         if (pendingDownlinks.offer(request, 5000, TimeUnit.MILLISECONDS)) {
             LOGGER.info("put rs485 request, originator id {} in downlink queue, payload {}", request.getOriginatorId(), printHexBinary(request.getPayload()));
         } else {
-            throw new Exception("downlink queue is full");
+            LOGGER.error("downlink queue was full, clearing it to try and recover");
+            pendingDownlinks.clear();
+            if (!pendingDownlinks.offer(request, 5000, TimeUnit.MILLISECONDS)) {
+                throw new Exception("downlink queue is full");
+            }
         }
     }
 

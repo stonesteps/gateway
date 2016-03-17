@@ -141,7 +141,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
 
     private void handleControllerRegistration(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final RegisterDevice registerDeviceMessage) {
         Spa spa = spaRepository.findOne(registerDeviceMessage.getParentDeviceHardwareId());
-        com.bwg.iot.model.Component gateway = componentRepository.findOneBySpaIdAndComponentTypeAndPortIsNull(registerDeviceMessage.getParentDeviceHardwareId(), ComponentType.GATEWAY.name());
+        com.bwg.iot.model.Component gateway = componentRepository.findOneBySpaIdAndComponentTypeAndPortIsNullOrPortLessThan(registerDeviceMessage.getParentDeviceHardwareId(), ComponentType.GATEWAY.name(), 1);
         final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(registerDeviceMessage.getSpaSerialNumber());
 
         if (spa == null || gateway == null) {

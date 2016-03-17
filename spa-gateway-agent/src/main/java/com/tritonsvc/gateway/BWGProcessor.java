@@ -55,6 +55,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_NEW_REG_WAIT_TIME = 120000;
     private static final long MAX_REG_LIFETIME = 240000;
+    private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
     private DB mapDb;
@@ -67,6 +68,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
     private UART rs485Uart;
     private String homePath;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
+    private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private static List<ComponentType> quadStateComponents = newArrayList(ComponentType.BLOWER, ComponentType.LIGHT);
     private static List<ComponentType> triStateComponents = newArrayList(ComponentType.PUMP);
 
@@ -369,11 +371,13 @@ public class BWGProcessor extends MQTTCommandProcessor {
                 throw new RS485Exception("panel update message has not been received yet, cannot generate spa state yet.");
             }
 
-            if (rs485DataHarvester.getLatestSpaInfo().hasComponents() == false ||
+            if ((rs485DataHarvester.getLatestSpaInfo().hasComponents() == false ||
                     rs485DataHarvester.getLatestSpaInfo().hasSystemInfo() == false ||
-                    rs485DataHarvester.getLatestSpaInfo().hasSetupParams() == false) {
+                    rs485DataHarvester.getLatestSpaInfo().hasSetupParams() == false) &&
+                    System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM) {
                 rs485MessagePublisher.sendPanelRequest(rs485DataHarvester.getRegisteredAddress(), null);
                 LOGGER.info("do not have DeviceConfig, SystemInfo, SetupParams yet, sent panel request");
+                lastPanelRequestSent.set(System.currentTimeMillis());
             }
 
             // this loop runs often(once every 3 seconds), but only send up to cloud when timestamps on state data change

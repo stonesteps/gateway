@@ -1,5 +1,6 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
+import com.bwg.iot.model.Component.ComponentType;
 import com.bwg.iot.model.ComponentState;
 import com.bwg.iot.model.Spa;
 import com.bwg.iot.model.SpaState;
@@ -16,6 +17,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * process downlink acks from spa systems
@@ -60,6 +63,9 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         spaStateEntity.setErrorCode(spaState.getController().getErrorCode());
         spaStateEntity.setMessageSeverity(spaState.getController().getMessageSeverity());
         spaStateEntity.setUplinkTimestamp(new SimpleDateFormat(DATE_FORMAT).format(new Date(spaState.getLastUpdateTimestamp())));
+        updateComponentState(spa.get_id(), spaStateEntity, ComponentType.GATEWAY.toString(), null, newArrayList(), null);
+        updateComponentState(spa.get_id(), spaStateEntity, ComponentType.CONTROLLER.toString(), null, newArrayList(), null);
+
 
         if (spaState.hasComponents()) {
             updateComponents(spa.get_id(), spa.getCurrentState(), spaState.getComponents());
@@ -126,7 +132,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         if (port != null) {
             component = componentRepository.findOneBySpaIdAndComponentTypeAndPort(spaId, componentType, port.toString());
         } else {
-            component = componentRepository.findOneBySpaIdAndComponentTypeAndPortIsNull(spaId, componentType);
+            component = componentRepository.findOneBySpaIdAndComponentTypeAndPortIsNullOrPortLessThan(spaId, componentType, 1);
         }
         if (component != null) {
             componentState.setName(component.getName());
