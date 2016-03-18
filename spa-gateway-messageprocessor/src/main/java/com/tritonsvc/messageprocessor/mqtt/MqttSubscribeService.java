@@ -71,8 +71,7 @@ public final class MqttSubscribeService {
 
             mqtt.setHost(mqttHostname, mqttPort);
             mqtt.setKeepAlive(mqttKeepAliveSeconds);
-            mqtt.setCleanSession(false);
-            mqtt.setClientId(new VMID().toString());
+            mqtt.setCleanSession(true);
 
             connection = mqtt.futureConnection();
             connection.connect();

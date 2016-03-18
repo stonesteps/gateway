@@ -95,7 +95,7 @@ public final class SpaDataHelper {
 
     public static Bwg.Uplink.Model.RegisterDevice buildRegisterDevice(final String parentDeviceHardwareId,
                                                                       final String deviceTypeName,
-                                                                      final String spaSerialNumber,
+                                                                      final String gwSerialNumber,
                                                                       final Iterable<? extends Bwg.Metadata> metadata) {
 
         final Bwg.Uplink.Model.RegisterDevice.Builder builder = Bwg.Uplink.Model.RegisterDevice.newBuilder();
@@ -106,7 +106,7 @@ public final class SpaDataHelper {
             builder.addAllMetadata(metadata);
         }
         builder.setDeviceTypeName(deviceTypeName);
-        builder.setSpaSerialNumber(spaSerialNumber);
+        builder.setGatewaySerialNumber(gwSerialNumber);
 
         return builder.build();
     }

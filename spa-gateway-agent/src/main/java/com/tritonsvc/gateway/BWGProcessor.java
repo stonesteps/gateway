@@ -498,7 +498,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
         registeredHwIds = mapDb.hashMap("registeredHwIds", Serializer.STRING, new DeviceRegistrationSerializer());
     }
 
-    private DeviceRegistration sendRegistration(String parentHwId, String spaSerialNumber, String deviceTypeName, Map<String, String> identityAttributes) {
+    private DeviceRegistration sendRegistration(String parentHwId, String gwSerialNumber, String deviceTypeName, Map<String, String> identityAttributes) {
         boolean readLocked = false;
         boolean writeLocked = false;
         try {
@@ -524,7 +524,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
             registeredDevice.setLastTime(System.currentTimeMillis());
             getRegisteredHWIds().put(registrationHashCode, registeredDevice);
             commitData();
-            super.sendRegistration(parentHwId, spaSerialNumber, deviceTypeName, identityAttributes, registrationHashCode);
+            super.sendRegistration(parentHwId, gwSerialNumber, deviceTypeName, identityAttributes, registrationHashCode);
             return registeredDevice;
         } catch (InterruptedException ex) {
             throw Throwables.propagate(ex);

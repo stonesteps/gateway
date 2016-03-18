@@ -73,7 +73,7 @@ message Uplink {
             optional string parentDeviceHardwareId = 2; // this could be blank if it's the gateway
                                                         // or if its any device under the gateway, this id should be
                                                         // the registered id
-            required string spaSerialNumber = 3; // any component sending a reg, should include the spa's serial number here
+            required string gatewaySerialNumber = 3; // any component sending a reg, should include the spa's serial number here
             repeated Metadata metadata = 4; // this can be a key/value of whatever attributes a device can provide
                                             // unique identification, would be serial number for gateway, may be mac address
                                             // for others

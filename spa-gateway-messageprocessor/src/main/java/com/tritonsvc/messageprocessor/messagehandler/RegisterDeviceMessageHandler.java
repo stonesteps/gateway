@@ -55,8 +55,6 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
 
     @Override
     public void processMessage(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final Bwg.Uplink.Model.RegisterDevice registerDeviceMessage) {
-        log.info("Processing register device message");
-
         final String deviceTypeName = registerDeviceMessage.getDeviceTypeName();
         final String parentDeviceHardwareId = registerDeviceMessage.getParentDeviceHardwareId();
 
@@ -74,7 +72,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
 
     private void handleGatewayRegistration(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final RegisterDevice registerDeviceMessage) {
         // create spa
-        final String serialNumber = registerDeviceMessage.getSpaSerialNumber();
+        final String serialNumber = registerDeviceMessage.getGatewaySerialNumber();
         final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(serialNumber);
 
         if (StringUtils.isEmpty(serialNumber)) {
@@ -140,18 +138,17 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
     }
 
     private void handleControllerRegistration(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final RegisterDevice registerDeviceMessage) {
+        final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(registerDeviceMessage.getGatewaySerialNumber());
         Spa spa = spaRepository.findOne(registerDeviceMessage.getParentDeviceHardwareId());
-        com.bwg.iot.model.Component gateway = componentRepository.findOneBySpaIdAndComponentTypeAndPortIsNullOrPortLessThan(registerDeviceMessage.getParentDeviceHardwareId(), ComponentType.GATEWAY.name(), 1);
-        final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(registerDeviceMessage.getSpaSerialNumber());
 
-        if (spa == null || gateway == null) {
+        if (spa == null) {
             try {
                 final RegistrationResponse registrationResponse = SpaDataHelper.buildComponentRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR);
                 mqttSendService.sendMessage(downlinkTopic, SpaDataHelper.buildDownlinkMessage(header.getOriginator(), "invalid", DownlinkCommandType.REGISTRATION_RESPONSE, registrationResponse));
             } catch (Exception e) {
-                log.error("Error while sending downlink gateway registration message", e);
+                log.error("Error while sending downlink controller registration message", e);
             }
-            log.error("received controller reg for serial number {}, which does not exist.", registerDeviceMessage.getSpaSerialNumber());
+            log.error("received controller reg for spa id {}, which does not exist.", registerDeviceMessage.getParentDeviceHardwareId());
             return;
         }
 
