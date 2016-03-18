@@ -15,5 +15,4 @@ public interface ComponentRepository extends MongoRepository<Component, String> 
     Page<Component> findByComponentTypeAndSerialNumber(@Param("componentType") String type, @Param("serialNumber") String serialNumber, Pageable p);
 
     Component findOneBySpaIdAndComponentTypeAndPort(@Param("spaId") String spaId, @Param("componentType") String type, @Param("port") String port);
-    Component findOneBySpaIdAndComponentTypeAndPortIsNullOrPortLessThan(@Param("spaId") String spaId, @Param("componentType") String type, @Param("threshold") int threshold );
 }

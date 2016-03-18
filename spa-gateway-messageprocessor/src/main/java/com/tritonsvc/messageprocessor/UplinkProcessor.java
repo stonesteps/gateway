@@ -82,7 +82,6 @@ public class UplinkProcessor implements MessageListener {
     private <T> void handleMessage(final Class<T> clazz, final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final T message) {
         final MessageHandler<T> handler = handlersMap.get(clazz);
         if (handler != null) {
-            log.info("found specific handler - processing");
             handler.processMessage(header, uplinkHeader, message);
         }
     }

@@ -109,8 +109,7 @@ public class Agent {
         this.mqttPub = createMQTT();
 		try {
             mqttSub.setHost(mqttHostname, mqttPort);
-            mqttSub.setCleanSession(false);
-            mqttSub.setClientId(new VMID().toString());
+            mqttSub.setCleanSession(true);
             mqttSub.setKeepAlive(mqttKeepaliveSeconds);
 
             // set up the mqtt broker connection health logger

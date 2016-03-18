@@ -142,11 +142,11 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
      * Convenience method for sending device registration
      *
      * @param parentHardwareId
-     * @param spaSerialNumber
+     * @param gwSerialNumber
      * @param deviceTypeName
      * @param meta
      */
-	public void sendRegistration(String parentHardwareId, String spaSerialNumber, String deviceTypeName, Map<String, String> meta, String originatorId) {
+	public void sendRegistration(String parentHardwareId, String gwSerialNumber, String deviceTypeName, Map<String, String> meta, String originatorId) {
         RegisterDevice.Builder builder = RegisterDevice.newBuilder();
         for (Map.Entry<String,String> entry : meta.entrySet()) {
             builder.addMetadata(Metadata.newBuilder().setName(entry.getKey()).setValue(entry.getValue()).build());
@@ -155,7 +155,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
         if (parentHardwareId != null) {
             builder.setParentDeviceHardwareId(parentHardwareId);
         }
-        builder.setSpaSerialNumber(spaSerialNumber);
+        builder.setGatewaySerialNumber(gwSerialNumber);
 		eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build());
 	    LOGGER.info("sent device registration for {}", deviceTypeName);
     }
