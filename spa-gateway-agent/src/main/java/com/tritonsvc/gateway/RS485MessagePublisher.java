@@ -1,6 +1,9 @@
 package com.tritonsvc.gateway;
 
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
+import jdk.dio.OutputRoundListener;
+import jdk.dio.RoundCompletionEvent;
+import jdk.dio.uart.UART;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -203,8 +206,7 @@ public class RS485MessagePublisher {
     }
 
     /**
-     * sends either a pending downlink message if one is queued or a default rs485 ack to the device poll request
-     * from controller
+     * sends a pending downlink message if one is queued
      *
      * @param address
      * @throws RS485Exception
@@ -230,27 +232,6 @@ public class RS485MessagePublisher {
                     throw ex;
                 } finally {
                     lastLoggedDownlinkPoll.set(System.currentTimeMillis());
-                }
-
-            } else {
-                ByteBuffer bb = ByteBuffer.allocate(7);
-                bb.put(DELIMITER_BYTE); // start flag
-                bb.put((byte) 0x05); // length between flags
-                bb.put(address); // device address
-                bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-                bb.put((byte) 0x07); // the unassigned device reponse packet type
-                bb.put(HdlcCrc.generateFCS(bb.array()));
-                bb.put(DELIMITER_BYTE); // stop flag
-                bb.position(0);
-
-                processor.getRS485UART().write(bb);
-                if (System.currentTimeMillis() - lastLoggedDownlinkPoll.get() > 60000) {
-                    synchronized (lastLoggedDownlinkPoll) {
-                        if (System.currentTimeMillis() - lastLoggedDownlinkPoll.get() > 60000) {
-                            lastLoggedDownlinkPoll.set(System.currentTimeMillis());
-                            LOGGER.info("sent no downlink messages for poll response in last 60 seconds");
-                        }
-                    }
                 }
             }
         }
