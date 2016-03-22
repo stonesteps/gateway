@@ -1,9 +1,7 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
+import com.bwg.iot.model.*;
 import com.bwg.iot.model.Component.ComponentType;
-import com.bwg.iot.model.ComponentState;
-import com.bwg.iot.model.Spa;
-import com.bwg.iot.model.SpaState;
 import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.spa.communication.proto.Bwg;
@@ -66,6 +64,19 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         spaStateEntity.setMessageSeverity(spaState.getController().getMessageSeverity());
         spaStateEntity.setUplinkTimestamp(new SimpleDateFormat(DATE_FORMAT).format(new Date(spaState.getLastUpdateTimestamp())));
 
+        updateOtherControllerParams(spaStateEntity, spaState.getController());
+
+        if (spaState.hasSetupParams()) {
+            spaStateEntity.setSetupParams(buildSetupParams(spaState.getSetupParams()));
+        } else if (spaStateEntity.getSetupParams() != null) {
+            // FIXM null the date
+        }
+        if (spaState.hasSystemInfo()) {
+            spaStateEntity.setSystemInfo(buildSystemInfo(spaState.getSystemInfo()));
+        } else if (spaState.getSystemInfo() != null) {
+            // FIXME null the date
+        }
+
         if (spaState.hasComponents()) {
             updateComponents(spa.get_id(), spa.getCurrentState(), spaState.getComponents());
         }
@@ -73,6 +84,79 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         updateComponentState(spa.get_id(), spaStateEntity, ComponentType.CONTROLLER.toString(), null, newArrayList(), null);
 
         spaRepository.save(spa);
+    }
+
+    private void updateOtherControllerParams(final SpaState spaStateEntity, final Bwg.Uplink.Model.Controller controller) {
+        spaStateEntity.setHeaterMode(controller.getHeaterMode());
+        spaStateEntity.setHour(controller.getHour());
+        spaStateEntity.setMinute(controller.getMinute());
+        spaStateEntity.setUiCode(controller.getUiCode());
+        spaStateEntity.setUiSubCode(controller.getUiSubCode());
+        spaStateEntity.setInvert(controller.getInvert());
+        spaStateEntity.setAllSegsOn(controller.getAllSegsOn());
+        spaStateEntity.setPanelLock(controller.getPanelLock());
+        spaStateEntity.setMilitary(controller.getMilitary());
+        spaStateEntity.setCelsius(controller.getCelsius());
+        spaStateEntity.setTempRange(controller.hasTempRange() ? TempRange.valueOf(controller.getTempRange().toString()) : null);
+        spaStateEntity.setPrimingMode(controller.getPrimingMode());
+        spaStateEntity.setSoundAlarm(controller.getSoundAlarm());
+        spaStateEntity.setRepeat(controller.getRepeat());
+        spaStateEntity.setPanelMode(controller.hasPanelMode() ? PanelMode.valueOf(controller.getPanelMode().toString()) : null);
+        spaStateEntity.setSwimSpaMode(controller.hasSwimSpaMode() ? SwimSpaMode.valueOf(controller.getSwimSpaMode().toString()) : null);
+        spaStateEntity.setSwimSpaModeChanging(controller.getSwimSpaModeChanging());
+        spaStateEntity.setHeaterCooling(controller.getHeaterCooling());
+        spaStateEntity.setLatchingMessage(controller.getLatchingMessage());
+        spaStateEntity.setDemoMode(controller.getDemoMode());
+        spaStateEntity.setTimeNotSet(controller.getTimeNotSet());
+        spaStateEntity.setLightCycle(controller.getLightCycle());
+        spaStateEntity.setElapsedTimeDisplay(controller.getElapsedTimeDisplay());
+        spaStateEntity.setTvLiftState(controller.getTvLiftState());
+        spaStateEntity.setSettingsLock(controller.getSettingsLock());
+        spaStateEntity.setSpaOverheatDisabled(controller.getSpaOverheatDisabled());
+        spaStateEntity.setSpecialTimeouts(controller.getSpecialTimeouts());
+        spaStateEntity.setABDisplay(controller.getABDisplay());
+        spaStateEntity.setStirring(controller.getStirring());
+        spaStateEntity.setEcoMode(controller.getEcoMode());
+        spaStateEntity.setSoakMode(controller.getSoakMode());
+        spaStateEntity.setBluetoothStatus(controller.getBluetoothStatus());
+        spaStateEntity.setOverrangeEnabled(controller.getOverrangeEnabled());
+        spaStateEntity.setHeatExternallyDisabled(controller.getHeatExternallyDisabled());
+        spaStateEntity.setTestMode(controller.getTestMode());
+        spaStateEntity.setTempLock(controller.getTempLock());
+    }
+
+    private SetupParams buildSetupParams(final Bwg.Uplink.Model.SetupParams setupParams) {
+        final SetupParams setupParamsEntity = new SetupParams();
+
+        setupParamsEntity.setLowRangeLow(setupParams.getLowRangeLow());
+        setupParamsEntity.setLowRangeHigh(setupParams.getLowRangeHigh());
+        setupParamsEntity.setHighRangeLow(setupParams.getHighRangeLow());
+        setupParamsEntity.setHighRangeHigh(setupParams.getHighRangeHigh());
+        setupParamsEntity.setGfciEnabled(setupParams.getGfciEnabled());
+        setupParamsEntity.setDrainModeEnabled(setupParams.getDrainModeEnabled());
+
+        // FIXME use date instead of long
+        setupParamsEntity.setLastUpdateTimestamp(setupParams.getLastUpdateTimestamp());
+
+        return setupParamsEntity;
+    }
+
+    private SystemInfo buildSystemInfo(final Bwg.Uplink.Model.SystemInfo systemInfo) {
+        final SystemInfo systemInfoEntity = new SystemInfo();
+
+        systemInfoEntity.setHeaterPower(systemInfo.getHeaterPower());
+        systemInfoEntity.setMfrSSID(systemInfo.getMfrSSID());
+        systemInfoEntity.setModelSSID(systemInfo.getModelSSID());
+        systemInfoEntity.setVersionSSID(systemInfo.getVersionSSID());
+        systemInfoEntity.setMinorVersion(systemInfo.getMinorVersion());
+        systemInfoEntity.setSwSignature(systemInfo.getSwSignature());
+        systemInfoEntity.setHeaterType(systemInfo.getHeaterType());
+        systemInfoEntity.setCurrentSetup(systemInfo.getCurrentSetup());
+
+        // FIXME use date instead of long
+        systemInfoEntity.setLastUpdateTimestamp(systemInfo.getLastUpdateTimestamp());
+
+        return systemInfoEntity;
     }
 
     private void updateComponents(final String spaId, final SpaState spaStateEntity, final Bwg.Uplink.Model.Components components) {
