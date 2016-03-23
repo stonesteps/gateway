@@ -64,6 +64,7 @@ public class RS485DataHarvester implements Runnable {
     private AtomicInteger LowHigh = new AtomicInteger(0);
     private AtomicInteger LowLow = new AtomicInteger(0);
     private AtomicReference<byte[]> lastPanelUpdate = new AtomicReference<>(new byte[]{});
+    private BlockingQueue executionQueue;
 
     final ReentrantReadWriteLock spaStateLock = new ReentrantReadWriteLock();
     private SpaState spaState = SpaState.newBuilder().build();
@@ -76,8 +77,8 @@ public class RS485DataHarvester implements Runnable {
     public RS485DataHarvester(BWGProcessor processor, RS485MessagePublisher rs485MessagePublisher) {
         this.processor = processor;
         this.rs485MessagePublisher = rs485MessagePublisher;
-        BlockingQueue q = new ArrayBlockingQueue(1000);
-        executorService = new ThreadPoolExecutor(2, 5, 20, TimeUnit.SECONDS, q, (r, executor) -> {
+        executionQueue = new ArrayBlockingQueue(1000);
+        executorService = new ThreadPoolExecutor(1, 1, 20, TimeUnit.SECONDS, executionQueue, (r, executor) -> {
             if (rejectCount.addAndGet(1) > 500) {
                 LOGGER.warn("filled up the rs 485 listener message processing queue, dropping messages");
                 rejectCount.set(0);
@@ -437,6 +438,9 @@ public class RS485DataHarvester implements Runnable {
         public void run() {
             try {
                 processMessage(message);
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("finished processing message {}, {}", message[3], executionQueue.size());
+                }
             } catch (Throwable th) {
                 LOGGER.error("had problem processing rs 485 message ", th);
             }
@@ -559,6 +563,7 @@ public class RS485DataHarvester implements Runnable {
                 getLatestSpaInfoLock().writeLock().unlock();
             }
         }
+        LOGGER.info("processed panel update message");
     }
 
     private Components buildComponentsMessageFromPanelUpdate(byte[] message) {
@@ -709,6 +714,7 @@ public class RS485DataHarvester implements Runnable {
                 getLatestSpaInfoLock().writeLock().unlock();
             }
         }
+        LOGGER.info("processed system info message");
     }
 
     private void processSetupParamsMessage(byte[] message) {
@@ -743,6 +749,7 @@ public class RS485DataHarvester implements Runnable {
                 getLatestSpaInfoLock().writeLock().unlock();
             }
         }
+        LOGGER.info("processed setup params message");
     }
 
     private List<PumpComponent.State> getAvailablePumpStates(int available) {
@@ -986,6 +993,7 @@ public class RS485DataHarvester implements Runnable {
                 getLatestSpaInfoLock().writeLock().unlock();
             }
         }
+        LOGGER.info("processed device config message");
     }
 
     private boolean withinHighRange(int tempFahr) {
