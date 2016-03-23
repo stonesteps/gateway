@@ -69,12 +69,12 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         if (spaState.hasSetupParams()) {
             spaStateEntity.setSetupParams(buildSetupParams(spaState.getSetupParams()));
         } else if (spaStateEntity.getSetupParams() != null) {
-            // FIXM null the date
+            spaStateEntity.getSetupParams().setLastUpdateTimestamp(null);
         }
         if (spaState.hasSystemInfo()) {
             spaStateEntity.setSystemInfo(buildSystemInfo(spaState.getSystemInfo()));
         } else if (spaState.getSystemInfo() != null) {
-            // FIXME null the date
+            spaStateEntity.getSystemInfo().setLastUpdateTimestamp(null);
         }
 
         if (spaState.hasComponents()) {
@@ -135,8 +135,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         setupParamsEntity.setGfciEnabled(setupParams.getGfciEnabled());
         setupParamsEntity.setDrainModeEnabled(setupParams.getDrainModeEnabled());
 
-        // FIXME use date instead of long
-        setupParamsEntity.setLastUpdateTimestamp(setupParams.getLastUpdateTimestamp());
+        setupParamsEntity.setLastUpdateTimestamp(new Date(setupParams.getLastUpdateTimestamp()));
 
         return setupParamsEntity;
     }
@@ -153,8 +152,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         systemInfoEntity.setHeaterType(systemInfo.getHeaterType());
         systemInfoEntity.setCurrentSetup(systemInfo.getCurrentSetup());
 
-        // FIXME use date instead of long
-        systemInfoEntity.setLastUpdateTimestamp(systemInfo.getLastUpdateTimestamp());
+        systemInfoEntity.setLastUpdateTimestamp(new Date(systemInfo.getLastUpdateTimestamp()));
 
         return systemInfoEntity;
     }
@@ -216,7 +214,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         componentState.setPort(port != null ? port.toString() : null);
         componentState.setValue(state);
         componentState.setAvailableValues(availableStates);
-        componentState.setRegisteredTimestamp(new SimpleDateFormat(DATE_FORMAT).format(new Date()));
+        componentState.setRegisteredTimestamp(new Date());
 
         com.bwg.iot.model.Component component = null;
         if (port != null) {
