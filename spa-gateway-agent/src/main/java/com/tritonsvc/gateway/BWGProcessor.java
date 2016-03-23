@@ -566,7 +566,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
         try {
             rs485Uart = DeviceManager.open(config);
         }
-        catch (Exception ex) {
+        catch (Throwable ex) {
             throw Throwables.propagate(ex);
         }
 

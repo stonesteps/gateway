@@ -59,5 +59,16 @@ You should see log activity in 'gateway_agent'/logs/bwg.log. The MockProcessor w
 a gateway and controller registration message onto MQTT topic 'BWG/spa/uplink' and later some
 fake pre/post water temperature readings once every 5 minutes.
 
+If you're using raspberry pi 2 as dev board with linksprite rs485 shield, you need to take extra steps to free up the serial
+port /dev/ttyAMA0 on linux, follow instructions here:
+
+http://store.linksprite.com/rs485-gpio-shield-v3-for-raspberry-pi-b-b-and-raspberry-pi-2/
+
+If your using linksprite rs485 shield with raspberry pi 3, you need to use /dev/ttyS0 as the linux serial port,
+in agent's config.properties file, change rs485.port=ttyS0, and then then add 
+core_freq=250 in /boot/config.txt - https://frillip.com/raspberry-pi-3-uart-baud-rate-workaround/
+
+
+
     
 

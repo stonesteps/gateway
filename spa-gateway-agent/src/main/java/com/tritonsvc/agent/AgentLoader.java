@@ -54,7 +54,7 @@ public class AgentLoader {
 
 		try {
 			agent.start(homePath);
-		} catch (Exception e) {
+		} catch (Throwable e) {
 			LOGGER.error("Unable to start agent.", e);
 		}
 	}
