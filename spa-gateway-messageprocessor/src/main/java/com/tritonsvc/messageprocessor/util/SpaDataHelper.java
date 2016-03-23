@@ -111,6 +111,19 @@ public final class SpaDataHelper {
         return builder.build();
     }
 
+    public static Bwg.Uplink.Model.DownlinkAcknowledge buildDownlinkAcknowledge(final Bwg.AckResponseCode responseCode,
+                                                                                final String description) {
+
+        final Bwg.Uplink.Model.DownlinkAcknowledge.Builder builder = Bwg.Uplink.Model.DownlinkAcknowledge.newBuilder();
+        builder.setCode(responseCode);
+
+        if (description != null) {
+            builder.setDescription(description);
+        }
+
+        return builder.build();
+    }
+
     public static byte[] buildUplinkMessage(final String originator,
                                             final String hardwareId,
                                             final Bwg.Uplink.UplinkCommandType uplinkCommandType,

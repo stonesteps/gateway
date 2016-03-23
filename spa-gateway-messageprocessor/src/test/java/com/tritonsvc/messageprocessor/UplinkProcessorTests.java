@@ -4,6 +4,7 @@ import com.bwg.iot.model.Component;
 import com.bwg.iot.model.Component.ComponentType;
 import com.bwg.iot.model.ComponentState;
 import com.bwg.iot.model.Spa;
+import com.bwg.iot.model.SpaCommand;
 import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
@@ -17,7 +18,6 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Controller;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -35,10 +35,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = {SpaGatewayMessageProcessorApplication.class, UnitTestHelper.class})
@@ -78,7 +75,7 @@ public class UplinkProcessorTests {
         // wait for message to be delivered and processed
         Thread.sleep(1000);
 
-        final Page<Component> gateway = componentRepository.findByComponentTypeAndSerialNumber(ComponentType.GATEWAY.name(), "1", new PageRequest(0,1));
+        final Page<Component> gateway = componentRepository.findByComponentTypeAndSerialNumber(ComponentType.GATEWAY.name(), "1", new PageRequest(0, 1));
         assertEquals(gateway.getContent().get(0).getSerialNumber(), "1");
 
         final Spa spa = spaRepository.findOne(gateway.getContent().get(0).getSpaId());
@@ -101,7 +98,7 @@ public class UplinkProcessorTests {
         // wait for message to be delivered and processed
         Thread.sleep(1000);
 
-        final Page<Component> controller = componentRepository.findBySpaIdAndComponentType("spaId", ComponentType.CONTROLLER.name(), new PageRequest(0,1));
+        final Page<Component> controller = componentRepository.findBySpaIdAndComponentType("spaId", ComponentType.CONTROLLER.name(), new PageRequest(0, 1));
         assertNull(controller.getContent().get(0).getSerialNumber());
         assertEquals(controller.getContent().get(0).getSpaId(), "spaId");
     }
@@ -114,7 +111,7 @@ public class UplinkProcessorTests {
         spaRepository.save(spa);
 
         SpaState state = SpaState.newBuilder()
-                .setController( Controller.newBuilder()
+                .setController(Controller.newBuilder()
                         .setErrorCode(0)
                         .setHour(0)
                         .setABDisplay(false)
@@ -174,7 +171,7 @@ public class UplinkProcessorTests {
         assertThat(spa.getCurrentState()
                 .getComponents()
                 .stream()
-                .map(ComponentState::getComponentType).collect(toList()), contains("GATEWAY","CONTROLLER"));
+                .map(ComponentState::getComponentType).collect(toList()), contains("GATEWAY", "CONTROLLER"));
 
         spa.getCurrentState()
                 .getComponents()
@@ -184,5 +181,27 @@ public class UplinkProcessorTests {
                         fail("component type should havea registered timestamp");
                     }
                 });
+    }
+
+    @Test
+    public void handleDownlinkAck() throws Exception {
+        // build command
+        final SpaCommand command = new SpaCommand();
+        command.setOriginatorId("1");
+        command.setSpaId("1");
+        spaCommandRepository.save(command);
+
+        // build message
+        final Bwg.Uplink.Model.DownlinkAcknowledge ackMessage = SpaDataHelper.buildDownlinkAcknowledge(Bwg.AckResponseCode.OK, "All ok");
+        final byte[] payload = SpaDataHelper.buildUplinkMessage("1", "1", UplinkCommandType.ACKNOWLEDGEMENT, ackMessage);
+        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), payload);
+
+        // wait for message to be delivered and processed
+        Thread.sleep(1000);
+
+        // command is processed, ack OK response state shall be set on it
+        final SpaCommand processedCommand = spaCommandRepository.findByOriginatorIdAndSpaId("1", "1");
+        assertNotNull(processedCommand);
+        assertEquals("OK", processedCommand.getAckResponseCode());
     }
 }
