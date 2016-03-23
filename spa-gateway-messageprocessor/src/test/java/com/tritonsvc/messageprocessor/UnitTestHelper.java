@@ -18,6 +18,7 @@ import org.springframework.data.mongodb.config.AbstractMongoConfiguration;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.nio.file.Paths;
+import java.util.Date;
 import java.util.HashMap;
 
 /**
@@ -78,7 +79,7 @@ public class UnitTestHelper extends AbstractMongoConfiguration {
     public SpaCommand createSpaCommand(Spa spa, int requestType, HashMap<String, String> values) {
         final SpaCommand command = new SpaCommand();
         command.setSpaId(spa.get_id());
-        command.setSentTimestamp(String.valueOf(System.currentTimeMillis()));
+        command.setSentTimestamp(new Date());
         command.setRequestTypeId(Integer.valueOf(requestType));
         command.setValues(values);
         spaCommandRepository.save(command);

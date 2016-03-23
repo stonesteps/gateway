@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -37,7 +38,7 @@ public class DownlinkProcessor {
         if (commands != null && commands.size() > 0) {
             for (final SpaCommand command : commands) {
                 final boolean sent = sendCommand(command);
-                command.setProcessedTimestamp(String.valueOf(System.currentTimeMillis()));
+                command.setProcessedTimestamp(new Date());
                 command.setProcessedResult(sent ? ProcessedResult.SENT : ProcessedResult.INVALID);
                 spaCommandRepository.save(command);
                 log.info("Spa command processed successfully");

@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
@@ -40,7 +39,7 @@ public class DownlinkAckMessageHandler extends AbstractMessageHandler<DownlinkAc
         }
 
         request.setAckResponseCode(ackMessage.getCode().name());
-        request.setAckTimestamp(new SimpleDateFormat(DATE_FORMAT).format(new Date()));
+        request.setAckTimestamp(new Date());
         spaCommandRepository.save(request);
     }
 }
