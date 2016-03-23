@@ -15,7 +15,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -64,7 +63,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         spaStateEntity.setCleanupCycle(spaState.getController().getCleanupCycle());
         spaStateEntity.setErrorCode(spaState.getController().getErrorCode());
         spaStateEntity.setMessageSeverity(spaState.getController().getMessageSeverity());
-        spaStateEntity.setUplinkTimestamp(new SimpleDateFormat(DATE_FORMAT).format(new Date(spaState.getLastUpdateTimestamp())));
+        spaStateEntity.setUplinkTimestamp(new Date(spaState.getLastUpdateTimestamp()));
 
         if (spaState.hasComponents()) {
             updateComponents(spa.get_id(), spa.getCurrentState(), spaState.getComponents());
@@ -132,7 +131,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         componentState.setPort(port != null ? port.toString() : null);
         componentState.setValue(state);
         componentState.setAvailableValues(availableStates);
-        componentState.setRegisteredTimestamp(new SimpleDateFormat(DATE_FORMAT).format(new Date()));
+        componentState.setRegisteredTimestamp(new Date());
 
         com.bwg.iot.model.Component component = null;
         if (port != null) {
