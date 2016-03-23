@@ -72,7 +72,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         }
         if (spaState.hasSystemInfo()) {
             spaStateEntity.setSystemInfo(buildSystemInfo(spaState.getSystemInfo()));
-        } else if (spaState.getSystemInfo() != null) {
+        } else if (spaStateEntity.getSystemInfo() != null) {
             spaStateEntity.getSystemInfo().setLastUpdateTimestamp(null);
         }
 
