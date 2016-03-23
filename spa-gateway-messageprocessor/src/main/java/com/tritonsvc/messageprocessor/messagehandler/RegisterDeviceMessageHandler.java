@@ -21,7 +21,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
@@ -85,7 +84,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
             }
         }
 
-        String regTimestamp = new SimpleDateFormat(DATE_FORMAT).format(new Date());
+        Date regTimestamp = new Date();
         boolean dirtyGateway = false;
         Page<com.bwg.iot.model.Component> results = componentRepository.findByComponentTypeAndSerialNumber(ComponentType.GATEWAY.name(), serialNumber, new PageRequest(0,1));
         com.bwg.iot.model.Component gatewayComponent;
@@ -169,7 +168,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         }
 
         if (controller.getRegistrationDate() == null) {
-            controller.setRegistrationDate(new SimpleDateFormat(DATE_FORMAT).format(new Date()));
+            controller.setRegistrationDate(new Date());
         }
         componentRepository.save(controller);
 
