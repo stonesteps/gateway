@@ -18,6 +18,12 @@ public interface AgentConfiguration {
 	/** Property for MQTT port */
 	public static final String MQTT_PORT = "mqtt.port";
 
+	/** Property for MQTT username */
+	public static final String MQTT_USERNAME = "mqtt.userName";
+
+    /** Property for MQTT password */
+    public static final String MQTT_PASSWORD = "mqtt.password";
+
 	/** Optional property for outbound MQTT topic, default is BWG/spa/uplink */
 	public static final String MQTT_OUTBOUND_TOPIC = "mqtt.outbound.topic";
 
