@@ -441,6 +441,7 @@ message Downlink {
             DESIREDTEMP = 1;
             DESIREDSTATE = 2;
             PORT = 3;
+            FILTER_DURATION_SECONDS = 4;
         }
 
         message RequestMetadata {
