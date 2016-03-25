@@ -6,12 +6,15 @@ package com.tritonsvc.gateway;
 
 import com.google.common.collect.ImmutableMap;
 import com.tritonsvc.agent.MQTTCommandProcessor;
+import com.tritonsvc.gateway.wsn.SpaStateHolder;
+import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,12 +39,17 @@ public class MockProcessor extends MQTTCommandProcessor {
     private DeviceRegistration registeredController = new DeviceRegistration();
     private DeviceRegistration registeredMote = new DeviceRegistration();
 
+    private String gwSerialNumber;
+
+    private SpaStateHolder spaStateHolder = new SpaStateHolder();
+
     @Override
     public void handleShutdown() {}
 
 	@Override
 	public void handleStartup(String hardwareId, Properties configProps, String homePath, ScheduledExecutorService executorService) {
-        sendRegistration(null, "gateway", "mockSerialNumber",newHashMap(), "spa_originatorid");
+        this.gwSerialNumber = hardwareId;
+        sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
 		LOGGER.info("Sent registration information.");
 	}
 
@@ -81,7 +89,6 @@ public class MockProcessor extends MQTTCommandProcessor {
         }
 
         LOGGER.info("received spa registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
-
     }
 
     @Override
@@ -98,19 +105,19 @@ public class MockProcessor extends MQTTCommandProcessor {
     public void processDataHarvestIteration() {
 
         if (registeredSpa.getHardwareId() == null) {
-            sendRegistration(null, "gateway", "mockSerialNumber", newHashMap(),"spa_originatorid");
+            sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(),"spa_originatorid");
             LOGGER.info("resent spa gateway registration");
             return;
         }
 
         if (registeredController.getHardwareId() == null) {
-            sendRegistration(registeredSpa.getHardwareId(), "controller",  "mockSerialNumber", newHashMap(),"controller_originatorid");
+            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "controller", newHashMap(),"controller_originatorid");
             LOGGER.info("resent controller registration");
             return;
         }
 
         if (registeredMote.getHardwareId() == null) {
-            sendRegistration(registeredSpa.getHardwareId(), "mote",  "mockSerialNumber", ImmutableMap.of("mac", "mockMAC"),"mote_originatorid");
+            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockMAC"),"mote_originatorid");
             LOGGER.info("resent mote registration");
             return;
         }
@@ -125,6 +132,10 @@ public class MockProcessor extends MQTTCommandProcessor {
         meta.put("comment", "controller temp probes");
 
         sendMeasurements(registeredMote.getHardwareId(), null, measurement, new Date().getTime(), meta);
+
+        // send spa info
+        LOGGER.info("Sending spa info");
+        sendSpaState(registeredSpa.getHardwareId(), spaStateHolder.buildSpaState());
 
         LOGGER.info("Sent harvest periodic reports");
     }

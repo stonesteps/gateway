@@ -9,7 +9,6 @@ import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
-import com.tritonsvc.messageprocessor.util.SpaDataHelper;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.SwimSpaMode;
@@ -17,6 +16,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRang
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Controller;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
+import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -68,9 +68,9 @@ public class UplinkProcessorTests {
     public void handleGatewayRegisterDevice() throws Exception {
         // send register message
         final Collection<Bwg.Metadata> metadata = new ArrayList<>();
-        metadata.add(SpaDataHelper.buildMetadata("serialName", "ABC"));
-        final Bwg.Uplink.Model.RegisterDevice registerDevice = SpaDataHelper.buildRegisterDevice(null, "gateway", "1", metadata);
-        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), SpaDataHelper.buildUplinkMessage("1", "1", Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
+        metadata.add(BwgHelper.buildMetadata("serialName", "ABC"));
+        final Bwg.Uplink.Model.RegisterDevice registerDevice = BwgHelper.buildRegisterDevice(null, "gateway", "1", metadata);
+        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), BwgHelper.buildUplinkMessage("1", "1", Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
 
         // wait for message to be delivered and processed
         Thread.sleep(1000);
@@ -92,8 +92,8 @@ public class UplinkProcessorTests {
         spaRepository.save(spa);
 
         final Collection<Bwg.Metadata> metadata = newArrayList();
-        final Bwg.Uplink.Model.RegisterDevice registerDevice = SpaDataHelper.buildRegisterDevice("spaId", "controller", "1", metadata);
-        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), SpaDataHelper.buildUplinkMessage("1", "spaId", Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
+        final Bwg.Uplink.Model.RegisterDevice registerDevice = BwgHelper.buildRegisterDevice("spaId", "controller", "1", metadata);
+        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), BwgHelper.buildUplinkMessage("1", "spaId", Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
 
         // wait for message to be delivered and processed
         Thread.sleep(1000);
@@ -159,7 +159,7 @@ public class UplinkProcessorTests {
                         .build())
                 .build();
 
-        byte[] payload = SpaDataHelper.buildUplinkMessage("originator", "spaId", UplinkCommandType.SPA_STATE, state);
+        byte[] payload = BwgHelper.buildUplinkMessage("originator", "spaId", UplinkCommandType.SPA_STATE, state);
         mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), payload);
 
         // wait for message to be delivered and processed
@@ -192,8 +192,8 @@ public class UplinkProcessorTests {
         spaCommandRepository.save(command);
 
         // build message
-        final Bwg.Uplink.Model.DownlinkAcknowledge ackMessage = SpaDataHelper.buildDownlinkAcknowledge(Bwg.AckResponseCode.OK, "All ok");
-        final byte[] payload = SpaDataHelper.buildUplinkMessage("1", "1", UplinkCommandType.ACKNOWLEDGEMENT, ackMessage);
+        final Bwg.Uplink.Model.DownlinkAcknowledge ackMessage = BwgHelper.buildDownlinkAcknowledge(Bwg.AckResponseCode.OK, "All ok");
+        final byte[] payload = BwgHelper.buildUplinkMessage("1", "1", UplinkCommandType.ACKNOWLEDGEMENT, ackMessage);
         mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), payload);
 
         // wait for message to be delivered and processed

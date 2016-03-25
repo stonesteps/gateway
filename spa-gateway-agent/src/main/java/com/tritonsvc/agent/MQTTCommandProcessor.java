@@ -220,6 +220,10 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
 		eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.EVENT, eb.build());
 	}
 
+    public void sendSpaState(String hardwareId, Bwg.Uplink.Model.SpaState spaState) {
+        getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.SPA_STATE, spaState);
+    }
+
     /**
      * obtain a repeatable unique key for each device registration
      *
