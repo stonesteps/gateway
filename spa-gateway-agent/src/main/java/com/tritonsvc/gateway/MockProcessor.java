@@ -145,15 +145,16 @@ public class MockProcessor extends MQTTCommandProcessor {
 
     private void updateHeater(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId) {
         final String tempStr = BwgHelper.getRequestMetadataValue(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDTEMP.name(), metadataList);
-        final Integer temp;
+        LOGGER.info("Setting new temperature {}", tempStr);
+        final double temp;
         if (tempStr != null) {
-            temp = new Integer(tempStr);
+            temp = Double.parseDouble(tempStr);
         } else {
-            temp = null;
+            temp = 0.0d;
         }
 
-        if (temp != null) {
-            spaStateHolder.updateHeater(temp);
+        if (temp > 0.0d) {
+            spaStateHolder.updateHeater((int) temp);
         }
         sendAck(hardwareId, originatorId, Bwg.AckResponseCode.OK, null);
     }

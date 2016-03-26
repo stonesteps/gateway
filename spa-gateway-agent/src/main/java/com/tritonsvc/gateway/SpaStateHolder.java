@@ -1,6 +1,8 @@
 package com.tritonsvc.gateway;
 
 import com.tritonsvc.spa.communication.proto.Bwg;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -9,6 +11,8 @@ import java.util.Map;
  * Created by holow on 3/25/2016.
  */
 public class SpaStateHolder {
+
+    private static final Logger log = LoggerFactory.getLogger(SpaStateHolder.class);
 
     private final Bwg.Uplink.Model.Controller.Builder controllerBuilder = Bwg.Uplink.Model.Controller.newBuilder();
     private final Bwg.Uplink.Model.SystemInfo.Builder systemInfoBuilder = Bwg.Uplink.Model.SystemInfo.newBuilder();
@@ -293,7 +297,9 @@ public class SpaStateHolder {
         builder.setComponents(buildComponents(timestamp));
         builder.setLastUpdateTimestamp(timestamp);
 
-        return builder.build();
+        final Bwg.Uplink.Model.SpaState state = builder.build();
+        log.info("Spa state has current temp set to {}", state.getController().getCurrentWaterTemp());
+        return state;
     }
 
     private Bwg.Uplink.Model.Controller buildController(final long timestamp) {
@@ -317,6 +323,7 @@ public class SpaStateHolder {
     }
 
     public void updateHeater(final Integer temperature) {
+        log.info("Updating spa state, setting temperature to {}", temperature);
         controllerBuilder.setCurrentWaterTemp(temperature.intValue());
         controllerBuilder.setTargetWaterTemperature(temperature.intValue());
 

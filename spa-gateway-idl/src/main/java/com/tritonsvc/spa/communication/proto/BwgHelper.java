@@ -34,7 +34,7 @@ public final class BwgHelper {
         String value = null;
         if (metadata != null) {
             for (final Bwg.Downlink.Model.RequestMetadata metadataElem : metadata) {
-                if (metadataElem.hasName() && metadataElem.getName().equals(name)) {
+                if (metadataElem.hasName() && metadataElem.getName().name().equals(name)) {
                     value = metadataElem.getValue();
                     break;
                 }
