@@ -753,25 +753,33 @@ public class RS485DataHarvester implements Runnable {
     }
 
     private List<PumpComponent.State> getAvailablePumpStates(int available) {
-        if (available > 2) {
+        // 1 = 2 speed
+        // 2 and up = 3 speed
+        if (available > 1) {
             return newArrayList(PumpComponent.State.values());
         }
         return newArrayList(PumpComponent.State.OFF, PumpComponent.State.HIGH);
     }
 
     private List<LightComponent.State> getAvailableLightStates(int available) {
-        if (available > 3) {
+        // 1 = 2 speed
+        // 2 = 3 speed
+        // 3 = 4 speed
+        if (available > 2) {
             return newArrayList(LightComponent.State.values());
-        } else if (available > 2) {
+        } else if (available > 1) {
             return newArrayList(LightComponent.State.OFF, LightComponent.State.LOW, LightComponent.State.HIGH);
         }
         return newArrayList(LightComponent.State.OFF, LightComponent.State.HIGH);
     }
 
     private List<BlowerComponent.State> getAvailableBlowerStates(int available) {
-        if (available > 3) {
+        // 1 = 2 speed
+        // 2 = 3 speed
+        // 3 = 4 speed
+        if (available > 2) {
             return newArrayList(BlowerComponent.State.values());
-        } else if (available > 2) {
+        } else if (available > 1) {
             return newArrayList(BlowerComponent.State.OFF, BlowerComponent.State.LOW, BlowerComponent.State.HIGH);
         }
         return newArrayList(BlowerComponent.State.OFF, BlowerComponent.State.HIGH);
