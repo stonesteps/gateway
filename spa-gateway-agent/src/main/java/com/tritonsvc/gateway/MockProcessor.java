@@ -6,23 +6,17 @@ package com.tritonsvc.gateway;
 
 import com.google.common.collect.ImmutableMap;
 import com.tritonsvc.agent.MQTTCommandProcessor;
-import com.tritonsvc.gateway.wsn.SpaStateHolder;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Date;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -93,12 +87,98 @@ public class MockProcessor extends MQTTCommandProcessor {
 
     @Override
 	public void handleDownlinkCommand(Request request, String hardwareId, String originatorId) {
-		//TODO
+        if (request == null || !request.hasRequestType()) {
+            LOGGER.error("Request is null, not processing, []", originatorId);
+            sendAck(hardwareId, originatorId, Bwg.AckResponseCode.ERROR, "gateway has not registered with controller yet");
+            return;
+        }
+
+        if (registeredSpa.getHardwareId() == null) {
+            LOGGER.error("received request {}, gateway has not registered with controller yet ", request.getRequestType().name());
+            sendAck(hardwareId, originatorId, Bwg.AckResponseCode.ERROR, "gateway has not registered with controller yet");
+            return;
+        }
+
+        LOGGER.info("received downlink command from cloud {}, originatorid = {}", request.getRequestType().name(), originatorId);
+        sendAck(hardwareId, originatorId, Bwg.AckResponseCode.RECEIVED, null);
+
+        try {
+            if (request.getRequestType().equals(Bwg.Downlink.Model.RequestType.HEATER)) {
+                updateHeater(request.getMetadataList(), originatorId, hardwareId);
+            } else {
+                switch (request.getRequestType()) {
+                    case PUMPS:
+                        updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.PUMP);
+                        break;
+                    case LIGHTS:
+                        updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.LIGHT);
+                        break;
+                    case BLOWER:
+                        updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.BLOWER);
+                        break;
+                    case MISTER:
+                        updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.MISTER);
+                        break;
+                    case FILTER:
+                        updateFilter(request.getMetadataList(), originatorId, hardwareId);
+                        break;
+                    case OZONE:
+                        updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.OZONE);
+                        break;
+                    case MICROSILK:
+                        updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.MICROSILK);
+                        break;
+                    case AUX:
+                        updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.AUX);
+                        break;
+                    default:
+                        sendAck(hardwareId, originatorId, Bwg.AckResponseCode.ERROR, "not supported");
+                }
+            }
+        }
+        catch (Exception ex) {
+            LOGGER.error("had problem when sending a command ", ex);
+            sendAck(hardwareId, originatorId, Bwg.AckResponseCode.ERROR, ex.getMessage());
+            return;
+        }
 	}
+
+    private void updateHeater(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId) {
+        final String tempStr = BwgHelper.getRequestMetadataValue(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDTEMP.name(), metadataList);
+        final Integer temp;
+        if (tempStr != null) {
+            temp = new Integer(tempStr);
+        } else {
+            temp = null;
+        }
+
+        if (temp != null) {
+            spaStateHolder.updateHeater(temp);
+        }
+        sendAck(hardwareId, originatorId, Bwg.AckResponseCode.OK, null);
+    }
+
+    private void updatePeripherlal(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId, Bwg.Uplink.Model.Constants.ComponentType componentType) {
+        final String desiredState = BwgHelper.getRequestMetadataValue(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name(), metadataList);
+        final String portStr = BwgHelper.getRequestMetadataValue(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name(), metadataList);
+        final Integer port;
+        if (portStr != null) {
+            port = Integer.decode(portStr);
+        } else {
+            port = Integer.valueOf(0);
+        }
+
+        spaStateHolder.updateComponentState(componentType, port, desiredState);
+        sendAck(hardwareId, originatorId, Bwg.AckResponseCode.OK, null);
+    }
+
+    private void updateFilter(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId) {
+        // not implemented yet
+    }
 
     @Override
 	public void handleUplinkAck(UplinkAcknowledge ack, String originatorId) {
-		//TODO
+		// not required here?
 	}
 
     @Override

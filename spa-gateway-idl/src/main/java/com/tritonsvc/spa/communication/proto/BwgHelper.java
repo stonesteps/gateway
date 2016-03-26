@@ -30,6 +30,19 @@ public final class BwgHelper {
         return value;
     }
 
+    public static String getRequestMetadataValue(final String name, final Iterable<Bwg.Downlink.Model.RequestMetadata> metadata) {
+        String value = null;
+        if (metadata != null) {
+            for (final Bwg.Downlink.Model.RequestMetadata metadataElem : metadata) {
+                if (metadataElem.hasName() && metadataElem.getName().equals(name)) {
+                    value = metadataElem.getValue();
+                    break;
+                }
+            }
+        }
+        return value;
+    }
+
     public static Bwg.Downlink.Model.RequestType getRequestTypeByCode(Integer code) {
         if (code == null) return null;
         return Bwg.Downlink.Model.RequestType.valueOf(code.intValue());
