@@ -1,8 +1,6 @@
 package com.tritonsvc.agent;
 
 import org.fusesource.mqtt.client.BlockingConnection;
-import org.fusesource.mqtt.client.Future;
-import org.fusesource.mqtt.client.FutureConnection;
 import org.fusesource.mqtt.client.MQTT;
 import org.junit.Before;
 import org.junit.Rule;
