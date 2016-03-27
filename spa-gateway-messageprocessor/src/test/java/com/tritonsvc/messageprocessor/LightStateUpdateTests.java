@@ -92,8 +92,8 @@ public class LightStateUpdateTests {
 
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
-        values.put(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name(), LightState.HIGH.name());
-        values.put(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name(), "0");
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name(), LightState.HIGH.toString());
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name(), String.valueOf(0));
         final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
 
         // wait some time (commands processed every 5s)
