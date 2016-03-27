@@ -65,7 +65,6 @@ public class MockProcessor extends MQTTCommandProcessor {
         }
 
         LOGGER.info("received registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
-
 	}
 
     @Override
@@ -146,17 +145,11 @@ public class MockProcessor extends MQTTCommandProcessor {
     private void updateHeater(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId) {
         final String tempStr = BwgHelper.getRequestMetadataValue(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDTEMP.name(), metadataList);
         LOGGER.info("Setting new temperature {}", tempStr);
-        final double temp;
         if (tempStr != null) {
-            temp = Double.parseDouble(tempStr);
-        } else {
-            temp = 0.0d;
-        }
-
-        if (temp > 0.0d) {
+            final int temp = Integer.parseInt(tempStr);
             spaStateHolder.updateHeater((int) temp);
+            sendAck(hardwareId, originatorId, Bwg.AckResponseCode.OK, null);
         }
-        sendAck(hardwareId, originatorId, Bwg.AckResponseCode.OK, null);
     }
 
     private void updatePeripherlal(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId, Bwg.Uplink.Model.Constants.ComponentType componentType) {

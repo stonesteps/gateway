@@ -1,13 +1,11 @@
 package com.tritonsvc.messageprocessor;
 
-import com.bwg.iot.model.LightState;
-import com.bwg.iot.model.ProcessedResult;
-import com.bwg.iot.model.Spa;
-import com.bwg.iot.model.SpaCommand;
+import com.bwg.iot.model.*;
 import com.tritonsvc.agent.Agent;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
+import com.tritonsvc.spa.communication.proto.Bwg;
 import org.apache.commons.io.IOUtils;
 import org.junit.*;
 import org.junit.rules.TemporaryFolder;
@@ -28,9 +26,9 @@ import java.util.HashMap;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = {SpaGatewayMessageProcessorApplication.class, UnitTestHelper.class})
-public class SpaStateUpdateTests {
+public class LightStateUpdateTests {
 
-    private static final Logger log = LoggerFactory.getLogger(SpaStateUpdateTests.class);
+    private static final Logger log = LoggerFactory.getLogger(LightStateUpdateTests.class);
 
     @Autowired
     private SpaRepository spaRepository;
@@ -59,7 +57,7 @@ public class SpaStateUpdateTests {
             public void run() {
                 try {
                     final File agentFolder = tempFolder.newFolder("agent");
-                    IOUtils.copy(SpaStateUpdateTests.class.getResourceAsStream("/agent-config.properties"), new FileOutputStream(new File(agentFolder, "config.properties")));
+                    IOUtils.copy(LightStateUpdateTests.class.getResourceAsStream("/agent-config.properties"), new FileOutputStream(new File(agentFolder, "config.properties")));
 
                     agent = new Agent();
                     agent.start(agentFolder.getAbsolutePath());
@@ -89,13 +87,14 @@ public class SpaStateUpdateTests {
         log.info("+++++++++++++++++++++++++++++++");
         log.info("Spa created properly - continue");
 
-        log.info("++++++++++++++++++++++++++++");
-        log.info("Creating temp update command");
+        log.info("+++++++++++++++++++++++++++++");
+        log.info("Creating light update command");
 
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
-        values.put(SpaCommand.ValueKeyName.DESIRED_TEMP.getKeyName(), "78.0");
-        final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.HEATER.getCode(), values);
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name(), LightState.HIGH.name());
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name(), "0");
+        final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
 
         // wait some time (commands processed every 5s)
         Thread.sleep(15000);
@@ -109,6 +108,13 @@ public class SpaStateUpdateTests {
         Assert.assertEquals(ProcessedResult.SENT, processed.getProcessedResult());
 
         final Spa updatedSpa = spaRepository.findOneBySerialNumber("demo_2872_ep_gateway");
-        Assert.assertEquals(78, Integer.decode(updatedSpa.getCurrentState().getCurrentTemp()).intValue());
+        boolean found  = false;
+        for (final ComponentState componentState: updatedSpa.getCurrentState().getComponents()) {
+            if (Component.ComponentType.LIGHT.name().equals(componentState.getComponentType()) && "0".equals(componentState.getPort())) {
+                Assert.assertEquals(LightState.HIGH.name(), componentState.getValue());
+                found = true;
+            }
+        }
+        Assert.assertEquals(true, found);
     }
 }

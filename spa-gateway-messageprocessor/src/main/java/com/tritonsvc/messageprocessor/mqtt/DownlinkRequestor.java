@@ -52,8 +52,8 @@ public final class DownlinkRequestor {
         } else {
             log.info("Building heater update downlink message");
 
-            final String desiredTemp = command.getValues().get(SpaCommand.ValueKeyName.DESIRED_TEMP.getKeyName());
-            if (!NumberHelper.isDouble(desiredTemp)) {
+            final String desiredTemp = command.getValues().get(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDTEMP.name());
+            if (!NumberHelper.isInt(desiredTemp)) {
                 log.error("Desired temp passed with command is invalid {}", desiredTemp);
             } else {
                 final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(Bwg.Downlink.Model.RequestType.HEATER, command.getValues());
@@ -99,8 +99,8 @@ public final class DownlinkRequestor {
         } else {
             log.info("Building device downlink message");
 
-            final String port = command.getValues().get(SpaCommand.ValueKeyName.PORT.getKeyName());
-            final String desiredState = command.getValues().get(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName());
+            final String port = command.getValues().get(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name());
+            final String desiredState = command.getValues().get(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name());
             if (port == null && SpaRequestUtil.portRequired(command.getRequestTypeId())) {
                 log.error("Port is required");
             } else if (port != null && SpaRequestUtil.portRequired(command.getRequestTypeId()) && !NumberUtils.isNumber(port)) {

@@ -28,6 +28,56 @@ public class SpaStateHolder {
         initComponentBuilders();
     }
 
+    public Bwg.Uplink.Model.SpaState buildSpaState() {
+        final long timestamp = System.currentTimeMillis();
+        final Bwg.Uplink.Model.SpaState.Builder builder = Bwg.Uplink.Model.SpaState.newBuilder();
+        builder.setController(buildController(timestamp));
+        builder.setSystemInfo(buildSystemInfo(timestamp));
+        builder.setSetupParams(buildSetupParams(timestamp));
+        builder.setComponents(buildComponents(timestamp));
+        builder.setLastUpdateTimestamp(timestamp);
+
+        final Bwg.Uplink.Model.SpaState state = builder.build();
+        return state;
+    }
+
+    public void updateHeater(final Integer temperature) {
+        log.info("Updating spa state, setting temperature to {}", temperature);
+        controllerBuilder.setCurrentWaterTemp(temperature.intValue());
+        controllerBuilder.setTargetWaterTemperature(temperature.intValue());
+
+        componentsBuilder.setHeater1(Bwg.Uplink.Model.Components.HeaterState.HEATER_ON);
+        componentsBuilder.setHeater2(Bwg.Uplink.Model.Components.HeaterState.HEATER_ON);
+    }
+
+    public void updateComponentState(final Bwg.Uplink.Model.Constants.ComponentType componentType, final Integer port, final String desiredState) {
+        log.info("Updating spa state of component {} at port {} with value {}", componentType, port, desiredState);
+        final Map<Integer, Object> builders = builderMap.get(componentType);
+        if (builders != null) {
+            final Object builder = builders.get(port);
+            switch (componentType) {
+                case OZONE:
+                case MICROSILK:
+                case AUX:
+                case MISTER:
+                    updateToggleComponent(builder, port, desiredState);
+                    break;
+                case PUMP:
+                    updatePumpComponent(builder, port, desiredState);
+                    break;
+                case CIRCULATION_PUMP:
+                    updatePumpComponent(builder, port, desiredState);
+                    break;
+                case BLOWER:
+                    updateBlowerComponent(builder, port, desiredState);
+                    break;
+                case LIGHT:
+                    updateLightComponent(builder, port, desiredState);
+                    break;
+            }
+        }
+    }
+
     private void initControllerBuilder() {
         controllerBuilder.setHeaterMode(0);
         controllerBuilder.setCurrentWaterTemp(0);
@@ -288,20 +338,6 @@ public class SpaStateHolder {
         builders.put(port, builder);
     }
 
-    public Bwg.Uplink.Model.SpaState buildSpaState() {
-        final long timestamp = System.currentTimeMillis();
-        final Bwg.Uplink.Model.SpaState.Builder builder = Bwg.Uplink.Model.SpaState.newBuilder();
-        builder.setController(buildController(timestamp));
-        builder.setSystemInfo(buildSystemInfo(timestamp));
-        builder.setSetupParams(buildSetupParams(timestamp));
-        builder.setComponents(buildComponents(timestamp));
-        builder.setLastUpdateTimestamp(timestamp);
-
-        final Bwg.Uplink.Model.SpaState state = builder.build();
-        log.info("Spa state has current temp set to {}", state.getController().getCurrentWaterTemp());
-        return state;
-    }
-
     private Bwg.Uplink.Model.Controller buildController(final long timestamp) {
         controllerBuilder.setLastUpdateTimestamp(timestamp);
         return controllerBuilder.build();
@@ -319,43 +355,38 @@ public class SpaStateHolder {
 
     private Bwg.Uplink.Model.Components buildComponents(final long timestamp) {
         componentsBuilder.setLastUpdateTimestamp(timestamp);
+
+        componentsBuilder.setOzone((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.OZONE, 0));
+        componentsBuilder.setMicroSilk((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.MICROSILK, 0));
+        componentsBuilder.setAux1((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.AUX, 0));
+        componentsBuilder.setAux2((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.AUX, 1));
+        componentsBuilder.setAux3((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.AUX, 2));
+        componentsBuilder.setAux4((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.AUX, 3));
+        componentsBuilder.setMister1((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.MISTER, 0));
+        componentsBuilder.setMister2((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.MISTER, 1));
+        componentsBuilder.setMister3((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.MISTER, 2));
+        componentsBuilder.setPump1((Bwg.Uplink.Model.Components.PumpComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.PUMP, 0));
+        componentsBuilder.setPump2((Bwg.Uplink.Model.Components.PumpComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.PUMP, 1));
+        componentsBuilder.setPump3((Bwg.Uplink.Model.Components.PumpComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.PUMP, 2));
+        componentsBuilder.setPump4((Bwg.Uplink.Model.Components.PumpComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.PUMP, 3));
+        componentsBuilder.setPump5((Bwg.Uplink.Model.Components.PumpComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.PUMP, 4));
+        componentsBuilder.setPump6((Bwg.Uplink.Model.Components.PumpComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.PUMP, 5));
+        componentsBuilder.setPump7((Bwg.Uplink.Model.Components.PumpComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.PUMP, 6));
+        componentsBuilder.setPump8((Bwg.Uplink.Model.Components.PumpComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.PUMP, 7));
+        componentsBuilder.setCirculationPump((Bwg.Uplink.Model.Components.PumpComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.CIRCULATION_PUMP, 0));
+        componentsBuilder.setBlower1((Bwg.Uplink.Model.Components.BlowerComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.BLOWER, 0));
+        componentsBuilder.setBlower2((Bwg.Uplink.Model.Components.BlowerComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.BLOWER, 1));
+        componentsBuilder.setLight1((Bwg.Uplink.Model.Components.LightComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.LIGHT, 0));
+        componentsBuilder.setLight2((Bwg.Uplink.Model.Components.LightComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.LIGHT, 1));
+        componentsBuilder.setLight3((Bwg.Uplink.Model.Components.LightComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.LIGHT, 2));
+        componentsBuilder.setLight4((Bwg.Uplink.Model.Components.LightComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.LIGHT, 3));
+
         return componentsBuilder.build();
     }
 
-    public void updateHeater(final Integer temperature) {
-        log.info("Updating spa state, setting temperature to {}", temperature);
-        controllerBuilder.setCurrentWaterTemp(temperature.intValue());
-        controllerBuilder.setTargetWaterTemperature(temperature.intValue());
-
-        componentsBuilder.setHeater1(Bwg.Uplink.Model.Components.HeaterState.HEATER_ON);
-        componentsBuilder.setHeater2(Bwg.Uplink.Model.Components.HeaterState.HEATER_ON);
-    }
-
-    public void updateComponentState(final Bwg.Uplink.Model.Constants.ComponentType componentType, final Integer port, final String desiredState) {
-        final Map<Integer, Object> builders = builderMap.get(componentType);
-        if (builders != null) {
-            final Object builder = builders.get(port);
-            switch (componentType) {
-                case OZONE:
-                case MICROSILK:
-                case AUX:
-                case MISTER:
-                    updateToggleComponent(builder, port, desiredState);
-                    break;
-                case PUMP:
-                    updatePumpComponent(builder, port, desiredState);
-                    break;
-                case CIRCULATION_PUMP:
-                    updatePumpComponent(builder, port, desiredState);
-                    break;
-                case BLOWER:
-                    updateBlowerComponent(builder, port, desiredState);
-                    break;
-                case LIGHT:
-                    updateLightComponent(builder, port, desiredState);
-                    break;
-            }
-        }
+    private Object getBuilder(final Bwg.Uplink.Model.Constants.ComponentType type, final Integer port) {
+        final Map<Integer, Object> builders = builderMap.get(type);
+        return builders.get(port);
     }
 
     private void updateToggleComponent(final Object builderObject, final Integer port, final String desiredState) {
