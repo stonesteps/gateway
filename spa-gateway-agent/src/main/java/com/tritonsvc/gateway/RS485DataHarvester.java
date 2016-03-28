@@ -174,7 +174,7 @@ public class RS485DataHarvester implements Runnable {
      * get state of component from controller, all ordinals are 1-based !
      *
      * @param type
-     * @param port
+     * @param port 0 means no port passed
      * @return
      * @throws Exception
      */
@@ -253,6 +253,10 @@ public class RS485DataHarvester implements Runnable {
                 case MICROSILK:
                     if (spaState.getComponents().hasMicroSilk()) {
                         return new ComponentInfo(spaState.getComponents().getMicroSilk().getCurrentState().name(), spaState.getComponents().getMicroSilk().getAvailableStatesList());
+                    }
+                case CIRCULATION_PUMP:
+                    if (spaState.getComponents().hasCirculationPump()) {
+                        return new ComponentInfo(spaState.getComponents().getCirculationPump().getCurrentState().name(), spaState.getComponents().getCirculationPump().getAvailableStatesList());
                     }
             }
         } finally {

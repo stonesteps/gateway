@@ -435,6 +435,7 @@ message Downlink {
             OZONE = 9;
             MICROSILK = 10;
             AUX = 11;
+            CIRCULATION_PUMP = 12;
         }
 
         enum SpaCommandAttribName {
