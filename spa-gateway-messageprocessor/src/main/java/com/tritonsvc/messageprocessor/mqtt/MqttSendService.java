@@ -27,6 +27,10 @@ public final class MqttSendService {
     private int mqttPort;
     @Value("${mqttKeepAliveSeconds:60}")
     private short mqttKeepAliveSeconds;
+    @Value("${mqttUserName:#{null}}")
+    private String mqttUserName;
+    @Value("${mqttPassword:#{null}}")
+    private String mqttPassword;
 
     private MQTT mqtt;
     private FutureConnection connection;
@@ -63,6 +67,12 @@ public final class MqttSendService {
 
             mqtt.setHost(mqttHostname, mqttPort);
             mqtt.setKeepAlive(mqttKeepAliveSeconds);
+            if (mqttPassword != null) {
+                mqtt.setPassword(mqttPassword);
+            }
+            if (mqttUserName != null) {
+                mqtt.setUserName(mqttUserName);
+            }
             mqtt.setCleanSession(true);
 
             connection = mqtt.futureConnection();

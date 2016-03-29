@@ -63,6 +63,12 @@ public class Agent {
 	/** MQTT server port */
 	private int mqttPort;
 
+    /** MQTT server user */
+    private String mqttUsername;
+
+    /** MQTT server password */
+    private String mqttPassword;
+
     /** MQTT keep alive **/
     private short mqttKeepaliveSeconds;
 
@@ -135,6 +141,16 @@ public class Agent {
                     }
                 });
             }
+
+            if (mqttUsername != null) {
+                mqttSub.setUserName(mqttUsername);
+                mqttPub.setUserName(mqttUsername);
+            }
+            if (mqttPassword != null) {
+                mqttSub.setPassword(mqttPassword);
+                mqttPub.setPassword(mqttPassword);
+            }
+
 		} catch (URISyntaxException e) {
 			throw Throwables.propagate(e);
 		}
@@ -379,6 +395,17 @@ public class Agent {
 			mqttHostname = DEFAULT_MQTT_HOSTNAME;
 		}
         LOGGER.info("Using MQTT hostname: " + DEFAULT_MQTT_HOSTNAME);
+
+        // Validate MQTT username.
+        mqttUsername = properties.getProperty(AgentConfiguration.MQTT_USERNAME);
+        if (mqttUsername != null && mqttUsername.trim().length() < 1) {
+            mqttUsername = null;
+        }
+        mqttPassword = properties.getProperty(AgentConfiguration.MQTT_PASSWORD);
+        if (mqttPassword != null && mqttPassword.trim().length() < 1) {
+            mqttPassword = null;
+        }
+        LOGGER.info("Using MQTT username: " + DEFAULT_MQTT_HOSTNAME);
 
 		// Validate MQTT port.
         mqttPort = Ints.tryParse(properties.getProperty(AgentConfiguration.MQTT_PORT,"")) != null ?
