@@ -22,7 +22,7 @@ import java.util.HashMap;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = {SpaGatewayMessageProcessorApplication.class, UnitTestHelper.class})
-public class DownlinkProcessorTests {
+public class DownlinkProcessorTest {
 
     @Autowired
     private SpaRepository spaRepository;

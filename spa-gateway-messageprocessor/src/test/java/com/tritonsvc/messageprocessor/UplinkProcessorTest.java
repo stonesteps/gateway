@@ -39,7 +39,7 @@ import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = {SpaGatewayMessageProcessorApplication.class, UnitTestHelper.class})
-public class UplinkProcessorTests {
+public class UplinkProcessorTest {
 
     @Autowired
     private SpaRepository spaRepository;
@@ -73,7 +73,7 @@ public class UplinkProcessorTests {
         mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), BwgHelper.buildUplinkMessage("1", "1", Bwg.Uplink.UplinkCommandType.REGISTRATION, registerDevice));
 
         // wait for message to be delivered and processed
-        Thread.sleep(1000);
+        Thread.sleep(2000);
 
         final Page<Component> gateway = componentRepository.findByComponentTypeAndSerialNumber(ComponentType.GATEWAY.name(), "1", new PageRequest(0, 1));
         assertEquals(gateway.getContent().get(0).getSerialNumber(), "1");

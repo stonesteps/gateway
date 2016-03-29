@@ -35,7 +35,7 @@ public class MockProcessor extends MQTTCommandProcessor {
 
     private String gwSerialNumber;
 
-    private SpaStateHolder spaStateHolder = new SpaStateHolder();
+    private MockSpaStateHolder spaStateHolder = new MockSpaStateHolder();
 
     @Override
     public void handleShutdown() {}
