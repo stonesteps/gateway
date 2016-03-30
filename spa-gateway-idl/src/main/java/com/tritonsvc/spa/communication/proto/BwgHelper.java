@@ -1,11 +1,7 @@
-package com.tritonsvc.messageprocessor.util;
+package com.tritonsvc.spa.communication.proto;
 
-import com.bwg.iot.model.Spa;
 import com.google.protobuf.AbstractMessageLite;
-import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -15,11 +11,9 @@ import java.util.Map;
 /**
  * Utility class helping with creating and handling Spa entities
  */
-public final class SpaDataHelper {
+public final class BwgHelper {
 
-    private static final Logger log = LoggerFactory.getLogger(SpaDataHelper.class);
-
-    private SpaDataHelper() {
+    private BwgHelper() {
         // utility class
     }
 
@@ -28,6 +22,19 @@ public final class SpaDataHelper {
         if (metadata != null) {
             for (final Bwg.Metadata metadataElem : metadata) {
                 if (metadataElem.hasName() && metadataElem.getName().equals(name)) {
+                    value = metadataElem.getValue();
+                    break;
+                }
+            }
+        }
+        return value;
+    }
+
+    public static String getRequestMetadataValue(final String name, final Iterable<Bwg.Downlink.Model.RequestMetadata> metadata) {
+        String value = null;
+        if (metadata != null) {
+            for (final Bwg.Downlink.Model.RequestMetadata metadataElem : metadata) {
+                if (metadataElem.hasName() && metadataElem.getName().name().equals(name)) {
                     value = metadataElem.getValue();
                     break;
                 }
@@ -72,16 +79,14 @@ public final class SpaDataHelper {
         return builder.build();
     }
 
-    public static Bwg.Downlink.Model.SpaRegistrationResponse buildSpaRegistrationResponse(final Bwg.Downlink.Model.RegistrationAckState state, final Spa spa) {
+    public static Bwg.Downlink.Model.SpaRegistrationResponse buildSpaRegistrationResponse(final Bwg.Downlink.Model.RegistrationAckState state, final String p2pAPSSID, final String p2pAPPassword) {
         final Bwg.Downlink.Model.SpaRegistrationResponse.Builder builder = Bwg.Downlink.Model.SpaRegistrationResponse.newBuilder();
         builder.setState(state);
-        if (spa != null) {
-            if (spa.getP2pAPSSID() != null) {
-                builder.setP2PAPSSID(spa.getP2pAPSSID());
-            }
-            if (spa.getP2pAPPassword() != null) {
-                builder.setP2PAPPassword(spa.getP2pAPPassword());
-            }
+        if (p2pAPSSID != null) {
+            builder.setP2PAPSSID(p2pAPSSID);
+        }
+        if (p2pAPPassword != null) {
+            builder.setP2PAPPassword(p2pAPPassword);
         }
 
         return builder.build();
@@ -127,21 +132,18 @@ public final class SpaDataHelper {
     public static byte[] buildUplinkMessage(final String originator,
                                             final String hardwareId,
                                             final Bwg.Uplink.UplinkCommandType uplinkCommandType,
-                                            final AbstractMessageLite msg) {
+                                            final AbstractMessageLite msg) throws IOException {
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
         final Bwg.Header header = buildHeader(Bwg.CommandType.UPLINK, originator);
         final Bwg.Uplink.UplinkHeader uplinkHeader = buildUplinkHeader(hardwareId, uplinkCommandType);
 
-        try {
-            header.writeDelimitedTo(out);
-            uplinkHeader.writeDelimitedTo(out);
-            if (msg != null) {
-                msg.writeDelimitedTo(out);
-            }
-        } catch (IOException e) {
-            log.error("error building uplink message", e);
+        header.writeDelimitedTo(out);
+        uplinkHeader.writeDelimitedTo(out);
+        if (msg != null) {
+            msg.writeDelimitedTo(out);
         }
+
         return out.toByteArray();
     }
 
@@ -168,21 +170,18 @@ public final class SpaDataHelper {
     public static byte[] buildDownlinkMessage(final String originator,
                                               final String hardwareId,
                                               final Bwg.Downlink.DownlinkCommandType downlinkCommandType,
-                                              final AbstractMessageLite msg) {
+                                              final AbstractMessageLite msg) throws IOException {
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
         final Bwg.Header header = buildHeader(Bwg.CommandType.DOWNLINK, originator);
         final Bwg.Downlink.DownlinkHeader downlinkHeader = buildDownlinkHeader(hardwareId, downlinkCommandType);
 
-        try {
-            header.writeDelimitedTo(out);
-            downlinkHeader.writeDelimitedTo(out);
-            if (msg != null) {
-                msg.writeDelimitedTo(out);
-            }
-        } catch (IOException e) {
-            log.error("error building downlink message", e);
+        header.writeDelimitedTo(out);
+        downlinkHeader.writeDelimitedTo(out);
+        if (msg != null) {
+            msg.writeDelimitedTo(out);
         }
+
         return out.toByteArray();
     }
 
@@ -193,5 +192,4 @@ public final class SpaDataHelper {
 
         return builder.build();
     }
-
 }

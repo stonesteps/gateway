@@ -11,8 +11,8 @@ import com.tritonsvc.messageprocessor.MessageProcessorConfiguration;
 import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.util.NumberHelper;
-import com.tritonsvc.messageprocessor.util.SpaDataHelper;
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.util.Collection;
 
 /**
@@ -43,7 +44,7 @@ public final class DownlinkRequestor {
     @Autowired
     private MessageProcessorConfiguration messageProcessorConfiguration;
 
-    public boolean sendHeaterUpdateCommand(final SpaCommand command) {
+    public boolean sendHeaterUpdateCommand(final SpaCommand command) throws IOException {
         boolean sent = false;
         final Spa spa = spaRepository.findOne(command.getSpaId());
         if (spa == null) {
@@ -51,12 +52,12 @@ public final class DownlinkRequestor {
         } else {
             log.info("Building heater update downlink message");
 
-            final String desiredTemp = command.getValues().get(SpaCommand.ValueKeyName.DESIRED_TEMP.getKeyName());
-            if (!NumberHelper.isDouble(desiredTemp)) {
+            final String desiredTemp = command.getValues().get(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDTEMP.name());
+            if (!NumberHelper.isInt(desiredTemp)) {
                 log.error("Desired temp passed with command is invalid {}", desiredTemp);
             } else {
-                final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(Bwg.Downlink.Model.RequestType.HEATER, command.getValues());
-                final byte[] messageData = SpaDataHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
+                final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(Bwg.Downlink.Model.RequestType.HEATER, command.getValues());
+                final byte[] messageData = BwgHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
                 if (messageData != null && messageData.length > 0) {
                     String serialNumber = getGatewaySerialNumber(spa.get_id());
                     if (serialNumber == null) {
@@ -85,11 +86,11 @@ public final class DownlinkRequestor {
         return sent;
     }
 
-    public boolean sendPeripheralStateUpdateCommand(final SpaCommand command) {
+    public boolean sendPeripheralStateUpdateCommand(final SpaCommand command) throws IOException {
         boolean sent = false;
 
         final Spa spa = spaRepository.findOne(command.getSpaId());
-        final Bwg.Downlink.Model.RequestType requestType = SpaDataHelper.getRequestTypeByCode(command.getRequestTypeId());
+        final Bwg.Downlink.Model.RequestType requestType = BwgHelper.getRequestTypeByCode(command.getRequestTypeId());
 
         if (spa == null) {
             log.error("Could not find related spa with id {}", command.getSpaId());
@@ -98,8 +99,8 @@ public final class DownlinkRequestor {
         } else {
             log.info("Building device downlink message");
 
-            final String port = command.getValues().get(SpaCommand.ValueKeyName.PORT.getKeyName());
-            final String desiredState = command.getValues().get(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName());
+            final String port = command.getValues().get(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name());
+            final String desiredState = command.getValues().get(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name());
             if (port == null && SpaRequestUtil.portRequired(command.getRequestTypeId())) {
                 log.error("Port is required");
             } else if (port != null && SpaRequestUtil.portRequired(command.getRequestTypeId()) && !NumberUtils.isNumber(port)) {
@@ -109,8 +110,8 @@ public final class DownlinkRequestor {
             } else if (!SpaRequestUtil.validState(command.getRequestTypeId(), desiredState)) {
                 log.error("Desired state passed with command is invalid {} for request {}", desiredState, requestType);
             } else {
-                final Bwg.Downlink.Model.Request request = SpaDataHelper.buildRequest(requestType, command.getValues());
-                final byte[] messageData = SpaDataHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
+                final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(requestType, command.getValues());
+                final byte[] messageData = BwgHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
                 if (messageData != null && messageData.length > 0) {
                     String serialNumber = getGatewaySerialNumber(spa.get_id());
                     if (serialNumber == null) {
@@ -165,7 +166,7 @@ public final class DownlinkRequestor {
     }
 
     private String getGatewaySerialNumber(String spaId) {
-        Page<com.bwg.iot.model.Component> results = componentRepository.findBySpaIdAndComponentType(spaId, ComponentType.GATEWAY.name(), new PageRequest(0,1));
+        Page<com.bwg.iot.model.Component> results = componentRepository.findBySpaIdAndComponentType(spaId, ComponentType.GATEWAY.name(), new PageRequest(0, 1));
         if (results.getTotalElements() < 1) {
             return null;
         }
