@@ -35,16 +35,40 @@ public class MockProcessor extends MQTTCommandProcessor {
 
     private String gwSerialNumber;
 
-    private MockSpaStateHolder spaStateHolder = new MockSpaStateHolder();
+    private MockSpaStateHolder spaStateHolder = null;
 
     @Override
-    public void handleShutdown() {}
+    public void init(final Properties props) {
+        spaStateHolder = new MockSpaStateHolder(props);
+
+        final String spaId = props.getProperty("mock.spaId");
+        if (spaId != null) {
+            registeredSpa.setHardwareId(spaId);
+        }
+        final String controllerId = props.getProperty("mock.controllerId");
+        if (controllerId != null) {
+            registeredController.setHardwareId(controllerId);
+        }
+        final String moteId = props.getProperty("mock.moteId");
+        if (moteId != null) {
+            registeredMote.setHardwareId(moteId);
+        }
+    }
+
+    @Override
+    public void handleShutdown() {
+        spaStateHolder.shutdown();
+    }
 
 	@Override
 	public void handleStartup(String hardwareId, Properties configProps, String homePath, ScheduledExecutorService executorService) {
         this.gwSerialNumber = hardwareId;
-        sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
-		LOGGER.info("Sent registration information.");
+        if (registeredSpa.getHardwareId() == null) {
+            sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
+            LOGGER.info("Sent registration information.");
+        } else {
+            LOGGER.info("Spa already registered.");
+        }
 	}
 
     @Override

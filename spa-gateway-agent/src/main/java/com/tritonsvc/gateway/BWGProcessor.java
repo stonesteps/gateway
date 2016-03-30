@@ -507,6 +507,11 @@ public class BWGProcessor extends MQTTCommandProcessor {
         return new RequiredParams(port, desiredState);
     }
 
+    @Override
+    public void init(Properties props) {
+        // nothing here
+    }
+
     private static class RequiredParams {
         int port;
         String desiredState;

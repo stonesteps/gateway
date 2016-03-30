@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -35,6 +36,23 @@ public class MockSpaStateHolder {
     // ozone 0-1, microsilk 0-1, aux 0-4, mister 0-3, pump 0-8, circpump 0-1, blower 0-2, light 0-4
     public MockSpaStateHolder(final int ozoneN, final int microsilkN, final int auxN, final int misterN,
                               final int pumpN, final int circPumpN, final int blowerN, final int lightN) {
+        initBuilders(ozoneN, microsilkN, auxN, misterN, pumpN, circPumpN, blowerN, lightN);
+    }
+
+    public MockSpaStateHolder(final Properties props) {
+        final int ozoneN = getInt(props, "mock.ozoneNumber", 1);
+        final int microsilkN = getInt(props, "mock.microsilkNumber", 1);
+        final int auxN = getInt(props, "mock.auxNumber", 4);
+        final int misterN = getInt(props, "mock.misterNumber", 3);
+        final int pumpN = getInt(props, "mock.pumpNumber", 8);
+        final int circPumpN = getInt(props, "mock.circulationPumpNumber", 1);
+        final int blowerN = getInt(props, "mock.blowerNumber", 2);
+        final int lightN = getInt(props, "mock.lightNumber", 4);
+
+        initBuilders(ozoneN, microsilkN, auxN, misterN, pumpN, circPumpN, blowerN, lightN);
+    }
+
+    private void initBuilders(int ozoneN, int microsilkN, int auxN, int misterN, int pumpN, int circPumpN, int blowerN, int lightN) {
         initControllerBuilder();
         initSystemInfoBuilder();
         initSetupParamsBuilder();
@@ -380,5 +398,22 @@ public class MockSpaStateHolder {
                 controllerBuilder.setFilter2(state);
                 break;
         }
+    }
+
+    private int getInt(final Properties props, final String name, int defaultValue) {
+        int value = defaultValue;
+        final String strValue = props.getProperty(name);
+        if (strValue != null) {
+            try {
+                value = Integer.parseInt(strValue);
+            } catch (final NumberFormatException e) {
+                // ignore
+            }
+        }
+        return value;
+    }
+
+    public void shutdown() {
+        scheduledExecutorService.shutdown();
     }
 }
