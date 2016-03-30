@@ -10,7 +10,6 @@ import com.tritonsvc.spa.communication.proto.Bwg.Header.Builder;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkHeader;
 import org.fusesource.mqtt.client.BlockingConnection;
-import org.fusesource.mqtt.client.FutureConnection;
 import org.fusesource.mqtt.client.MQTT;
 import org.fusesource.mqtt.client.Message;
 import org.fusesource.mqtt.client.QoS;
@@ -23,11 +22,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.net.URISyntaxException;
-import java.rmi.dgc.VMID;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Agent that handles message processing.
@@ -169,7 +166,7 @@ public class Agent {
 		outbound = new MQTTOutbound(pubConnection, outboundTopic);
 
 		// Create an instance of the command processor.
-        processor = createProcessor();
+        processor = createProcessor(props);
 		processor.setGwSerialNumber(gwSerialNumber);
         processor.setConfigProps(props);
         processor.setHomePath(homePath);
@@ -211,10 +208,13 @@ public class Agent {
     }
 
     @VisibleForTesting
-    AgentMessageProcessor createProcessor() {
+    AgentMessageProcessor createProcessor(Properties props) {
 		try {
 			Class<?> clazz = Class.forName(commandProcessorClassname);
 			AgentMessageProcessor processor = (AgentMessageProcessor) clazz.newInstance();
+            if (props != null) {
+                processor.init(props);
+            }
 			return processor;
 		} catch (Exception e) {
 			throw Throwables.propagate(e);

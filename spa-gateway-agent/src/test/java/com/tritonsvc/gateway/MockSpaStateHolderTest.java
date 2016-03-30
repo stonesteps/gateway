@@ -28,6 +28,16 @@ public class MockSpaStateHolderTest {
     }
 
     @Test
+    public void setFilterCycle() throws Exception {
+        final MockSpaStateHolder stateHolder = new MockSpaStateHolder();
+        stateHolder.updateFilterCycle(0, 1);
+
+        final Bwg.Uplink.Model.SpaState spaState = stateHolder.buildSpaState();
+        Assert.assertEquals(true, spaState.getController().getFilter1());
+        Assert.assertEquals(false, spaState.getController().getFilter2());
+    }
+
+    @Test
     public void nonCompleteSpa() throws Exception {
         final MockSpaStateHolder stateHolder = new MockSpaStateHolder(1, 1, 1, 1, 1, 1, 1, 1);
 

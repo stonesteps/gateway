@@ -35,16 +35,40 @@ public class MockProcessor extends MQTTCommandProcessor {
 
     private String gwSerialNumber;
 
-    private MockSpaStateHolder spaStateHolder = new MockSpaStateHolder();
+    private MockSpaStateHolder spaStateHolder = null;
 
     @Override
-    public void handleShutdown() {}
+    public void init(final Properties props) {
+        spaStateHolder = new MockSpaStateHolder(props);
+
+        final String spaId = props.getProperty("mock.spaId");
+        if (spaId != null) {
+            registeredSpa.setHardwareId(spaId);
+        }
+        final String controllerId = props.getProperty("mock.controllerId");
+        if (controllerId != null) {
+            registeredController.setHardwareId(controllerId);
+        }
+        final String moteId = props.getProperty("mock.moteId");
+        if (moteId != null) {
+            registeredMote.setHardwareId(moteId);
+        }
+    }
+
+    @Override
+    public void handleShutdown() {
+        spaStateHolder.shutdown();
+    }
 
 	@Override
 	public void handleStartup(String hardwareId, Properties configProps, String homePath, ScheduledExecutorService executorService) {
         this.gwSerialNumber = hardwareId;
-        sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
-		LOGGER.info("Sent registration information.");
+        if (registeredSpa.getHardwareId() == null) {
+            sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
+            LOGGER.info("Sent registration information.");
+        } else {
+            LOGGER.info("Spa already registered.");
+        }
 	}
 
     @Override
@@ -167,7 +191,25 @@ public class MockProcessor extends MQTTCommandProcessor {
     }
 
     private void updateFilter(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId) {
-        // not implemented yet
+        Integer port = null;
+        Integer durationMinutes = null;
+
+        if (metadataList != null && metadataList.size() > 0) {
+            for (final Bwg.Downlink.Model.RequestMetadata metadata : metadataList) {
+                if (Bwg.Downlink.Model.SpaCommandAttribName.PORT.equals(metadata.getName())) {
+                    port = new Integer(metadata.getValue());
+                }
+                if (Bwg.Downlink.Model.SpaCommandAttribName.FILTER_DURATION_15MINUTE_INTERVALS.equals(metadata.getName())) {
+                    durationMinutes = new Integer(metadata.getValue()) * 15;
+                }
+            }
+        }
+
+        if (port != null || durationMinutes != null) {
+            spaStateHolder.updateFilterCycle(port, durationMinutes);
+        } else {
+            LOGGER.error("Can not update filter cycle - port or duration minutes is null");
+        }
     }
 
     @Override

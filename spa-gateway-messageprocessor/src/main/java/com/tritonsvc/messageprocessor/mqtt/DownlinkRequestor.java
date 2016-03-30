@@ -86,6 +86,50 @@ public final class DownlinkRequestor {
         return sent;
     }
 
+    public boolean sendFilterUpdateCommand(final SpaCommand command) throws IOException {
+        boolean sent = false;
+
+        final Spa spa = spaRepository.findOne(command.getSpaId());
+        if (spa == null) {
+            log.error("Could not find related spa with id {}", command.getSpaId());
+        } else {
+            log.info("Building filter update downlink message");
+
+            final String port = command.getValues().get(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name());
+            final String intervalNumber = command.getValues().get(Bwg.Downlink.Model.SpaCommandAttribName.FILTER_DURATION_15MINUTE_INTERVALS.name());
+
+            if (port == null) {
+                log.error("Port is required");
+            } else if (port != null && !NumberUtils.isNumber(port)) {
+                log.error("Port passed with command is invalid {}", port);
+            } else {
+                final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(Bwg.Downlink.Model.RequestType.FILTER, command.getValues());
+                final byte[] messageData = BwgHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
+                if (messageData != null && messageData.length > 0) {
+                    String serialNumber = getGatewaySerialNumber(spa.get_id());
+                    if (serialNumber == null) {
+                        log.error("Error, not gateway serial number is available for spa with db id {}", spa.get_id());
+                        return false;
+                    }
+                    final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(serialNumber);
+                    log.info("Sending downlink message to topic {}", downlinkTopic);
+                    try {
+                        mqttSendService.sendMessage(downlinkTopic, messageData);
+                        // FIXME do I need to upate target state?
+                        sent = true;
+                    } catch (Exception e) {
+                        log.error("Error while sending downlink message", e);
+                    }
+                } else {
+                    log.error("Message data is empty - not sending anything");
+                }
+
+            }
+        }
+
+        return sent;
+    }
+
     public boolean sendPeripheralStateUpdateCommand(final SpaCommand command) throws IOException {
         boolean sent = false;
 

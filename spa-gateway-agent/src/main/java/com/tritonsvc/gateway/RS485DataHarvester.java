@@ -63,6 +63,7 @@ public class RS485DataHarvester implements Runnable {
     private AtomicInteger HighHigh = new AtomicInteger(0);
     private AtomicInteger LowHigh = new AtomicInteger(0);
     private AtomicInteger LowLow = new AtomicInteger(0);
+    private AtomicReference<SpaClock> spaClock = new AtomicReference<>();;
     private AtomicReference<byte[]> lastPanelUpdate = new AtomicReference<>(new byte[]{});
     private BlockingQueue executionQueue;
 
@@ -168,6 +169,14 @@ public class RS485DataHarvester implements Runnable {
      */
     public Boolean requiresCelsius() {
         return isCelsius.get();
+    }
+
+    /**
+     * get the last know spa clock settings
+     * @return
+     */
+    public SpaClock getSpaClock() {
+        return spaClock.get();
     }
 
     /**
@@ -469,6 +478,8 @@ public class RS485DataHarvester implements Runnable {
             processDevicePollForDownlink();
         } else if (packetType == 0x13) {
             processPanelUpdateMessage(message);
+        } else if (packetType == 0x23) {
+            processFilterCycleInfoMessage(message);
         } else if (packetType == 0x24) {
             processSystemInfoMessage(message);
         } else if (packetType == 0x25) {
@@ -528,6 +539,10 @@ public class RS485DataHarvester implements Runnable {
         }
     }
 
+    private void processFilterCycleInfoMessage(byte[] message) {
+        rs485MessagePublisher.sendFilterCycleRequestIfPending(message, spaClock.get());
+    }
+
     private void processPanelUpdateMessage(byte[] message) {
         if (Arrays.equals(lastPanelUpdate.get(), message)) {
             // dedupe panel updates, they come often, and are usually the exact same, skip if so
@@ -537,6 +552,7 @@ public class RS485DataHarvester implements Runnable {
         lastPanelUpdate.set(message);
         isCelsius.set((0x01 & message[13]) > 0);
         Controller controller = buildControllerMessageFromPanelUpdate(message);
+        spaClock.set(new SpaClock(controller.getHour(), controller.getMinute()));
         Components components = null;
         try {
             components = buildComponentsMessageFromPanelUpdate(message);

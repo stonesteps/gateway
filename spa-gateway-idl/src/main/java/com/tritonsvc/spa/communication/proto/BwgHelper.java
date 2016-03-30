@@ -66,7 +66,7 @@ public final class BwgHelper {
         return builder.build();
     }
 
-    public static Bwg.Downlink.Model.Request buildRequest(final Bwg.Downlink.Model.RequestType type, final HashMap<String, String> values) {
+    public static Bwg.Downlink.Model.Request buildRequest(final Bwg.Downlink.Model.RequestType type, final Map<String, String> values) {
         final Bwg.Downlink.Model.Request.Builder builder = Bwg.Downlink.Model.Request.newBuilder();
         builder.setRequestType(type);
 

@@ -103,4 +103,24 @@ public class DownlinkProcessorTest {
         Assert.assertNotNull(processed.getProcessedTimestamp());
         Assert.assertEquals(ProcessedResult.INVALID, processed.getProcessedResult());
     }
+
+    @Test
+    public void processFilterCommand() throws Exception {
+        // create spa (with serialNumber)
+        final Spa spa = unitTestHelper.createSpa();
+        unitTestHelper.createGateway(spa, "1");
+        // and command with metadata
+        final HashMap<String, String> values = new HashMap<>();
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name(), "0");
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.FILTER_DURATION_15MINUTE_INTERVALS.name(), "1");
+        final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.FILTER.getCode(), values);
+
+        // wait some time (commands processed every 5s)
+        Thread.sleep(10000);
+
+        final SpaCommand processed = spaCommandRepository.findOne(command.get_id());
+        Assert.assertNotNull(processed);
+        Assert.assertNotNull(processed.getProcessedTimestamp());
+        Assert.assertEquals(ProcessedResult.SENT, processed.getProcessedResult());
+    }
 }
