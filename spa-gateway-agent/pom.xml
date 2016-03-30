@@ -145,6 +145,36 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>org.skife.maven</groupId>
+                <artifactId>really-executable-jar-maven-plugin</artifactId>
+                <version>1.4.1</version>
+                <configuration>
+                    <!-- value of flags will be interpolated into the java invocation -->
+                    <!-- as "java $flags -jar ..." -->
+                    <flags>-Xmx40m</flags>
+                    <!-- (optional) name for binary executable, if not set will just -->
+                    <!-- make the regular jar artifact executable -->
+                    <programFile>bwg-gateway-agent</programFile>
+
+                    <!-- (optional) name for a file that will define what script gets -->
+                    <!-- embedded into the executable jar.  This can be used to -->
+                    <!-- override the default startup script which is -->
+                    <!-- `#!/bin/sh -->
+                    <!--            -->
+                    <!-- exec java " + flags + " -jar "$0" "$@" -->
+                    <scriptFile>${basedir}/config/agent.sh</scriptFile>
+                </configuration>
+
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>really-executable-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.5.1</version>
@@ -152,11 +182,6 @@
                     <source>1.8</source>
                     <target>1.8</target>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.19.1</version>
             </plugin>
         </plugins>
     </build>
