@@ -6,6 +6,10 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by holow on 3/25/2016.
@@ -20,6 +24,9 @@ public class MockSpaStateHolder {
     private final Bwg.Uplink.Model.Components.Builder componentsBuilder = Bwg.Uplink.Model.Components.newBuilder();
 
     private final Map<Bwg.Uplink.Model.Constants.ComponentType, Map<Integer, Object>> builderMap = new HashMap<>();
+
+    private final ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(2);
+    private final Map<Integer, ScheduledFuture> filterCycleUpdateFutureMap = new HashMap<>();
 
     public MockSpaStateHolder() {
         this(1, 1, 4, 3, 8, 1, 2, 4);
@@ -54,6 +61,23 @@ public class MockSpaStateHolder {
 
         componentsBuilder.setHeater1(Bwg.Uplink.Model.Components.HeaterState.HEATER_ON);
         componentsBuilder.setHeater2(Bwg.Uplink.Model.Components.HeaterState.HEATER_ON);
+    }
+
+    public void updateFilterCycle(final Integer port, final Integer durationMinutes) {
+        // create a cancellable task that will turn off the filter cycle at the end of duration
+        ScheduledFuture updateTask = filterCycleUpdateFutureMap.get(port);
+        if (updateTask != null) {
+            updateTask.cancel(true);
+        }
+        if (durationMinutes > 0) {
+            updateFilterCycleState(port.intValue(), true);
+            updateTask = scheduledExecutorService.schedule(() -> {
+                updateFilterCycleState(port.intValue(), false);
+            }, durationMinutes.intValue(), TimeUnit.MINUTES);
+            filterCycleUpdateFutureMap.put(port, updateTask);
+        } else {
+            updateFilterCycleState(port.intValue(), false);
+        }
     }
 
     public void updateComponentState(final Bwg.Uplink.Model.Constants.ComponentType componentType, final Integer port, final String desiredState) {
@@ -345,5 +369,16 @@ public class MockSpaStateHolder {
     private void updateLightComponent(final Object builderObject, final Integer port, final String desiredState) {
         final Bwg.Uplink.Model.Components.LightComponent.Builder builder = (Bwg.Uplink.Model.Components.LightComponent.Builder) builderObject;
         builder.setCurrentState(Bwg.Uplink.Model.Components.LightComponent.State.valueOf(desiredState));
+    }
+
+    private void updateFilterCycleState(final int number, boolean state) {
+        switch (number) {
+            case 0:
+                controllerBuilder.setFilter1(state);
+                break;
+            case 1:
+                controllerBuilder.setFilter2(state);
+                break;
+        }
     }
 }

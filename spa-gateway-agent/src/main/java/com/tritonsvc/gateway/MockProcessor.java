@@ -167,7 +167,25 @@ public class MockProcessor extends MQTTCommandProcessor {
     }
 
     private void updateFilter(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId) {
-        // not implemented yet
+        Integer port = null;
+        Integer durationMinutes = null;
+
+        if (metadataList != null && metadataList.size() > 0) {
+            for (final Bwg.Downlink.Model.RequestMetadata metadata : metadataList) {
+                if (Bwg.Downlink.Model.SpaCommandAttribName.PORT.equals(metadata.getName())) {
+                    port = new Integer(metadata.getValue());
+                }
+                if (Bwg.Downlink.Model.SpaCommandAttribName.FILTER_DURATION_15MINUTE_INTERVALS.equals(metadata.getName())) {
+                    durationMinutes = new Integer(metadata.getValue()) * 15;
+                }
+            }
+        }
+
+        if (port != null || durationMinutes != null) {
+            spaStateHolder.updateFilterCycle(port, durationMinutes);
+        } else {
+            LOGGER.error("Can not update filter cycle - port or duration minutes is null");
+        }
     }
 
     @Override
