@@ -20,5 +20,15 @@ Maven 3.3 and Java 8 is required to build these projects.
 from this directory:
 mvn clean install
 
+#Testing
+Unit test classes end with 'Test', suffix. Integration Tests end with 'IT' suffix.
+Integration tests use both message processor and agent at same time with embedded
+mqtt broker and fongo (fake mongo).
+
+## to perform unit testing run from this directory:
+mvn test
+
+## to run integration tests
+mvn failsafe:integration-test
 
 
