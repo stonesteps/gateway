@@ -8,6 +8,7 @@ import com.bwg.iot.model.SpaCommand;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
+import com.tritonsvc.spa.communication.proto.Bwg;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -21,7 +22,7 @@ import java.util.HashMap;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = {SpaGatewayMessageProcessorApplication.class, UnitTestHelper.class})
-public class DownlinkProcessorTests {
+public class DownlinkProcessorTest {
 
     @Autowired
     private SpaRepository spaRepository;
@@ -52,7 +53,7 @@ public class DownlinkProcessorTests {
         unitTestHelper.createGateway(spa, "1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
-        values.put(SpaCommand.ValueKeyName.DESIRED_TEMP.getKeyName(), "78.0");
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDTEMP.name(), "78");
         final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.HEATER.getCode(), values);
 
         // wait some time (commands processed every 5s)
@@ -71,8 +72,8 @@ public class DownlinkProcessorTests {
         unitTestHelper.createGateway(spa, "1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
-        values.put(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName(), LightState.HIGH.toString());
-        values.put(SpaCommand.ValueKeyName.PORT.getKeyName(), String.valueOf(0));
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name(), LightState.HIGH.toString());
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name(), String.valueOf(0));
         final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
 
         // wait some time (commands processed every 5s)
@@ -91,7 +92,7 @@ public class DownlinkProcessorTests {
         unitTestHelper.createGateway(spa, "1");
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
-        values.put(SpaCommand.ValueKeyName.DESIRED_STATE.getKeyName(), LightState.HIGH.toString());
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name(), LightState.HIGH.toString());
         final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
 
         // wait some time (commands processed every 5s)
