@@ -24,7 +24,7 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  * A very simple mocked out Spa Controller, will register controller and send some fake
  * temperature data
- * 
+ *
  */
 public class MockProcessor extends MQTTCommandProcessor {
 
@@ -174,6 +174,11 @@ public class MockProcessor extends MQTTCommandProcessor {
             spaStateHolder.updateHeater((int) temp);
             sendAck(hardwareId, originatorId, Bwg.AckResponseCode.OK, null);
         }
+    }
+
+    @Override
+    public void sendMeasurements(String hardwareId, String originator, Map<String, Double> measurements, long measurementTimestampMillis, Map<String, String> meta) {
+        super.sendMeasurements(hardwareId, originator, measurements, measurementTimestampMillis, meta);
     }
 
     private void updatePeripherlal(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId, Bwg.Uplink.Model.Constants.ComponentType componentType) {
