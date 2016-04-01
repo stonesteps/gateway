@@ -63,7 +63,7 @@ public class RS485MessagePublisher {
     }
 
     /**
-     * assemble the filter cycle message and put it on downlink queue
+     * put request for filter cycle info on downlink queue
      *
      * @param port
      * @param durationMinutes
@@ -155,7 +155,7 @@ public class RS485MessagePublisher {
     public void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception {
         try {
 
-            int request = 0x06;
+            int request = 0x07;
             if (faultLogEntryNumber != null) {
                 request |= 0x20;
             }

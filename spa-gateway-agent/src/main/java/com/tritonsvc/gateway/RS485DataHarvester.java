@@ -544,6 +544,46 @@ public class RS485DataHarvester implements Runnable {
     }
 
     private void processFilterCycleInfoMessage(byte[] message) {
+        boolean wLocked = false;
+        Components.Builder compsBuilder = Components.newBuilder();
+        try {
+            getLatestSpaInfoLock().writeLock().lockInterruptibly();
+            wLocked = true;
+            if (spaState.hasComponents()) {
+                compsBuilder.mergeFrom(spaState.getComponents());
+            }
+
+            // filter cycle 1 always there
+            ToggleComponent.Builder builder = ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates());
+            if (compsBuilder.hasFilterCycle1()) {
+                builder.setCurrentState(compsBuilder.getFilterCycle1().getCurrentState());
+            }
+            compsBuilder.setFilterCycle1(builder);
+
+            if ( (0x80 & message[8]) > 0) {
+                builder = ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates());
+                if (compsBuilder.hasFilterCycle2()) {
+                    builder.setCurrentState(compsBuilder.getFilterCycle2().getCurrentState());
+                }
+                compsBuilder.setFilterCycle2(builder);
+
+            } else {
+                compsBuilder.clearFilterCycle2();
+            }
+            compsBuilder.setLastUpdateTimestamp(new Date().getTime());
+            SpaState.Builder stateBuilder = SpaState.newBuilder(spaState);
+            stateBuilder.setComponents(compsBuilder.build());
+            stateBuilder.setLastUpdateTimestamp(new Date().getTime());
+            spaState = stateBuilder.build();
+        } catch (Exception ex) {
+            LOGGER.error("problem while updated filter state", ex);
+        } finally {
+            if (wLocked) {
+                getLatestSpaInfoLock().writeLock().unlock();
+            }
+        }
+
+        LOGGER.info("processed filter cycle info message");
         rs485MessagePublisher.sendFilterCycleRequestIfPending(message, spaClock.get());
     }
 
@@ -620,6 +660,9 @@ public class RS485DataHarvester implements Runnable {
         if (compsBuilder.hasHeater1()) { compsBuilder.setHeater1(Components.HeaterState.valueOf((0x30 & message[14]) >> 4));}
         if (compsBuilder.hasHeater2()) { compsBuilder.setHeater2(Components.HeaterState.valueOf((0xC0 & message[14]) >> 6));}
 
+        if (compsBuilder.hasFilterCycle1()) { compsBuilder.setFilterCycle1(ToggleComponent.newBuilder(compsBuilder.getFilterCycle1()).setCurrentState(ToggleComponent.State.valueOf(0x04 & message[13])));}
+        if (compsBuilder.hasFilterCycle2()) { compsBuilder.setFilterCycle2(ToggleComponent.newBuilder(compsBuilder.getFilterCycle2()).setCurrentState(ToggleComponent.State.valueOf(0x08 & message[13])));}
+
         if (compsBuilder.hasPump1()) { compsBuilder.setPump1(PumpComponent.newBuilder(compsBuilder.getPump1()).setCurrentState(PumpComponent.State.valueOf(0x03 & message[15])));}
         if (compsBuilder.hasPump2()) { compsBuilder.setPump2(PumpComponent.newBuilder(compsBuilder.getPump2()).setCurrentState(PumpComponent.State.valueOf((0x0C & message[15]) >> 2)));}
         if (compsBuilder.hasPump3()) { compsBuilder.setPump3(PumpComponent.newBuilder(compsBuilder.getPump3()).setCurrentState(PumpComponent.State.valueOf((0x30 & message[15]) >> 4)));}
@@ -656,8 +699,6 @@ public class RS485DataHarvester implements Runnable {
                 .setDemoMode((0x10 & message[23]) > 0)
                 .setEcoMode((0x04 & message[26]) > 0)
                 .setElapsedTimeDisplay((0x80 & message[25]) > 0)
-                .setFilter1((0x04 & message[13]) > 0)
-                .setFilter2((0x08 & message[13]) > 0)
                 .setHeaterCooling((0x40 & message[23]) > 0)
                 .setHeatExternallyDisabled((0x01 & message[27]) > 0)
                 .setInvert((0x80 & message[13]) > 0)

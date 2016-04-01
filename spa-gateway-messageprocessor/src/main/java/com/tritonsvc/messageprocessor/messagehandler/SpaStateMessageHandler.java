@@ -5,6 +5,7 @@ import com.bwg.iot.model.Component.ComponentType;
 import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants;
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,8 +57,6 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
 
         spaStateEntity.setDesiredTemp(Integer.toString(spaState.getController().getTargetWaterTemperature()));
         spaStateEntity.setCurrentTemp(Integer.toString(spaState.getController().getCurrentWaterTemp()));
-        spaStateEntity.setFilterCycle1Active(spaState.getController().getFilter1());
-        spaStateEntity.setFilterCycle2Active(spaState.getController().getFilter2());
         spaStateEntity.setCleanupCycle(spaState.getController().getCleanupCycle());
         spaStateEntity.setErrorCode(spaState.getController().getErrorCode());
         spaStateEntity.setMessageSeverity(spaState.getController().getMessageSeverity());
@@ -77,7 +76,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         }
 
         if (spaState.hasComponents()) {
-            updateComponents(spa.get_id(), spa.getCurrentState(), spaState.getComponents());
+            updateComponents(spa.get_id(), spaStateEntity, spaState.getComponents());
         }
         updateComponentState(spa.get_id(), spaStateEntity, ComponentType.GATEWAY.toString(), null, newArrayList(), null);
         updateComponentState(spa.get_id(), spaStateEntity, ComponentType.CONTROLLER.toString(), null, newArrayList(), null);
@@ -164,6 +163,10 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         // heater
         if (components.hasHeater1()) { updateComponentState(spaId, spaStateEntity, Bwg.Uplink.Model.Constants.ComponentType.HEATER.toString(), components.getHeater1().toString(), null, 0); }
         if (components.hasHeater2()) { updateComponentState(spaId, spaStateEntity, Bwg.Uplink.Model.Constants.ComponentType.HEATER.toString(), components.getHeater2().toString(), null, 1); }
+
+        // filter cycles
+        if (components.hasFilterCycle1()) { updateComponentState(spaId, spaStateEntity, Constants.ComponentType.FILTER.toString(), components.getFilterCycle1().getCurrentState().toString(), toStringList(components.getFilterCycle1().getAvailableStatesList()), 0); }
+        if (components.hasFilterCycle2()) { updateComponentState(spaId, spaStateEntity, Constants.ComponentType.FILTER.toString(), components.getFilterCycle2().getCurrentState().toString(), toStringList(components.getFilterCycle2().getAvailableStatesList()), 1); }
 
         // ozone
         if (components.hasOzone()) { updateComponentState(spaId, spaStateEntity, Bwg.Uplink.Model.Constants.ComponentType.OZONE.toString(), components.getOzone().getCurrentState().toString(), toStringList(components.getOzone().getAvailableStatesList())); }
