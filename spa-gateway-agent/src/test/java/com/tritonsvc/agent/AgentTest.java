@@ -11,7 +11,9 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Properties;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -40,7 +42,7 @@ public class AgentTest {
         mqttPub = mock(MQTT.class);
         subConnection = mock(BlockingConnection.class);
         pubConnection = mock(BlockingConnection.class);
-        doReturn(processor).when(agent).createProcessor(null);
+        doReturn(processor).when(agent).createProcessor(any(Properties.class));
         doReturn(mqttSub).doReturn(mqttPub).when(agent).createMQTT();
         when(mqttSub.blockingConnection()).thenReturn(subConnection);
         when(mqttPub.blockingConnection()).thenReturn(pubConnection);
@@ -60,6 +62,7 @@ public class AgentTest {
         verify(mqttPub).setHost(eq("localhost"), eq(1883));
         verify(subConnection).connect();
         verify(pubConnection).connect();
-        // verify(processor).executeStartup();
+        verify(processor).setGwSerialNumber("spatime");
+        verify(processor).executeStartup();
     }
 }
