@@ -4,6 +4,7 @@
  */
 package com.tritonsvc.gateway;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
@@ -44,7 +45,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -69,9 +69,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
     private String homePath;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
-    private static List<ComponentType> quadStateComponents = newArrayList(ComponentType.BLOWER, ComponentType.LIGHT);
-    private static List<ComponentType> triStateComponents = newArrayList(ComponentType.PUMP);
-
 
     @Override
     public void handleShutdown() {
@@ -93,8 +90,8 @@ public class BWGProcessor extends MQTTCommandProcessor {
         validateOidProperties();
         obtainSpaRegistration();
 
-        rs485MessagePublisher = new RS485MessagePublisher(this);
-        rs485DataHarvester = new RS485DataHarvester(this, rs485MessagePublisher);
+        setRS485MessagePublisher(new RS485MessagePublisher(this));
+        setRS485DataHarvester(new RS485DataHarvester(this, rs485MessagePublisher));
         executorService.execute(new WSNDataHarvester(this));
         executorService.execute(rs485DataHarvester);
 
@@ -183,6 +180,9 @@ public class BWGProcessor extends MQTTCommandProcessor {
                         break;
                     case CIRC_PUMP:
                         updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.CIRCULATION_PUMP, ButtonCode.kPump0MetaButton);
+                        break;
+                    case CIRCULATION_PUMP:
+                        updateCircPump(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
                         break;
                     case LIGHTS:
                         updatePeripherlal(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId, "kLight<port>MetaButton", ComponentType.LIGHT);
@@ -341,6 +341,52 @@ public class BWGProcessor extends MQTTCommandProcessor {
         }
     }
 
+    private void updateCircPump(final List<RequestMetadata> metadataList, final byte registeredAddress,
+                                   final String originatorId, final String hardwareId) throws Exception {
+        String desiredState = null;
+
+        if (metadataList != null) {
+            for (final RequestMetadata metadata : metadataList) {
+                if (SpaCommandAttribName.DESIREDSTATE.equals(metadata.getName())) {
+                    desiredState = metadata.getValue();
+                }
+            }
+        }
+
+        if (desiredState == null) {
+            throw new RS485Exception("Device command for " + ComponentType.CIRCULATION_PUMP.name() + " did not have required desiredState param");
+        }
+
+        ComponentInfo currentState = rs485DataHarvester.getComponentState(ComponentType.CIRCULATION_PUMP, 0);
+        if (currentState == null) {
+            LOGGER.error("Requested component {} was not found, aborting command", ComponentType.CIRCULATION_PUMP.name());
+            throw new RS485Exception("Device command for " + ComponentType.CIRCULATION_PUMP.name() + ", component does not exist on current system.");
+        }
+
+        if (Objects.equals(desiredState, currentState.getCurrentState())) {
+            LOGGER.info("Request to change {} to {} was already current state, not sending rs485 command" , ComponentType.CIRCULATION_PUMP.name(), desiredState);
+            sendAck(hardwareId, originatorId, AckResponseCode.OK, null);
+            return;
+        }
+
+        List<?> availableStates = currentState.getNumberOfSupportedStates();
+
+        int currentIndex = availableStates.indexOf(PumpComponent.State.valueOf(currentState.getCurrentState()));
+        int desiredIndex = availableStates.indexOf(PumpComponent.State.valueOf(desiredState));
+
+        if (currentIndex < 0 || desiredIndex < 0) {
+            LOGGER.warn("{} command request state {} or current state {} were not valid, ignoring, will send one button command", ComponentType.CIRCULATION_PUMP.name(), desiredState, currentState.getCurrentState());
+            rs485MessagePublisher.sendButtonCode(ButtonCode.kPump0MetaButton, registeredAddress, originatorId, hardwareId);
+            return;
+        }
+
+        // this sends multiple button commands to get to the desired state within available states for compnonent
+        while (currentIndex != desiredIndex) {
+            rs485MessagePublisher.sendButtonCode(ButtonCode.kPump0MetaButton, registeredAddress, originatorId, hardwareId);
+            currentIndex = (currentIndex + 1) % availableStates.size();
+        }
+    }
+
     @Override
     public void handleUplinkAck(UplinkAcknowledge ack, String originatorId) {
         //TODO - check if ack.NOT_REGISTERED and send up a registration if so
@@ -469,6 +515,26 @@ public class BWGProcessor extends MQTTCommandProcessor {
         return sendRegistration(spaHardwareId, gwSerialNumber, "mote", ImmutableMap.of("mac", macAddress));
     }
 
+    @VisibleForTesting
+    void setRS485MessagePublisher(RS485MessagePublisher rs485MessagePublisher) {
+        this.rs485MessagePublisher = rs485MessagePublisher;
+    }
+
+    @VisibleForTesting
+    void setRS485DataHarvester(RS485DataHarvester rs485DataHarvester) {
+        this.rs485DataHarvester = rs485DataHarvester;
+    }
+
+    @VisibleForTesting
+    void setMapDB(DB db) {
+        this.mapDb = db;
+    }
+
+    @VisibleForTesting
+    void setRS485(UART uart) {
+        this.rs485Uart = uart;
+    }
+
     private void validateOidProperties() {
         String preOidPropName = DYNAMIC_DEVICE_OID_PROPERTY
                 .replaceAll("MAC", "controller")
@@ -534,10 +600,10 @@ public class BWGProcessor extends MQTTCommandProcessor {
     }
 
     private void generateMapDb() {
-        mapDb = DBMaker.fileDB(new File(homePath + File.separator + "spa_repo.dat"))
+        setMapDB(DBMaker.fileDB(new File(homePath + File.separator + "spa_repo.dat"))
                 .closeOnJvmShutdown()
                 .encryptionEnable("password")
-                .make();
+                .make());
 
         registeredHwIds = mapDb.hashMap("registeredHwIds", Serializer.STRING, new DeviceRegistrationSerializer());
     }
@@ -608,9 +674,8 @@ public class BWGProcessor extends MQTTCommandProcessor {
                 .setFlowControlMode(UARTConfig.FLOWCONTROL_NONE)
                 .build();
         try {
-            rs485Uart = DeviceManager.open(config);
-        }
-        catch (Throwable ex) {
+            setRS485(DeviceManager.open(config));
+        } catch (Throwable ex) {
             throw Throwables.propagate(ex);
         }
 
