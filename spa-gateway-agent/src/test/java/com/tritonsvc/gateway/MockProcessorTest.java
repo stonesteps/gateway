@@ -55,7 +55,7 @@ public class MockProcessorTest {
     public void updateCircPumpState() {
         Map<String, String> values = new HashMap<>();
         values.put("DESIREDSTATE", "LOW");
-        final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(Bwg.Downlink.Model.RequestType.CIRC_PUMP, values);
+        final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(Bwg.Downlink.Model.RequestType.CIRCULATION_PUMP, values);
         mockProcessor.handleDownlinkCommand(request, "1", "1");
 
         mockProcessor.processDataHarvestIteration();

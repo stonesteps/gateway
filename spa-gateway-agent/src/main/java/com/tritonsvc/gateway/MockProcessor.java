@@ -133,7 +133,7 @@ public class MockProcessor extends MQTTCommandProcessor {
                     case PUMPS:
                         updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.PUMP);
                         break;
-                    case CIRC_PUMP:
+                    case CIRCULATION_PUMP:
                         updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.CIRCULATION_PUMP);
                         break;
                     case LIGHTS:

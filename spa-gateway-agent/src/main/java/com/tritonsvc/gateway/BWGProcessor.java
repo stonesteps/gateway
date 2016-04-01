@@ -178,9 +178,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
                     case PUMPS:
                         updatePeripherlal(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId, "kJets<port>MetaButton", ComponentType.PUMP);
                         break;
-                    case CIRC_PUMP:
-                        updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.CIRCULATION_PUMP, ButtonCode.kPump0MetaButton);
-                        break;
                     case CIRCULATION_PUMP:
                         updateCircPump(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
                         break;
