@@ -10,6 +10,8 @@ import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.SwimSpaMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
@@ -35,6 +37,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -111,6 +114,7 @@ public class UplinkProcessorTest {
         spaRepository.save(spa);
 
         SpaState state = SpaState.newBuilder()
+                .setComponents(Components.newBuilder().setLastUpdateTimestamp(1L).setFilterCycle1(ToggleComponent.newBuilder().setCurrentState(ToggleComponent.State.ON).addAllAvailableStates(newArrayList(ToggleComponent.State.OFF, ToggleComponent.State.ON))))
                 .setController(Controller.newBuilder()
                         .setErrorCode(0)
                         .setHour(0)
@@ -123,8 +127,6 @@ public class UplinkProcessorTest {
                         .setDemoMode(false)
                         .setEcoMode(false)
                         .setElapsedTimeDisplay(false)
-                        .setFilter1(false)
-                        .setFilter2(false)
                         .setHeaterCooling(false)
                         .setHeatExternallyDisabled(false)
                         .setInvert(false)
@@ -171,7 +173,7 @@ public class UplinkProcessorTest {
         assertThat(spa.getCurrentState()
                 .getComponents()
                 .stream()
-                .map(ComponentState::getComponentType).collect(toList()), contains("GATEWAY", "CONTROLLER"));
+                .map(ComponentState::getComponentType).collect(toList()), containsInAnyOrder("GATEWAY", "CONTROLLER", "FILTER"));
 
         spa.getCurrentState()
                 .getComponents()
