@@ -369,10 +369,11 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
             if ((rs485DataHarvester.getLatestSpaInfo().hasComponents() == false ||
                     rs485DataHarvester.getLatestSpaInfo().hasSystemInfo() == false ||
-                    rs485DataHarvester.getLatestSpaInfo().hasSetupParams() == false) &&
+                    rs485DataHarvester.getLatestSpaInfo().hasSetupParams() == false ||
+                    rs485DataHarvester.getLatestSpaInfo().getComponents().hasFilterCycle1() == false) &&
                     System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM) {
                 rs485MessagePublisher.sendPanelRequest(rs485DataHarvester.getRegisteredAddress(), null);
-                LOGGER.info("do not have DeviceConfig, SystemInfo, SetupParams yet, sent panel request");
+                LOGGER.info("do not have all DeviceConfig, SystemInfo, SetupParams, FilterCycle yet, sent panel request");
                 lastPanelRequestSent.set(System.currentTimeMillis());
             }
 

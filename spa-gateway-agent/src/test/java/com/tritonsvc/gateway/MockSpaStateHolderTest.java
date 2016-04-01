@@ -1,6 +1,7 @@
 package com.tritonsvc.gateway;
 
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -33,8 +34,9 @@ public class MockSpaStateHolderTest {
         stateHolder.updateFilterCycle(0, 1);
 
         final Bwg.Uplink.Model.SpaState spaState = stateHolder.buildSpaState();
-        Assert.assertEquals(true, spaState.getController().getFilter1());
-        Assert.assertEquals(false, spaState.getController().getFilter2());
+
+        Assert.assertEquals(true, spaState.getComponents().getFilterCycle1().getCurrentState().equals(ToggleComponent.State.ON));
+        Assert.assertEquals(false, spaState.getComponents().hasFilterCycle2());
     }
 
     @Test

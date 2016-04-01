@@ -1,12 +1,14 @@
 package com.tritonsvc.gateway;
 
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -108,19 +110,19 @@ public class MockSpaStateHolder {
                 case MICROSILK:
                 case AUX:
                 case MISTER:
-                    updateToggleComponent(builder, port, desiredState);
+                    updateToggleComponent(builder, desiredState);
                     break;
                 case PUMP:
-                    updatePumpComponent(builder, port, desiredState);
+                    updatePumpComponent(builder, desiredState);
                     break;
                 case CIRCULATION_PUMP:
-                    updatePumpComponent(builder, port, desiredState);
+                    updatePumpComponent(builder, desiredState);
                     break;
                 case BLOWER:
-                    updateBlowerComponent(builder, port, desiredState);
+                    updateBlowerComponent(builder, desiredState);
                     break;
                 case LIGHT:
-                    updateLightComponent(builder, port, desiredState);
+                    updateLightComponent(builder, desiredState);
                     break;
             }
         }
@@ -138,8 +140,6 @@ public class MockSpaStateHolder {
         controllerBuilder.setInvert(false);
         controllerBuilder.setAllSegsOn(false);
         controllerBuilder.setPanelLock(false);
-        controllerBuilder.setFilter1(false);
-        controllerBuilder.setFilter2(false);
         controllerBuilder.setMilitary(false);
         controllerBuilder.setCelsius(false);
         controllerBuilder.setTempRange(Bwg.Uplink.Model.Constants.TempRange.LOW);
@@ -211,11 +211,13 @@ public class MockSpaStateHolder {
             addToggleComponent(Bwg.Uplink.Model.Constants.ComponentType.AUX, i);
         }
 
-
         // mister
         for (int i = 0; i < misterN; i++) {
             addToggleComponent(Bwg.Uplink.Model.Constants.ComponentType.MISTER, i);
         }
+
+        // filter cycle 1 only
+        addToggleComponent(Bwg.Uplink.Model.Constants.ComponentType.FILTER, 0);
 
         // pump
         for (int i = 0; i < pumpN; i++) {
@@ -288,6 +290,10 @@ public class MockSpaStateHolder {
             componentsBuilder.setOzone((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.OZONE, 0));
         if (getBuilder(Bwg.Uplink.Model.Constants.ComponentType.MICROSILK, 0) != null)
             componentsBuilder.setMicroSilk((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.MICROSILK, 0));
+        if (getBuilder(Bwg.Uplink.Model.Constants.ComponentType.FILTER, 0) != null)
+            componentsBuilder.setFilterCycle1((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.FILTER, 0));
+        if (getBuilder(Bwg.Uplink.Model.Constants.ComponentType.FILTER, 1) != null)
+            componentsBuilder.setFilterCycle2((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.FILTER, 1));
         if (getBuilder(Bwg.Uplink.Model.Constants.ComponentType.AUX, 0) != null)
             componentsBuilder.setAux1((Bwg.Uplink.Model.Components.ToggleComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.AUX, 0));
         if (getBuilder(Bwg.Uplink.Model.Constants.ComponentType.AUX, 1) != null)
@@ -369,35 +375,33 @@ public class MockSpaStateHolder {
         return builders.get(port);
     }
 
-    private void updateToggleComponent(final Object builderObject, final Integer port, final String desiredState) {
+    private void updateToggleComponent(final Object builderObject, final String desiredState) {
         final Bwg.Uplink.Model.Components.ToggleComponent.Builder builder = (Bwg.Uplink.Model.Components.ToggleComponent.Builder) builderObject;
         builder.setCurrentState(Bwg.Uplink.Model.Components.ToggleComponent.State.valueOf(desiredState));
     }
 
-    private void updatePumpComponent(final Object builderObject, final Integer port, final String desiredState) {
+    private void updatePumpComponent(final Object builderObject, final String desiredState) {
         final Bwg.Uplink.Model.Components.PumpComponent.Builder builder = (Bwg.Uplink.Model.Components.PumpComponent.Builder) builderObject;
         builder.setCurrentState(Bwg.Uplink.Model.Components.PumpComponent.State.valueOf(desiredState));
     }
 
-    private void updateBlowerComponent(final Object builderObject, final Integer port, final String desiredState) {
+    private void updateBlowerComponent(final Object builderObject, final String desiredState) {
         final Bwg.Uplink.Model.Components.BlowerComponent.Builder builder = (Bwg.Uplink.Model.Components.BlowerComponent.Builder) builderObject;
         builder.setCurrentState(Bwg.Uplink.Model.Components.BlowerComponent.State.valueOf(desiredState));
     }
 
-    private void updateLightComponent(final Object builderObject, final Integer port, final String desiredState) {
+    private void updateLightComponent(final Object builderObject, final String desiredState) {
         final Bwg.Uplink.Model.Components.LightComponent.Builder builder = (Bwg.Uplink.Model.Components.LightComponent.Builder) builderObject;
         builder.setCurrentState(Bwg.Uplink.Model.Components.LightComponent.State.valueOf(desiredState));
     }
 
     private void updateFilterCycleState(final int number, boolean state) {
-        switch (number) {
-            case 0:
-                controllerBuilder.setFilter1(state);
-                break;
-            case 1:
-                controllerBuilder.setFilter2(state);
-                break;
+        final Map<Integer, Object> builders = builderMap.get(ComponentType.FILTER);
+        if (builders == null) {
+            return;
         }
+        final Object builder = builders.get(number);
+        updateToggleComponent(builder, state ? "ON" : "OFF");
     }
 
     private int getInt(final Properties props, final String name, int defaultValue) {

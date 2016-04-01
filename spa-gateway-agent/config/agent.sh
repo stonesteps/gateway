@@ -27,11 +27,16 @@ SERVICE_NAME="BWG Agent"
 PID_PATH_NAME="$BASEDIR/bwg-agent-pid"
 PARAMS="-Djava.library.path=./lib -Djava.security.policy=./dio.policy"
 
+pid_of_jvm() {
+    pgrep -f "java.*$JAR_NAME"
+}
+
 start() {
     echo "Starting $SERVICE_NAME ..."
     if [ ! -f $PID_PATH_NAME ]; then
         su $OWNER -c "nohup java $PARAMS -jar $JAR_NAME 2>> $LOG_FILE >> $LOG_FILE &"
-        echo $! > $PID_PATH_NAME
+        pid=`pid_of_jvm`
+        echo $pid > $PID_PATH_NAME
         echo "$SERVICE_NAME started ..."
     else
         echo "$SERVICE_NAME is already running ..."
@@ -54,7 +59,7 @@ stop() {
             # Wait for one second
             sleep 1
             # Increment the second counter
-            ((count++))
+            count=$((count + 1))
 
             # Has the process been killed? If so, exit the loop.
             if ! ps -p $PID > /dev/null ; then

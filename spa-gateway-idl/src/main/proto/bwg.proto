@@ -161,6 +161,8 @@ message Uplink {
             // not sure about fiber wheel, leaving in here, but wouldn't refer to it in upper levels yet
             optional uint32 fiberWheel = 20;
             required fixed64 lastUpdateTimestamp = 27;
+            optional ToggleComponent filterCycle1 = 29;
+            optional ToggleComponent filterCycle2 = 30;
 
             message ToggleComponent {
                 optional State currentState = 1;
@@ -220,8 +222,6 @@ message Uplink {
             required bool invert = 9;
             required bool allSegsOn = 10;
             required bool panelLock = 11;
-            required bool filter1 = 12;
-            required bool filter2 = 13;
             required bool military = 14;
             required bool celsius = 15;
             required Constants.TempRange tempRange =16;
