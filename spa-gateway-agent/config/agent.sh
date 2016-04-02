@@ -19,12 +19,12 @@ BASEDIR="$(dirname $JAR_PATH)"
 JAR_NAME="$(basename -- $0)"
 cd "$BASEDIR"
 LOGS="$BASEDIR/logs"
-[ -d "$LOGS" ] || mkdir "$LOGS"
 LOG_FILE="$LOGS/start.log"
 OWNER="$(ls -ld $BASEDIR/$JAR_NAME | awk '{print $3}')"
 
+[ -d "$LOGS" ] || su $OWNER -c "mkdir $LOGS"
+
 SERVICE_NAME="BWG Agent"
-PID_PATH_NAME="$BASEDIR/bwg-agent-pid"
 PARAMS="-Djava.library.path=./lib -Djava.security.policy=./dio.policy"
 
 pid_of_jvm() {
@@ -33,10 +33,9 @@ pid_of_jvm() {
 
 start() {
     echo "Starting $SERVICE_NAME ..."
-    if [ ! -f $PID_PATH_NAME ]; then
+    PID=`pid_of_jvm`
+    if [ "x$PID" = "x" ]; then
         su $OWNER -c "nohup java $PARAMS -jar $JAR_NAME 2>> $LOG_FILE >> $LOG_FILE &"
-        pid=`pid_of_jvm`
-        echo $pid > $PID_PATH_NAME
         echo "$SERVICE_NAME started ..."
     else
         echo "$SERVICE_NAME is already running ..."
@@ -44,8 +43,8 @@ start() {
 }
 
 stop() {
-    if [ -f $PID_PATH_NAME ]; then
-        PID=$(cat $PID_PATH_NAME);
+    PID=`pid_of_jvm`
+    if [ "x$PID" != "x" ]; then
 
         echo "$SERVICE_NAME stopping ..."
         # Number of seconds to wait before using "kill -9"
@@ -54,7 +53,7 @@ stop() {
         # Counter to keep count of how many seconds have passed
         count=0
 
-        while kill $PID 2>> $LOG_FILE >> $LOG_FILE
+        while kill $PID 2 > /dev/null
         do
             # Wait for one second
             sleep 1
@@ -69,19 +68,19 @@ stop() {
             # Have we exceeded $WAIT_SECONDS? If so, kill the process with "kill -9"
             # and exit the loop
             if [ $count -gt $WAIT_SECONDS ]; then
-                kill -9 $PID 2>> $LOG_FILE >> $LOG_FILE
+                kill -9 $PID 2 > /dev/null
                 break
             fi
         done
         echo "$SERVICE_NAME has been stopped after $count seconds."
-        rm $PID_PATH_NAME > /dev/null
     else
         echo "$SERVICE_NAME is not running ..."
     fi
 }
 
 status() {
-    if [ -f $PID_PATH_NAME ]; then
+    PID=`pid_of_jvm`
+    if [ "x$PID" != "x" ]; then
         echo "$SERVICE_NAME is running ..."
     else
         echo "$SERVICE_NAME is stopped ..."
