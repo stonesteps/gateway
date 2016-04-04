@@ -645,23 +645,23 @@ public class RS485DataHarvester implements Runnable {
         }
 
         compsBuilder.setLastUpdateTimestamp(new Date().getTime());
-        if (compsBuilder.hasAux1()) { compsBuilder.setAux1(ToggleComponent.newBuilder(compsBuilder.getAux1()).setCurrentState(ToggleComponent.State.valueOf(0x08 & message[19])));}
-        if (compsBuilder.hasAux2()) { compsBuilder.setAux2(ToggleComponent.newBuilder(compsBuilder.getAux2()).setCurrentState(ToggleComponent.State.valueOf(0x10 & message[19])));}
-        if (compsBuilder.hasAux3()) { compsBuilder.setAux3(ToggleComponent.newBuilder(compsBuilder.getAux3()).setCurrentState(ToggleComponent.State.valueOf(0x20 & message[19])));}
-        if (compsBuilder.hasAux4()) { compsBuilder.setAux4(ToggleComponent.newBuilder(compsBuilder.getAux4()).setCurrentState(ToggleComponent.State.valueOf(0x40 & message[19])));}
+        if (compsBuilder.hasAux1()) { compsBuilder.setAux1(ToggleComponent.newBuilder(compsBuilder.getAux1()).setCurrentState(ToggleComponent.State.valueOf((0x08 & message[19]) >> 3)));}
+        if (compsBuilder.hasAux2()) { compsBuilder.setAux2(ToggleComponent.newBuilder(compsBuilder.getAux2()).setCurrentState(ToggleComponent.State.valueOf((0x10 & message[19]) >> 4)));}
+        if (compsBuilder.hasAux3()) { compsBuilder.setAux3(ToggleComponent.newBuilder(compsBuilder.getAux3()).setCurrentState(ToggleComponent.State.valueOf((0x20 & message[19]) >> 5)));}
+        if (compsBuilder.hasAux4()) { compsBuilder.setAux4(ToggleComponent.newBuilder(compsBuilder.getAux4()).setCurrentState(ToggleComponent.State.valueOf((0x40 & message[19]) >> 6)));}
 
-        if (compsBuilder.hasMister3()) { compsBuilder.setMister3(ToggleComponent.newBuilder(compsBuilder.getMister3()).setCurrentState(ToggleComponent.State.valueOf(0x04 & message[19])));}
-        if (compsBuilder.hasMister2()) { compsBuilder.setMister2(ToggleComponent.newBuilder(compsBuilder.getMister2()).setCurrentState(ToggleComponent.State.valueOf(0x02 & message[19])));}
+        if (compsBuilder.hasMister3()) { compsBuilder.setMister3(ToggleComponent.newBuilder(compsBuilder.getMister3()).setCurrentState(ToggleComponent.State.valueOf((0x04 & message[19]) >> 2)));}
+        if (compsBuilder.hasMister2()) { compsBuilder.setMister2(ToggleComponent.newBuilder(compsBuilder.getMister2()).setCurrentState(ToggleComponent.State.valueOf((0x02 & message[19]) >> 1)));}
         if (compsBuilder.hasMister1()) { compsBuilder.setMister1(ToggleComponent.newBuilder(compsBuilder.getMister1()).setCurrentState(ToggleComponent.State.valueOf(0x01 & message[19])));}
 
-        if (compsBuilder.hasMicroSilk()) { compsBuilder.setMicroSilk(ToggleComponent.newBuilder(compsBuilder.getMicroSilk()).setCurrentState(ToggleComponent.State.valueOf(0x02 & message[26])));}
-        if (compsBuilder.hasOzone()) { compsBuilder.setOzone(ToggleComponent.newBuilder(compsBuilder.getOzone()).setCurrentState(ToggleComponent.State.valueOf(0x04 & message[14])));}
+        if (compsBuilder.hasMicroSilk()) { compsBuilder.setMicroSilk(ToggleComponent.newBuilder(compsBuilder.getMicroSilk()).setCurrentState(ToggleComponent.State.valueOf((0x02 & message[26]) >> 1)));}
+        if (compsBuilder.hasOzone()) { compsBuilder.setOzone(ToggleComponent.newBuilder(compsBuilder.getOzone()).setCurrentState(ToggleComponent.State.valueOf((0x04 & message[14]) >> 2)));}
 
         if (compsBuilder.hasHeater1()) { compsBuilder.setHeater1(Components.HeaterState.valueOf((0x30 & message[14]) >> 4));}
         if (compsBuilder.hasHeater2()) { compsBuilder.setHeater2(Components.HeaterState.valueOf((0xC0 & message[14]) >> 6));}
 
-        if (compsBuilder.hasFilterCycle1()) { compsBuilder.setFilterCycle1(ToggleComponent.newBuilder(compsBuilder.getFilterCycle1()).setCurrentState(ToggleComponent.State.valueOf(0x04 & message[13])));}
-        if (compsBuilder.hasFilterCycle2()) { compsBuilder.setFilterCycle2(ToggleComponent.newBuilder(compsBuilder.getFilterCycle2()).setCurrentState(ToggleComponent.State.valueOf(0x08 & message[13])));}
+        if (compsBuilder.hasFilterCycle1()) { compsBuilder.setFilterCycle1(ToggleComponent.newBuilder(compsBuilder.getFilterCycle1()).setCurrentState(ToggleComponent.State.valueOf((0x04 & message[13]) >> 2)));}
+        if (compsBuilder.hasFilterCycle2()) { compsBuilder.setFilterCycle2(ToggleComponent.newBuilder(compsBuilder.getFilterCycle2()).setCurrentState(ToggleComponent.State.valueOf((0x08 & message[13]) >> 3)));}
 
         if (compsBuilder.hasPump1()) { compsBuilder.setPump1(PumpComponent.newBuilder(compsBuilder.getPump1()).setCurrentState(PumpComponent.State.valueOf(0x03 & message[15])));}
         if (compsBuilder.hasPump2()) { compsBuilder.setPump2(PumpComponent.newBuilder(compsBuilder.getPump2()).setCurrentState(PumpComponent.State.valueOf((0x0C & message[15]) >> 2)));}
