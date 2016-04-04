@@ -11,7 +11,6 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.Componen
 import jdk.dio.uart.UART;
 import org.junit.Before;
 import org.junit.Test;
-import org.mapdb.DB;
 
 import java.io.IOException;
 
@@ -39,7 +38,6 @@ public class BWGProcessorTest {
         processor = new BWGProcessor();
         processor.setRS485DataHarvester(rs485DataHarvester);
         processor.setRS485MessagePublisher(rs485MessagePublisher);
-        processor.setMapDB(mock(DB.class));
         processor.setRS485(mock(UART.class));
         processor = spy(processor);
         when(rs485DataHarvester.getRegisteredAddress()).thenReturn((byte)2);
