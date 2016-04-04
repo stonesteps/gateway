@@ -102,6 +102,10 @@ public final class DownlinkRequestor {
                 log.error("Port is required");
             } else if (port != null && !NumberUtils.isNumber(port)) {
                 log.error("Port passed with command is invalid {}", port);
+            } else if (intervalNumber == null) {
+                    log.error("Port is required");
+            } else if (intervalNumber != null && !NumberUtils.isNumber(intervalNumber)) {
+                log.error("Interval number passed with command is invalid {}", intervalNumber);
             } else {
                 final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(Bwg.Downlink.Model.RequestType.FILTER, command.getValues());
                 final byte[] messageData = BwgHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
@@ -124,6 +128,43 @@ public final class DownlinkRequestor {
                     log.error("Message data is empty - not sending anything");
                 }
 
+            }
+        }
+
+        return sent;
+    }
+
+    public boolean sendPlainCommand(final SpaCommand command) throws IOException {
+        boolean sent = false;
+
+        final Spa spa = spaRepository.findOne(command.getSpaId());
+        final Bwg.Downlink.Model.RequestType requestType = BwgHelper.getRequestTypeByCode(command.getRequestTypeId());
+
+        if (spa == null) {
+            log.error("Could not find related spa with id {}", command.getSpaId());
+        } else if (requestType == null) {
+            log.error("Unrecognized request type {}", command.getRequestTypeId());
+        } else {
+            log.info("Building device downlink message");
+
+            final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(requestType, command.getValues());
+            final byte[] messageData = BwgHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
+            if (messageData != null && messageData.length > 0) {
+                String serialNumber = getGatewaySerialNumber(spa.get_id());
+                if (serialNumber == null) {
+                    log.error("Error, not gateway serial number is available for spa with db id {}", spa.get_id());
+                    return false;
+                }
+                final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(serialNumber);
+                log.info("Sending downlink message to topic {}", downlinkTopic);
+                try {
+                    mqttSendService.sendMessage(downlinkTopic, messageData);
+                    sent = true;
+                } catch (Exception e) {
+                    log.error("Error while sending downlink message", e);
+                }
+            } else {
+                log.error("Message data is empty - not sending anything");
             }
         }
 
@@ -230,4 +271,5 @@ public final class DownlinkRequestor {
         state.setPort(port);
         componentStates.add(state);
     }
+
 }
