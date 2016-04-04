@@ -123,4 +123,40 @@ public class DownlinkProcessorTest {
         Assert.assertNotNull(processed.getProcessedTimestamp());
         Assert.assertEquals(ProcessedResult.SENT, processed.getProcessedResult());
     }
+
+    @Test
+    public void processGatewayRebootCommand() throws Exception {
+        // create spa (with serialNumber)
+        final Spa spa = unitTestHelper.createSpa();
+        unitTestHelper.createGateway(spa, "1");
+        // and command with metadata
+        final HashMap<String, String> values = new HashMap<>();
+        final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.REBOOT_GATEWAY.getCode(), values);
+
+        // wait some time (commands processed every 5s)
+        Thread.sleep(10000);
+
+        final SpaCommand processed = spaCommandRepository.findOne(command.get_id());
+        Assert.assertNotNull(processed);
+        Assert.assertNotNull(processed.getProcessedTimestamp());
+        Assert.assertEquals(ProcessedResult.SENT, processed.getProcessedResult());
+    }
+
+    @Test
+    public void processAgentRestartCommand() throws Exception {
+        // create spa (with serialNumber)
+        final Spa spa = unitTestHelper.createSpa();
+        unitTestHelper.createGateway(spa, "1");
+        // and command with metadata
+        final HashMap<String, String> values = new HashMap<>();
+        final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.RESTART_AGENT.getCode(), values);
+
+        // wait some time (commands processed every 5s)
+        Thread.sleep(10000);
+
+        final SpaCommand processed = spaCommandRepository.findOne(command.get_id());
+        Assert.assertNotNull(processed);
+        Assert.assertNotNull(processed.getProcessedTimestamp());
+        Assert.assertEquals(ProcessedResult.SENT, processed.getProcessedResult());
+    }
 }

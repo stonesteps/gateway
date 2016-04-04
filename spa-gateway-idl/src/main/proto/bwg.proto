@@ -437,6 +437,8 @@ message Downlink {
             MICROSILK = 10;
             AUX = 11;
             CIRCULATION_PUMP = 12;
+            RESTART_AGENT = 13;
+            REBOOT_GATEWAY = 14;
         }
 
         enum SpaCommandAttribName {
