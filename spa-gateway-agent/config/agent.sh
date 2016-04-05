@@ -28,7 +28,7 @@ SERVICE_NAME="BWG Agent"
 PARAMS="-Djava.library.path=./lib -Djava.security.policy=./dio.policy"
 
 pid_of_jvm() {
-    pgrep -f "java.*$JAR_NAME"
+    ps -A | grep "[j]ava.*$JAR_NAME" | awk '{print $1}'
 }
 
 start() {
@@ -61,7 +61,8 @@ stop() {
             count=$((count + 1))
 
             # Has the process been killed? If so, exit the loop.
-            if ! ps -p $PID > /dev/null ; then
+            PID=`pid_of_jvm`
+            if [ "x$PID" = "x" ]; then
                 break
             fi
 

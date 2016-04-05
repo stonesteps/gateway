@@ -10,7 +10,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
-import com.tritonsvc.gateway.DeviceRegistration.DeviceRegistrationSerializer;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
@@ -29,13 +28,9 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
 import jdk.dio.uart.UARTConfig;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -58,8 +53,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
-    private DB mapDb;
-    private Map<String, DeviceRegistration> registeredHwIds;
+    private Map<String, DeviceRegistration> registeredHwIds = newHashMap();
     private Properties configProps;
     private String gwSerialNumber;
     private OidProperties oidProperties = new OidProperties();
@@ -72,7 +66,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
     @Override
     public void handleShutdown() {
-        mapDb.close();
         try {rs485Uart.stopReading();} catch (Exception ex) {}
         try {rs485Uart.stopWriting();} catch (Exception ex) {}
         try {rs485Uart.close();} catch (Exception ex) {}
@@ -85,7 +78,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
         this.configProps = configProps;
         this.homePath = homePath;
 
-        generateMapDb();
         setUpRS485();
         validateOidProperties();
         obtainSpaRegistration();
@@ -116,7 +108,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
             DeviceRegistration registered = getRegisteredHWIds().get(originatorId);
             registered.setHardwareId(hardwareId);
             getRegisteredHWIds().put(originatorId, registered);
-            commitData();
             LOGGER.info("received successful registration, originatorid {} for hardwareid {} ", originatorId, hardwareId);
 
         } else {
@@ -144,7 +135,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
             registered.getMeta().put("apSSID", response.hasP2PAPSSID() ? response.getP2PAPPassword() : null);
             registered.getMeta().put("apPassword", response.hasP2PAPPassword() ? response.getP2PAPPassword() : null);
             getRegisteredHWIds().put(originatorId, registered);
-            commitData();
             LOGGER.info("received successful spa registration, originatorid {} for hardwareid {} ", originatorId, hardwareId);
 
         } else {
@@ -464,20 +454,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
     }
 
     /**
-     * push any memory changes into file for db
-     */
-    public void commitData() {
-        try {
-            mapDb.commit();
-        } catch (Throwable th) {
-            // this is extreme, but if the map gets in a bad state in memory,
-            // this is best way to allow it to get back up
-            try {mapDb.close();} catch (Throwable th2){}
-            generateMapDb();
-        }
-    }
-
-    /**
      * retreive the cloud registrations that have been sent for local devices
      *
      * @return
@@ -521,11 +497,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
     @VisibleForTesting
     void setRS485DataHarvester(RS485DataHarvester rs485DataHarvester) {
         this.rs485DataHarvester = rs485DataHarvester;
-    }
-
-    @VisibleForTesting
-    void setMapDB(DB db) {
-        this.mapDb = db;
     }
 
     @VisibleForTesting
@@ -597,15 +568,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
         }
     }
 
-    private void generateMapDb() {
-        setMapDB(DBMaker.fileDB(new File(homePath + File.separator + "spa_repo.dat"))
-                .closeOnJvmShutdown()
-                .encryptionEnable("password")
-                .make());
-
-        registeredHwIds = mapDb.hashMap("registeredHwIds", Serializer.STRING, new DeviceRegistrationSerializer());
-    }
-
     private DeviceRegistration sendRegistration(String parentHwId, String gwSerialNumber, String deviceTypeName, Map<String, String> identityAttributes) {
         boolean readLocked = false;
         boolean writeLocked = false;
@@ -631,7 +593,6 @@ public class BWGProcessor extends MQTTCommandProcessor {
 
             registeredDevice.setLastTime(System.currentTimeMillis());
             getRegisteredHWIds().put(registrationHashCode, registeredDevice);
-            commitData();
             super.sendRegistration(parentHwId, gwSerialNumber, deviceTypeName, identityAttributes, registrationHashCode);
             return registeredDevice;
         } catch (InterruptedException ex) {
