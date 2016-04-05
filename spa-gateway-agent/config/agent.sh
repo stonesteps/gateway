@@ -61,7 +61,8 @@ stop() {
             count=$((count + 1))
 
             # Has the process been killed? If so, exit the loop.
-            if ! ps -p $PID > /dev/null ; then
+            PID=`pid_of_jvm`
+            if [ "x$PID" = "x" ]; then
                 break
             fi
 
