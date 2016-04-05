@@ -90,6 +90,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         com.bwg.iot.model.Component gatewayComponent;
         if (results.getTotalElements() < 1) {
             gatewayComponent = new com.bwg.iot.model.Component();
+            gatewayComponent.setName(ComponentType.GATEWAY.name());
             gatewayComponent.setComponentType(ComponentType.GATEWAY.name());
             gatewayComponent.setSerialNumber(serialNumber);
             gatewayComponent.setRegistrationDate(regTimestamp);
@@ -98,6 +99,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
             gatewayComponent = results.iterator().next();
             if (gatewayComponent.getRegistrationDate() == null || gatewayComponent.getSerialNumber() == null || !gatewayComponent.getSerialNumber().equals(serialNumber)) {
                 gatewayComponent.setRegistrationDate(regTimestamp);
+                gatewayComponent.setName(ComponentType.GATEWAY.name());
                 gatewayComponent.setSerialNumber(serialNumber);
                 dirtyGateway = true;
             }
@@ -167,6 +169,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         if (page.getTotalElements() < 1) {
             log.info("Creating new {} object", componentType);
             component = new com.bwg.iot.model.Component();
+            component.setName(componentType.name());
             component.setComponentType(componentType.name());
             component.setDealerId(spa.getDealerId());
             component.setOemId(spa.getOemId());

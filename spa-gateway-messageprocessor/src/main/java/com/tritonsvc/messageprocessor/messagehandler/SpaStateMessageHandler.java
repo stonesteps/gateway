@@ -7,6 +7,7 @@ import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -212,6 +213,8 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
     private void updateComponentState(final String spaId, final SpaState spaStateEntity, final String componentType, final String state, final List<String> availableStates, final Integer port) {
         // build componentState
         final ComponentState componentState = new ComponentState();
+        // setting default name
+        componentState.setName(componentType);
         componentState.setComponentType(componentType);
         componentState.setPort(port != null ? port.toString() : null);
         componentState.setValue(state);
@@ -228,6 +231,11 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             }
         }
         if (component != null) {
+            // FIXME just to fix db, can be removed with one of next iterations
+            if (StringUtils.isBlank(component.getName())) {
+                component.setName(component.getComponentType());
+                componentRepository.save(component);
+            }
             componentState.setName(component.getName());
             componentState.setSerialNumber(component.getSerialNumber());
         }
