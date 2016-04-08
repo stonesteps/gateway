@@ -143,6 +143,7 @@ public class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
+            pauseForBus();
             processor.getRS485UART().write(bb);
             LOGGER.info("sent unassigned device response {}", printHexBinary(bb.array()));
         }
@@ -200,6 +201,7 @@ public class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
+            pauseForBus();
             processor.getRS485UART().write(bb);
             LOGGER.info("sent address assignment response for newly acquired address {} {}", address, printHexBinary(bb.array()));
         }
@@ -230,6 +232,7 @@ public class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
+            pauseForBus();
             processor.getRS485UART().write(bb);
             LOGGER.info("sent device query response {}", printHexBinary(bb.array()));
         }
@@ -251,6 +254,7 @@ public class RS485MessagePublisher {
             if (requestMessage != null) {
                 ByteBuffer bb = ByteBuffer.wrap(requestMessage.getPayload());
                 try {
+                    pauseForBus();
                     processor.getRS485UART().write(bb);
                     if (requestMessage.getHardwareId() != null) {
                         // if hardwareid is not present, this was a message initiated by the agent not the cloud, don't send an ack up to cloud in this case
@@ -380,5 +384,12 @@ public class RS485MessagePublisher {
         public String getHardwareId() {
             return hardwareId;
         }
+    }
+
+    private void pauseForBus() throws InterruptedException {
+        // rs485 spec from BWG specified that at a minimum, clients shouldn't submit to the bus after
+        // recieving a prompt to do so for at least 250 msecs, to give the spa controller time to release
+        // from bus
+        Thread.sleep(0,250000);
     }
 }
