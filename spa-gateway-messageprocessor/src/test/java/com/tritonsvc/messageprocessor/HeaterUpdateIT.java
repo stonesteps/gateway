@@ -80,7 +80,7 @@ public class HeaterUpdateIT {
     @Test
     public void processHeaterCommand() throws Exception {
         // wait for spa to be created
-        Thread.sleep(15000);
+        Thread.sleep(3000);
 
         // create spa (with serialNumber)
         final Spa spa = spaRepository.findOneBySerialNumber("demo_2872_ep_gateway");
