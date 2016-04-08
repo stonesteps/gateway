@@ -28,7 +28,7 @@ SERVICE_NAME="BWG Agent"
 PARAMS="-Djava.library.path=./lib -Djava.security.policy=./dio.policy"
 
 pid_of_jvm() {
-    ps -A | grep "[j]ava.*$JAR_NAME" | awk '{print $1}'
+    ps -eo pid,args | grep "[j]ava.*$JAR_NAME" | awk '{print $1}'
 }
 
 start() {
