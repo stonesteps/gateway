@@ -1,7 +1,6 @@
 package com.tritonsvc.gateway;
 
 import com.google.common.base.Throwables;
-import com.google.common.primitives.Bytes;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
@@ -29,9 +28,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,10 +47,11 @@ public class RS485DataHarvester implements Runnable {
     private static int HDLC_FRAME_LENGTH_MASK = 0x7F;
     private static int HDLC_ALL_STATIONS_ADDRESS = 0xFF;
     private static int HDLC_LINKING_ADDRESS = 0xFE;
-    private ExecutorService executorService;
+
     private AtomicInteger rejectCount = new AtomicInteger();
     private RS485MessagePublisher rs485MessagePublisher;
-    private ByteBuffer buffer = ByteBuffer.allocate(150);
+    private State state = State.searchForBeginning;
+    private int hdlcFrameLength =0;
     private AtomicInteger regisrationAddress = new AtomicInteger(-1);
     private AtomicInteger registrationrequestId = new AtomicInteger();
     private AtomicLong registrationLastAttempt = new AtomicLong();
@@ -79,20 +76,6 @@ public class RS485DataHarvester implements Runnable {
         this.processor = processor;
         this.rs485MessagePublisher = rs485MessagePublisher;
         executionQueue = new ArrayBlockingQueue(1000);
-        executorService = new ThreadPoolExecutor(1, 1, 20, TimeUnit.SECONDS, executionQueue, (r, executor) -> {
-            if (rejectCount.addAndGet(1) > 500) {
-                LOGGER.warn("filled up the rs 485 listener message processing queue, dropping messages");
-                rejectCount.set(0);
-            }
-        });
-
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                executorService.shutdownNow();
-                try {executorService.awaitTermination(10, TimeUnit.SECONDS);} catch (InterruptedException ex){}
-            }
-        });
     }
 
     @Override
@@ -102,22 +85,18 @@ public class RS485DataHarvester implements Runnable {
         } catch (IOException ex) {
             LOGGER.error("unable to set read timeout on rs485 uart", ex);
         }
-        ByteBuffer bb = ByteBuffer.allocate(1024);
-        byte[] remainderBytes = new byte[]{};
+        ByteBuffer workingMessage = ByteBuffer.allocate(256);
+        ByteBuffer readBytes = ByteBuffer.allocate(1);
 
         while(processor.stillRunning()) {
             try {
-                bb.clear();
-                if (remainderBytes.length > 0) {
-                    bb.put(remainderBytes);
-                }
-
-                int read = processor.getRS485UART().read(bb);
-                byte[] data = bb.array();
-                remainderBytes = parseHDLCMessages(data, remainderBytes);
+                readBytes.clear();
+                int read = processor.getRS485UART().read(readBytes);
+                parseHDLCMessages(workingMessage, readBytes);
 
                 if (LOGGER.isDebugEnabled()) {
                     if (read > 0) {
+                        byte[] data = workingMessage.array();
                         LOGGER.debug("Received raw rs485 data {}", printHexBinary(data));
                     } else {
                         LOGGER.debug("Received no rs485 data during read operation");
@@ -125,8 +104,10 @@ public class RS485DataHarvester implements Runnable {
                 }
             }
             catch (Throwable ex) {
-                LOGGER.info("harvest rs485 data listener got exception " + ex.getMessage());
-                remainderBytes = new byte[] {};
+                LOGGER.info("harvest rs485 data listener got exception ",ex);
+                workingMessage.clear();
+                state = State.searchForBeginning;
+                hdlcFrameLength = 0;
                 try {Thread.sleep(1000);} catch (InterruptedException ex2){}
             }
         }
@@ -361,19 +342,19 @@ public class RS485DataHarvester implements Runnable {
         getPackets
     }
 
-    private byte[] parseHDLCMessages(byte[] input, byte[] previousRemainder) {
-        if (previousRemainder.length > 0) {
-            input = Bytes.concat(previousRemainder, input);
+    private void parseHDLCMessages(ByteBuffer workingMessage, ByteBuffer bytesRead) {
+        bytesRead.flip();
+
+        if (bytesRead.remaining() + workingMessage.position() > 128) {
+            hdlcFrameLength = 0;
+            state = State.searchForBeginning;
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("rs 485 frame out of sync, message parsing went over 128 bytes, resetting state.");
+            }
         }
 
-        int hdlcFrameLength =0;
-        int index =0;
-        buffer.clear();
-
-        State state = State.searchForBeginning;
-
-        while (index < input.length) {
-            byte data = input[index++];
+        while (bytesRead.remaining() > 0) {
+            byte data = bytesRead.get();
             switch (state) {
                 case searchForBeginning:
                     if (data == delimiter) {
@@ -388,46 +369,42 @@ public class RS485DataHarvester implements Runnable {
                     if (hdlcFrameLength < 4 || hdlcFrameLength == 126) {
                         hdlcFrameLength = 0;
                         state = State.searchForBeginning;
-                        buffer.clear();
+                        workingMessage.clear();
                         continue;
                     }
-                    buffer.put(data);
+                    workingMessage.put(data);
                     state = State.getPackets;
                     break;
                 case getPackets:
-                    buffer.put(data);
-                    if (hdlcFrameLength == buffer.position()) {
+                    workingMessage.put(data);
+                    if (hdlcFrameLength == workingMessage.position()) {
                         state = State.searchForEnd;
                     }
                     break;
                 case searchForEnd:
                     if (data == delimiter) {
-                        if ( !shouldNotProcessMessage() ) {
+                        if ( !shouldNotProcessMessage(workingMessage) ) {
                             byte[] message = new byte[hdlcFrameLength];
-                            buffer.position(0);
-                            buffer.get(message);
-                            executorService.execute(new ParseRS485Runner(message));
+                            workingMessage.position(0);
+                            workingMessage.get(message);
+                            try {
+                                processMessage(message);
+                            } catch (Throwable th) {
+                                LOGGER.error("had problem processing rs 485 message ", th);
+                            }
                         }
                     }
-                    buffer.clear();
+                    workingMessage.clear();
                     state = State.processFrameFormat;
+                    hdlcFrameLength = 0;
                     break;
             }
         }
-
-        if (buffer.position() > 0) {
-            byte[] partial = new byte[buffer.position()];
-            buffer.position(0);
-            buffer.get(partial);
-            return Bytes.concat(new byte[]{delimiter}, partial);
-        } else {
-            return new byte[]{};
-        }
     }
 
-    private boolean shouldNotProcessMessage() {
+    private boolean shouldNotProcessMessage(ByteBuffer workingMessage) {
         int myAddress = regisrationAddress.get();
-        int incomingAddress = (0xFF & buffer.get(1));
+        int incomingAddress = (0xFF & workingMessage.get(1));
         if (myAddress > -1 &&
                 (incomingAddress == HDLC_LINKING_ADDRESS ||
                         (myAddress != incomingAddress &&
@@ -440,24 +417,6 @@ public class RS485DataHarvester implements Runnable {
         }
 
         return false;
-    }
-
-    private class ParseRS485Runner implements Runnable {
-        private byte[] message;
-        public ParseRS485Runner(byte[] message) {
-            this.message = message;
-        }
-        @Override
-        public void run() {
-            try {
-                processMessage(message);
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("finished processing message {}, {}", message[3], executionQueue.size());
-                }
-            } catch (Throwable th) {
-                LOGGER.error("had problem processing rs 485 message ", th);
-            }
-        }
     }
 
     /**
