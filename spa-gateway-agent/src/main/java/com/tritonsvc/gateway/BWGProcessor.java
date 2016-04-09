@@ -10,6 +10,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
+import com.tritonsvc.httpd.RegistrationInfoHolder;
+import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
@@ -32,10 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -45,7 +44,7 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  * Gateway Agent processing, collects WSN data also.
  */
-public class BWGProcessor extends MQTTCommandProcessor {
+public class BWGProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_NEW_REG_WAIT_TIME = 120000;
@@ -63,6 +62,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
     private String homePath;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
+    private WebServer webServer = null;
 
     @Override
     public void handleShutdown() {
@@ -78,6 +78,7 @@ public class BWGProcessor extends MQTTCommandProcessor {
         this.configProps = configProps;
         this.homePath = homePath;
 
+        setupWebServer(configProps);
         setUpRS485();
         validateOidProperties();
         obtainSpaRegistration();
@@ -134,6 +135,8 @@ public class BWGProcessor extends MQTTCommandProcessor {
             registered.setHardwareId(hardwareId);
             registered.getMeta().put("apSSID", response.hasP2PAPSSID() ? response.getP2PAPPassword() : null);
             registered.getMeta().put("apPassword", response.hasP2PAPPassword() ? response.getP2PAPPassword() : null);
+            registered.getMeta().put("regKey", response.hasRegKey() ? response.getRegKey() : null);
+            registered.getMeta().put("regUserId", response.hasRegUserId() ? response.getRegUserId() : null);
             getRegisteredHWIds().put(originatorId, registered);
             LOGGER.info("received successful spa registration, originatorid {} for hardwareid {} ", originatorId, hardwareId);
 
@@ -546,8 +549,46 @@ public class BWGProcessor extends MQTTCommandProcessor {
     }
 
     @Override
-    public void init(Properties props) {
-        // nothing here
+    public String getRegKey() {
+        return getGatewayMetaParam("regKey");
+    }
+
+    @Override
+    public String getRegUserId() {
+        return getGatewayMetaParam("regUserId");
+    }
+
+    @Override
+    public String getSpaId() {
+        return getGatewayHardwareId();
+    }
+
+    private String getGatewayMetaParam(final String paramName) {
+        final DeviceRegistration gateway = getGatewayDeviceRegistration();
+        final String value;
+        if (gateway != null) {
+            value = gateway.getMeta().get(paramName);
+        } else {
+            value = null;
+        }
+        return value;
+    }
+
+    private String getGatewayHardwareId() {
+        final DeviceRegistration gateway = getGatewayDeviceRegistration();
+        final String value;
+        if (gateway != null) {
+            value = gateway.getHardwareId();
+        } else {
+            value = null;
+        }
+        return value;
+    }
+
+    private DeviceRegistration getGatewayDeviceRegistration() {
+        final String gatewayKey = generateRegistrationKey(null, "gateway", new HashMap<>());
+        final DeviceRegistration gateway = getRegisteredHWIds().get(gatewayKey);
+        return gateway;
     }
 
     private static class RequiredParams {
@@ -617,6 +658,16 @@ public class BWGProcessor extends MQTTCommandProcessor {
             }
         }
         return false;
+    }
+
+    private void setupWebServer(Properties props) {
+        try {
+            this.webServer = new WebServer(props, this);
+            // FIXME when shall webServer start/stop methods be called?
+        } catch (final Exception e) {
+            LOGGER.error("Could not instantiate web serwer", e);
+            throw Throwables.propagate(e);
+        }
     }
 
     private void setUpRS485() {

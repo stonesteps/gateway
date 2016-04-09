@@ -5,7 +5,6 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -79,7 +78,9 @@ public final class BwgHelper {
         return builder.build();
     }
 
-    public static Bwg.Downlink.Model.SpaRegistrationResponse buildSpaRegistrationResponse(final Bwg.Downlink.Model.RegistrationAckState state, final String p2pAPSSID, final String p2pAPPassword) {
+    public static Bwg.Downlink.Model.SpaRegistrationResponse buildSpaRegistrationResponse(
+            final Bwg.Downlink.Model.RegistrationAckState state,
+            final String p2pAPSSID, final String p2pAPPassword, final String regKey) {
         final Bwg.Downlink.Model.SpaRegistrationResponse.Builder builder = Bwg.Downlink.Model.SpaRegistrationResponse.newBuilder();
         builder.setState(state);
         if (p2pAPSSID != null) {
@@ -87,6 +88,9 @@ public final class BwgHelper {
         }
         if (p2pAPPassword != null) {
             builder.setP2PAPPassword(p2pAPPassword);
+        }
+        if (regKey != null) {
+            builder.setRegKey(regKey);
         }
 
         return builder.build();

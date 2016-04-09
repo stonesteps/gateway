@@ -34,7 +34,7 @@ public class MockProcessorTest {
         mockGatewayEventDispatcher = mock(GatewayEventDispatcher.class);
 
         mockProcessor = new MockProcessor();
-        mockProcessor.init(props);
+        mockProcessor.handleStartup("1234", props, "./", null);
         mockProcessor.setEventDispatcher(mockGatewayEventDispatcher);
     }
 

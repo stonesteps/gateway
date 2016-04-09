@@ -422,6 +422,8 @@ message Downlink {
             optional string errorMessage = 3;
             optional string p2pAPSSID = 4;
             optional string p2pAPPassword = 5;
+            optional string regKey = 6;
+            optional string regUserId = 7;
         }
 
         enum RequestType {
