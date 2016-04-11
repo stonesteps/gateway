@@ -77,6 +77,23 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         if (spaId != null) {
             registeredSpa.setHardwareId(spaId);
         }
+        final String apSSID = props.getProperty("mock.apSSID");
+        if (apSSID != null) {
+            registeredSpa.getMeta().put("apSSID", apSSID);
+        }
+        final String apPassword = props.getProperty("mock.apPassword");
+        if (apPassword != null) {
+            registeredSpa.getMeta().put("apPassword", apPassword);
+        }
+        final String regKey = props.getProperty("mock.regKey");
+        if (regKey != null) {
+            registeredSpa.getMeta().put("regKey", regKey);
+        }
+        final String regUserId = props.getProperty("mock.regUserId");
+        if (regUserId != null) {
+            registeredSpa.getMeta().put("regUserId", regUserId);
+        }
+
         final String controllerId = props.getProperty("mock.controllerId");
         if (controllerId != null) {
             registeredController.setHardwareId(controllerId);

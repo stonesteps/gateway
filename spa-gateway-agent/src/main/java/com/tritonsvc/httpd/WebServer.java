@@ -14,6 +14,7 @@ import javax.net.ssl.SSLContext;
 import java.net.InetSocketAddress;
 import java.security.KeyStore;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by holow on 4/6/2016.
@@ -48,6 +49,13 @@ public class WebServer {
         server.createContext("/networkSettings", networkSettingsHandler);
         server.createContext("/registerUserToSpa", registerUserToSpaHandler);
         server.setExecutor(null);
+
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                WebServer.this.stop();
+            }
+        });
     }
 
     private HttpsConfigurator getHttpsConfigurator() throws Exception {
