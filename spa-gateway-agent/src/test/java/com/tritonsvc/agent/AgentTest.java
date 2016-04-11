@@ -92,7 +92,13 @@ public class AgentTest {
      * openssl x509 -req -in gateway.csr -CA ca_root_cert.pem -CAkey ca_root_key.pem -CAcreateserial -out gateway_cert.pem -days 18250 -sha256 -addtrust clientAuth
      * openssl pkcs8 -topk8 -inform PEM -outform DER -in gateway_key.pem -out gateway_key.pkcs8 -nocrypt
      *
+     * some mqtt broker's require the certs/keys to be in a keystore file:
+     * Create PKCS12 keystore from private key and public certificate.
+     * openssl pkcs12 -export -name brokercert -in broker_cert.pem -inkey broker_key.pem -out broker_keystore.p12
+     * Convert PKCS12 keystore into a JKS keystore
+     * keytool -importkeystore -destkeystore broker_ssl.jks -srckeystore broker_keystore.p12 -srcstoretype pkcs12 -alias brokercert
      *
+     * keytool -import -trustcacerts -alias root -file ca_root.cert.pem -keystore broker_ssl.jks
      *
      */
 
