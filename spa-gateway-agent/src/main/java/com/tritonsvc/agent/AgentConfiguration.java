@@ -15,11 +15,8 @@ public interface AgentConfiguration {
 	/** Property for MQTT hostname */
 	public static final String MQTT_HOSTNAME = "mqtt.hostname";
 
-	/** Property for MQTT port */
-	public static final String MQTT_PORT = "mqtt.port";
-
 	/** Property for MQTT username */
-	public static final String MQTT_USERNAME = "mqtt.userName";
+	public static final String MQTT_USERNAME = "mqtt.username";
 
     /** Property for MQTT password */
     public static final String MQTT_PASSWORD = "mqtt.password";

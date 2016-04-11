@@ -18,10 +18,20 @@ import org.fusesource.mqtt.client.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.net.URISyntaxException;
+import java.security.KeyFactory;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,9 +49,13 @@ public class Agent {
 
     /** Default filename for configuration properties */
     private static final String DEFAULT_CONFIG_FILENAME = "config.properties";
+    static final String CA_ROOT_PUBKEY_FILE = "ca_root_cert.pem";
+    static final String GATEWAY_PUBKEY_FILE = "gateway_cert.pem";
+    static final String GATEWAY_PRIVKEY_FILE = "gateway_key.pkcs8";
 
 	/** Defaults*/
 	private static final int DEFAULT_MQTT_PORT = 1883;
+    private static final int DEFAULT_MQTTS_PORT = 8883;
     private static final short DEFAULT_MQTT_KEEPALIVE = 30;
     private static final String DEFAULT_MQTT_HOSTNAME = "localhost";
 
@@ -99,6 +113,13 @@ public class Agent {
     /** BWGProcessor instance **/
     private AgentMessageProcessor processor;
 
+    /** pki **/
+    private SSLContext sslContext;
+    private X509Certificate caRoot;
+    private X509Certificate gatewayPublic;
+    private PrivateKey gatewayPrivate;
+
+
 	/**
 	 * Start the agent.
      *
@@ -111,9 +132,17 @@ public class Agent {
 		this.mqttSub = createMQTT();
         this.mqttPub = createMQTT();
 		try {
-            mqttSub.setHost(mqttHostname, mqttPort);
+            obtainPKIArtifacts(homePath);
+            if (sslContext != null) {
+                mqttPort = DEFAULT_MQTTS_PORT;
+                LOGGER.info("server ssl being used, mqtt port will be {}", mqttPort);
+            }
+
+            //tcp://host:port or tls://host:port
+            mqttSub.setHost( getProtocolPrefix() + mqttHostname + ":" + mqttPort);
             mqttSub.setCleanSession(true);
             mqttSub.setKeepAlive(mqttKeepaliveSeconds);
+            mqttSub.setSslContext(sslContext);
 
             // set up the mqtt broker connection health logger
             if (MQTT_TRACE_LOGGER.isDebugEnabled()) {
@@ -125,9 +154,10 @@ public class Agent {
                 });
             }
 
-            mqttPub.setHost(mqttHostname, mqttPort);
+            mqttPub.setHost(getProtocolPrefix() + mqttHostname + ":" + mqttPort);
             mqttPub.setCleanSession(true);
             mqttPub.setKeepAlive(mqttKeepaliveSeconds);
+            mqttPub.setSslContext(sslContext);
 
             // set up the mqtt broker connection health logger
             if (MQTT_TRACE_LOGGER.isDebugEnabled()) {
@@ -139,16 +169,16 @@ public class Agent {
                 });
             }
 
-            if (mqttUsername != null) {
+            if (gatewayPublic == null && mqttUsername != null) {
                 mqttSub.setUserName(mqttUsername);
                 mqttPub.setUserName(mqttUsername);
             }
-            if (mqttPassword != null) {
+            if (gatewayPublic == null && mqttPassword != null) {
                 mqttSub.setPassword(mqttPassword);
                 mqttPub.setPassword(mqttPassword);
             }
 
-		} catch (URISyntaxException e) {
+		} catch (Exception e) {
 			throw Throwables.propagate(e);
 		}
 		LOGGER.info("Connecting to MQTT broker at '" + mqttHostname + ":" + mqttPort + "'...");
@@ -171,6 +201,7 @@ public class Agent {
         processor.setConfigProps(props);
         processor.setHomePath(homePath);
         processor.setEventDispatcher(outbound);
+        processor.setPKI(gatewayPublic, gatewayPrivate);
 
 		// Create inbound message processing thread.
 		inbound = new MQTTInbound(subConnection, inboundTopic, processor);
@@ -186,6 +217,75 @@ public class Agent {
 
 		LOGGER.info("BWG agent started.");
 	}
+
+    private void obtainPKIArtifacts(String homePath) {
+        File caRootCert = new File(homePath + File.separator + CA_ROOT_PUBKEY_FILE);
+        File gatewayPubCert = new File(homePath + File.separator + GATEWAY_PUBKEY_FILE);
+        File gatewayPrivKey = new File(homePath + File.separator + GATEWAY_PRIVKEY_FILE);
+        KeyStore ks;
+        TrustManagerFactory tmf;
+        CertificateFactory fact;
+        KeyManagerFactory kmf = null;
+
+        if (!caRootCert.exists()) {
+            return;
+        }
+
+        try (FileInputStream isRoot = new FileInputStream(caRootCert)) {
+            ks = KeyStore.getInstance(KeyStore.getDefaultType());
+            ks.load(null);
+            tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            fact = CertificateFactory.getInstance("X.509");
+
+            caRoot = (X509Certificate) fact.generateCertificate(isRoot);
+            ks.setCertificateEntry("caRoot", caRoot);
+            tmf.init(ks);
+            LOGGER.info("found ca_root_cert.pem, will use ssl to broker");
+        } catch (Exception ex) {
+            LOGGER.error("problem loading server crypto, will skip any crypto setup", ex);
+            caRoot = null;
+            return;
+        }
+
+        if (gatewayPubCert.exists() && gatewayPrivKey.exists()) {
+            try (FileInputStream isGateway = new FileInputStream(gatewayPubCert);
+                 DataInputStream is = new DataInputStream(new FileInputStream(gatewayPrivKey))) {
+
+                kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+                gatewayPublic = (X509Certificate) fact.generateCertificate(isGateway);
+                DataInputStream dis = new DataInputStream(is);
+                byte[] keyBytes = new byte[(int) gatewayPrivKey.length()];
+                dis.readFully(keyBytes);
+
+                PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+                KeyFactory kf = KeyFactory.getInstance("RSA");
+                gatewayPrivate = kf.generatePrivate(spec);
+                ks.setKeyEntry("gateway", gatewayPrivate, "bwgkey".toCharArray(), new Certificate[]{gatewayPublic});
+                kmf.init(ks, "bwgkey".toCharArray());
+                LOGGER.info("found gateway_cert.pem and gateway_key.pkcs8, will submit as client in ssl handshake");
+            } catch (Exception ex) {
+                gatewayPublic = null;
+                gatewayPrivate = null;
+                kmf = null;
+                LOGGER.error("problem loading client crypto, will skip", ex);
+            }
+        }
+
+        try {
+            sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(kmf != null ? kmf.getKeyManagers() : null, tmf.getTrustManagers(), new java.security.SecureRandom());
+        } catch (Exception ex) {
+            LOGGER.error("unable to create SSL Context", ex);
+            sslContext = null;
+            caRoot = null;
+            gatewayPublic = null;
+            gatewayPrivate = null;
+        }
+    }
+
+    private String getProtocolPrefix() {
+        return (sslContext != null ? "tls://" : "tcp://");
+    }
 
     private Properties loadProperties(String homePath) {
         String propsFile;
@@ -391,10 +491,11 @@ public class Agent {
 
 		// Validate MQTT hostname.
 		mqttHostname = properties.getProperty(AgentConfiguration.MQTT_HOSTNAME);
+        mqttPort = DEFAULT_MQTT_PORT;
 		if (mqttHostname == null) {
 			mqttHostname = DEFAULT_MQTT_HOSTNAME;
 		}
-        LOGGER.info("Using MQTT hostname: " + DEFAULT_MQTT_HOSTNAME);
+        LOGGER.info("Using MQTT host: {}, {}", mqttHostname, mqttPort);
 
         // Validate MQTT username.
         mqttUsername = properties.getProperty(AgentConfiguration.MQTT_USERNAME);
@@ -405,11 +506,7 @@ public class Agent {
         if (mqttPassword != null && mqttPassword.trim().length() < 1) {
             mqttPassword = null;
         }
-        LOGGER.info("Using MQTT username: " + DEFAULT_MQTT_HOSTNAME);
-
-		// Validate MQTT port.
-        mqttPort = Ints.tryParse(properties.getProperty(AgentConfiguration.MQTT_PORT,"")) != null ?
-                Ints.tryParse(properties.getProperty(AgentConfiguration.MQTT_PORT)) : DEFAULT_MQTT_PORT;
+        LOGGER.info("Using MQTT username: " + mqttUsername);
 
         mqttKeepaliveSeconds = Ints.tryParse(properties.getProperty(AgentConfiguration.MQTT_KEEPALIVE,"")) != null ?
                 Ints.tryParse(properties.getProperty(AgentConfiguration.MQTT_KEEPALIVE)).shortValue() : DEFAULT_MQTT_KEEPALIVE;
