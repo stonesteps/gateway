@@ -1,5 +1,7 @@
 package com.tritonsvc.agent;
 
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.Properties;
 
 /**
@@ -47,5 +49,13 @@ public interface AgentMessageProcessor {
      * @param dispatcher
      */
     void setEventDispatcher(GatewayEventDispatcher dispatcher);
+
+    /**
+     * Set the pki files for gateway
+     *
+     * @param publicCert
+     * @param privateKey
+     */
+    void setPKI(X509Certificate publicCert, PrivateKey privateKey);
 
 }

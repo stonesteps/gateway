@@ -34,26 +34,29 @@ If you want to just simulate mock data and are not connecting to a real Spa cont
 then in config.properties, make sure to specify:
 command.processor.classname=com.tritonsvc.gateway.MockProcessor
 
+If you need to connect to a mqtt broker that is on ssl and requires client certificates.
+then copy ca_root_cert.pem(the public ca root cert that broker's server cert is signed with) and custom key pair files 
+for this gateway instance as a client(gateway_cert.pem and gateway_key.pkcs8) to 'gateway_agent' directory also.
+
 
 Optional - If wanting to run agent from IDE, define run/debug launch config for AgentLoader.java and set Program Arguments to have one argument
 which should be set to the 'gateway_agent' directory specified as full path, now execute AgentLoader.
 
 
-Using standalone built jar: 
+Using build: 
 run mvn clean install from 'spa' directory
 
 
-this will create spa/spa-gateway-agent/target/spa-gateway-agent-0.0.1-SNAPSHOT.jar
+this will create spa/spa-gateway-agent/target/bwg-gateway-agent
 
 
 To kick off the agent as configured for MockProcessor from 'spa' directory:
-java -jar spa-gateway-agent/target/spa-gateway-agent-0.0.1-SNAPSHOT.jar <gateway_agent directory path>
+java -jar spa-gateway-agent/target/bwg-gateway-agent <gateway_agent directory path>
 
 
-To kick off the agent as configured for BWGProcessor from 'spa' directory, which will attempt to make real rs485 connection on 
-serial port configured in config.properties(requires armv7 processor):
-java -Djava.library.path=<gateway_agent directory path> -Djava.security.policy=<gateway_agent directory path>/dio.policy -jar spa-gateway-agent-0.0.1-SNAPSHOT.jar
-
+To kick off the agent as configured for BWGProcessor, which will attempt to make real rs485 connection on 
+serial port configured in config.properties(requires running on linux with armv7 processor):
+./bwg-gateway-agent [start|stop|status]
 
 You should see log activity in 'gateway_agent'/logs/bwg.log. The MockProcessor will push
 a gateway and controller registration message onto MQTT topic 'BWG/spa/uplink' and later some

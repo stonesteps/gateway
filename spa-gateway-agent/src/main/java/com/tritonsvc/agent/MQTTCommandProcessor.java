@@ -18,8 +18,12 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
@@ -42,6 +46,8 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
     private GatewayEventDispatcher eventDispatcher;
     private int controllerUpdateInterval = 3;
     private final ScheduledExecutorService scheduledExecutorService =  new ScheduledThreadPoolExecutor(3);
+    private X509Certificate publicCert;
+    private PrivateKey privateKey;
 
     protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId);
     protected abstract void handleSpaRegistrationAck(SpaRegistrationResponse response, String originatorId, String hardwareId);
@@ -128,6 +134,28 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
     @Override
     public void setEventDispatcher(GatewayEventDispatcher eventDispatcher) {
         this.eventDispatcher = eventDispatcher;
+    }
+
+    @Override
+    public void setPKI(X509Certificate publicCert, PrivateKey privateKey) {
+        this.publicCert = publicCert;
+        this.privateKey = privateKey;
+        if (publicCert == null) {
+            return;
+        }
+
+        // override the gw serial number with cert's CN
+        String dn = null;
+        try {
+            dn = publicCert.getSubjectX500Principal().getName();
+            LdapName ldapDN = new LdapName(dn);
+            ldapDN.getRdns()
+                    .stream()
+                    .filter( rdn -> rdn.getType().equalsIgnoreCase("CN"))
+                    .map(rdn -> this.gwSerialNumber = rdn.getValue().toString());
+        } catch (Exception ex) {
+            LOGGER.error("unable to extract CN from gateway certificate DN {}", dn);
+        }
     }
 
     /**
