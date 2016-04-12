@@ -76,7 +76,7 @@ public class LightStateUpdateIT {
     }
 
     @Test
-    public void processHeaterCommand() throws Exception {
+    public void setLightState() throws Exception {
         // wait for spa to be created
         Thread.sleep(15000);
 

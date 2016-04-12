@@ -117,7 +117,7 @@ public class SpaRegisterIT {
     }
 
     @Test
-    public void processHeaterCommand() throws Exception {
+    public void checkRegistration() throws Exception {
         // wait for spa to be created and configured
         Thread.sleep(3000);
 
