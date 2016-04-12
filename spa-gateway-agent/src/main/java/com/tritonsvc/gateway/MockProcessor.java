@@ -4,8 +4,11 @@
  */
 package com.tritonsvc.gateway;
 
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.tritonsvc.agent.MQTTCommandProcessor;
+import com.tritonsvc.httpd.RegistrationInfoHolder;
+import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
@@ -26,7 +29,7 @@ import static com.google.common.collect.Maps.newHashMap;
  * temperature data
  *
  */
-public class MockProcessor extends MQTTCommandProcessor {
+public class MockProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
 	private static Logger LOGGER = LoggerFactory.getLogger(MockProcessor.class);
     private DeviceRegistration registeredSpa = new DeviceRegistration();
@@ -36,15 +39,51 @@ public class MockProcessor extends MQTTCommandProcessor {
     private String gwSerialNumber;
 
     private MockSpaStateHolder spaStateHolder = null;
+    private WebServer webServer = null;
 
     @Override
-    public void init(final Properties props) {
+    public void handleShutdown() {
+        spaStateHolder.shutdown();
+        webServer.stop();
+    }
+
+	@Override
+	public void handleStartup(String hardwareId, Properties configProps, String homePath, ScheduledExecutorService executorService) {
+        init(configProps);
+        setupWebServer(configProps);
+        this.gwSerialNumber = hardwareId;
+        if (registeredSpa.getHardwareId() == null) {
+            sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
+            LOGGER.info("Sent registration information.");
+        } else {
+            LOGGER.info("Spa already registered.");
+        }
+	}
+
+    private void init(final Properties props) {
         spaStateHolder = new MockSpaStateHolder(props);
 
         final String spaId = props.getProperty("mock.spaId");
         if (spaId != null) {
             registeredSpa.setHardwareId(spaId);
         }
+        final String apSSID = props.getProperty("mock.apSSID");
+        if (apSSID != null) {
+            registeredSpa.getMeta().put("apSSID", apSSID);
+        }
+        final String apPassword = props.getProperty("mock.apPassword");
+        if (apPassword != null) {
+            registeredSpa.getMeta().put("apPassword", apPassword);
+        }
+        final String regKey = props.getProperty("mock.regKey");
+        if (regKey != null) {
+            registeredSpa.getMeta().put("regKey", regKey);
+        }
+        final String regUserId = props.getProperty("mock.regUserId");
+        if (regUserId != null) {
+            registeredSpa.getMeta().put("regUserId", regUserId);
+        }
+
         final String controllerId = props.getProperty("mock.controllerId");
         if (controllerId != null) {
             registeredController.setHardwareId(controllerId);
@@ -55,21 +94,15 @@ public class MockProcessor extends MQTTCommandProcessor {
         }
     }
 
-    @Override
-    public void handleShutdown() {
-        spaStateHolder.shutdown();
-    }
-
-	@Override
-	public void handleStartup(String hardwareId, Properties configProps, String homePath, ScheduledExecutorService executorService) {
-        this.gwSerialNumber = hardwareId;
-        if (registeredSpa.getHardwareId() == null) {
-            sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
-            LOGGER.info("Sent registration information.");
-        } else {
-            LOGGER.info("Spa already registered.");
+    private void setupWebServer(Properties props) {
+        try {
+            this.webServer = new WebServer(props, this);
+            this.webServer.start();
+        } catch (final Exception e) {
+            LOGGER.error("Could not instantiate web serwer", e);
+            throw Throwables.propagate(e);
         }
-	}
+    }
 
     @Override
 	public void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId) {
@@ -100,8 +133,10 @@ public class MockProcessor extends MQTTCommandProcessor {
 
         if (originatorId.equals("spa_originatorid")) {
             registeredSpa.setHardwareId(hardwareId);
-            registeredSpa.getMeta().put("apSSID", response.getP2PAPSSID());
-            registeredSpa.getMeta().put("apPassword", response.getP2PAPPassword());
+            registeredSpa.getMeta().put("apSSID", response.hasP2PAPSSID() ? response.getP2PAPPassword() : null);
+            registeredSpa.getMeta().put("apPassword", response.hasP2PAPPassword() ? response.getP2PAPPassword() : null);
+            registeredSpa.getMeta().put("regKey", response.hasRegKey() ? response.getRegKey() : null);
+            registeredSpa.getMeta().put("regUserId", response.hasRegUserId() ? response.getRegUserId() : null);
             LOGGER.info("received spa registration success for originator {} on hardwareid {} ", originatorId, hardwareId);
         }
 
@@ -262,5 +297,20 @@ public class MockProcessor extends MQTTCommandProcessor {
         sendSpaState(registeredSpa.getHardwareId(), spaStateHolder.buildSpaState());
 
         LOGGER.info("Sent harvest periodic reports");
+    }
+
+    @Override
+    public String getRegKey() {
+        return registeredSpa.getMeta().get("regKey");
+    }
+
+    @Override
+    public String getRegUserId() {
+        return registeredSpa.getMeta().get("regUserId");
+    }
+
+    @Override
+    public String getSpaId() {
+        return registeredSpa.getHardwareId();
     }
 }

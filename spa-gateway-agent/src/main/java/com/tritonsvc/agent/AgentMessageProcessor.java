@@ -48,10 +48,4 @@ public interface AgentMessageProcessor {
      */
     void setEventDispatcher(GatewayEventDispatcher dispatcher);
 
-    /**
-     * Initializes processor with properties.
-     *
-     * @param props
-     */
-    void init(Properties props);
 }

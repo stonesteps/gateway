@@ -62,7 +62,7 @@ public class LightStateUpdateIT {
                     agent = new Agent();
                     agent.start(agentFolder.getAbsolutePath());
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    log.error("Error starting up the agent");
                 }
             }
         }).start();
@@ -76,7 +76,7 @@ public class LightStateUpdateIT {
     }
 
     @Test
-    public void processHeaterCommand() throws Exception {
+    public void setLightState() throws Exception {
         // wait for spa to be created
         Thread.sleep(15000);
 
