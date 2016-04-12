@@ -108,7 +108,7 @@ public class Agent {
 	private MQTTInbound inbound;
 
 	/** Used to execute MQTT inbound in separate thread */
-	private ExecutorService executor = Executors.newSingleThreadExecutor();
+	private ExecutorService executor;
 
     /** BWGProcessor instance **/
     private AgentMessageProcessor processor;
@@ -210,7 +210,7 @@ public class Agent {
 		Runtime.getRuntime().addShutdownHook(new ShutdownHandler());
 
 		// Starts inbound processing loop in a separate thread.
-		executor.execute(inbound);
+        getInboundExecutor().execute(inbound);
 
 		// Executes any custom startup logic.
 		processor.executeStartup();
@@ -316,6 +316,14 @@ public class Agent {
 			throw Throwables.propagate(e);
 		}
 	}
+
+    @VisibleForTesting
+    ExecutorService getInboundExecutor() {
+        if (executor == null) {
+            executor = Executors.newSingleThreadExecutor();
+        }
+        return executor;
+    }
 
     @VisibleForTesting
     MQTT createMQTT() {

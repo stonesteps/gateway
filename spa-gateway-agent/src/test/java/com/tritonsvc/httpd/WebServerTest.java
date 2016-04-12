@@ -28,7 +28,7 @@ public class WebServerTest extends WebServerTestBase {
     private static WebServer webServer;
     private static BaseRegistrationInfoHolder registrationInfoHolder;
 
-    //@BeforeClass
+    @BeforeClass
     public static void init() throws Exception {
         final Properties props = new Properties();
         props.setProperty("webServer.port", "8001");
@@ -39,12 +39,11 @@ public class WebServerTest extends WebServerTestBase {
         webServer.start();
     }
 
-    //@AfterClass
+    @AfterClass
     public static void cleanup() {
         webServer.stop();
     }
 
-    @Ignore
     @Test
     public void setAndGetNetworkSettings() throws Exception {
         final ObjectMapper objectMapper = new ObjectMapper();
@@ -79,7 +78,6 @@ public class WebServerTest extends WebServerTestBase {
         Assert.assertEquals(WifiSecurity.WPA2, saved.getWifi().getSecurity());
     }
 
-    @Ignore
     @Test
     public void testRegisterUserToSpaNotInCloud() throws Exception {
         registrationInfoHolder.setSpaId(null);
@@ -98,7 +96,6 @@ public class WebServerTest extends WebServerTestBase {
         Assert.assertEquals("Spa not registered to cloud", registerUserResponse.getErrorMessage());
     }
 
-    @Ignore
     @Test
     public void testRegisterUserToSpaSpaInCloudUserRegistered() throws Exception {
         registrationInfoHolder.setSpaId("1");
@@ -117,7 +114,6 @@ public class WebServerTest extends WebServerTestBase {
         Assert.assertEquals("Spa already registered to User", registerUserResponse.getErrorMessage());
     }
 
-    @Ignore
     @Test
     public void testRegisterUserToSpaInCloudUserNotRegistered() throws Exception {
         registrationInfoHolder.setSpaId("1");
