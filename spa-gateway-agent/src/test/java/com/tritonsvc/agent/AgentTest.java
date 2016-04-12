@@ -17,7 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
-import java.util.Properties;
+import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
@@ -51,6 +51,9 @@ public class AgentTest {
         subConnection = mock(BlockingConnection.class);
         pubConnection = mock(BlockingConnection.class);
         doReturn(processor).when(agent).createProcessor();
+        // do not want a real thread executor getting into Agent during test,
+        // it will result in mqtt listener getting in tight loop and OOM
+        doReturn(mock(ExecutorService.class)).when(agent).getInboundExecutor();
         doReturn(mqttSub).doReturn(mqttPub).when(agent).createMQTT();
         when(mqttSub.blockingConnection()).thenReturn(subConnection);
         when(mqttPub.blockingConnection()).thenReturn(pubConnection);
@@ -118,7 +121,6 @@ public class AgentTest {
         verify(mqttSub).setHost(eq("tls://localhost:8883"));
         verify(mqttPub).setHost(eq("tls://localhost:8883"));
 
-        ArgumentCaptor<X509Certificate> certCaptor = ArgumentCaptor.forClass(X509Certificate.class);
         verify(processor).setPKI(isNull(X509Certificate.class), isNull(PrivateKey.class));
     }
 
