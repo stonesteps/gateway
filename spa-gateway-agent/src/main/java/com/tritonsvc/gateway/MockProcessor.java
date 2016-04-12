@@ -230,19 +230,16 @@ public class MockProcessor extends MQTTCommandProcessor {
 
         if (registeredSpa.getHardwareId() == null) {
             sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(),"spa_originatorid");
-            LOGGER.info("resent spa gateway registration");
             return;
         }
 
         if (registeredController.getHardwareId() == null) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "controller", newHashMap(),"controller_originatorid");
-            LOGGER.info("resent controller registration");
             return;
         }
 
         if (registeredMote.getHardwareId() == null) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockMAC"),"mote_originatorid");
-            LOGGER.info("resent mote registration");
             return;
         }
 

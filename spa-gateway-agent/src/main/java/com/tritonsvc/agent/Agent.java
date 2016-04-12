@@ -253,9 +253,8 @@ public class Agent {
 
                 kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
                 gatewayPublic = (X509Certificate) fact.generateCertificate(isGateway);
-                DataInputStream dis = new DataInputStream(is);
                 byte[] keyBytes = new byte[(int) gatewayPrivKey.length()];
-                dis.readFully(keyBytes);
+                is.readFully(keyBytes);
 
                 PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
                 KeyFactory kf = KeyFactory.getInstance("RSA");

@@ -120,12 +120,16 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
-		<testResources>
-			<testResource>
-				<directory>${project.basedir}/src/test/resources</directory>
+		<resources>
+			<resource>
 				<filtering>true</filtering>
-			</testResource>
-		</testResources>
+				<directory>src/test/resources</directory>
+				<excludes>
+					<exclude>**/*.pkcs8</exclude>
+					<exclude>**/*.pem</exclude>
+				</excludes>
+			</resource>
+		</resources>
 	</build>
 
 </project>
