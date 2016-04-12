@@ -44,7 +44,10 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     @Override
     public void handleShutdown() {
         spaStateHolder.shutdown();
-        webServer.stop();
+
+        if (webServer != null) {
+            webServer.stop();
+        }
     }
 
 	@Override
@@ -97,7 +100,9 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private void setupWebServer(Properties props) {
         try {
             this.webServer = new WebServer(props, this);
-            this.webServer.start();
+            if ("true".equalsIgnoreCase(props.getProperty("mock.webServer.runOnStart"))) {
+                this.webServer.start();
+            }
         } catch (final Exception e) {
             LOGGER.error("Could not instantiate web serwer", e);
             throw Throwables.propagate(e);
