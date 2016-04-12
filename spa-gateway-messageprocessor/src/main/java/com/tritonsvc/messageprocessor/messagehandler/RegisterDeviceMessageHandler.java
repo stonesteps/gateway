@@ -35,6 +35,9 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
     private static final String DEVICE_TYPE_CONTROLLER = "controller";
     private static final String DEVICE_TYPE_MOTE = "mote";
 
+    private static final String PREFIX_P2PAPSSID = "BWG_SPA_";
+    private static final String DEFAULT_P2PAP_PASSWORD = "";
+
     @Autowired
     private MqttSendService mqttSendService;
 
@@ -76,7 +79,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
 
         if (StringUtils.isEmpty(serialNumber)) {
             try {
-                final SpaRegistrationResponse registrationResponse = BwgHelper.buildSpaRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR, null, null);
+                final SpaRegistrationResponse registrationResponse = BwgHelper.buildSpaRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR, null, null, null, null);
                 mqttSendService.sendMessage(downlinkTopic, BwgHelper.buildDownlinkMessage(header.getOriginator(), "invalid", DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
             } catch (Exception e) {
                 log.error("Error while sending downlink gateway registration message", e);
@@ -107,16 +110,27 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
 
         Spa spa = (gatewayComponent.getSpaId() != null ? spaRepository.findOne(gatewayComponent.getSpaId()) : null);
 
+        boolean save = false;
         if (spa == null) {
             log.info("Creating new spa object");
             spa = new Spa();
             spa.setSerialNumber(serialNumber);
+            save = true;
         }
 
         if (spa.getRegistrationDate() == null || spa.getP2pAPPassword() == null || spa.getP2pAPSSID() == null) {
             spa.setRegistrationDate(regTimestamp);
-            spa.setP2pAPPassword(generateRandomString());
-            spa.setP2pAPSSID(generateRandomString());
+            spa.setP2pAPSSID(generateP2pAPSSID(serialNumber));
+            spa.setP2pAPPassword(DEFAULT_P2PAP_PASSWORD);
+            save = true;
+        }
+
+        if (spa.getRegKey() == null) {
+            spa.setRegKey(generateRandomString(16));
+            save = true;
+        }
+
+        if (save) {
             spaRepository.save(spa);
         }
 
@@ -126,16 +140,23 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         }
 
         try {
-            final SpaRegistrationResponse registrationResponse = BwgHelper.buildSpaRegistrationResponse(dirtyGateway ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED, spa.getP2pAPSSID(), spa.getP2pAPPassword());
-            mqttSendService.sendMessage(downlinkTopic, BwgHelper.buildDownlinkMessage(header.getOriginator(), spa.get_id(), DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
+            final SpaRegistrationResponse registrationResponse = BwgHelper.buildSpaRegistrationResponse(
+                    dirtyGateway ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED,
+                    spa.getP2pAPSSID(), spa.getP2pAPPassword(), spa.getRegKey(), spa.getOwner() != null ? spa.getOwner().get_id() : null);
+            mqttSendService.sendMessage(downlinkTopic, BwgHelper.buildDownlinkMessage(
+                    header.getOriginator(), spa.get_id(), DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
             log.info("sent spa registration response {} {}", spa.get_id(), serialNumber);
         } catch (Exception e) {
             log.error("Error while sending downlink message", e);
         }
     }
 
-    private String generateRandomString() {
-        return StringUtil.randomString(32);
+    private String generateP2pAPSSID(final String serialNumber) {
+        return new StringBuilder(PREFIX_P2PAPSSID).append(serialNumber).toString();
+    }
+
+    private String generateRandomString(final int length) {
+        return StringUtil.randomString(length);
     }
 
     private void handleControllerRegistration(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final RegisterDevice registerDeviceMessage) {

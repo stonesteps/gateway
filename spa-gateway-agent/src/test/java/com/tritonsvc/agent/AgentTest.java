@@ -50,7 +50,7 @@ public class AgentTest {
         mqttPub = mock(MQTT.class);
         subConnection = mock(BlockingConnection.class);
         pubConnection = mock(BlockingConnection.class);
-        doReturn(processor).when(agent).createProcessor(any(Properties.class));
+        doReturn(processor).when(agent).createProcessor();
         doReturn(mqttSub).doReturn(mqttPub).when(agent).createMQTT();
         when(mqttSub.blockingConnection()).thenReturn(subConnection);
         when(mqttPub.blockingConnection()).thenReturn(pubConnection);

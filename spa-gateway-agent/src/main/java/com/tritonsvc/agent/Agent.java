@@ -196,7 +196,7 @@ public class Agent {
 		outbound = new MQTTOutbound(pubConnection, outboundTopic);
 
 		// Create an instance of the command processor.
-        processor = createProcessor(props);
+        processor = createProcessor();
 		processor.setGwSerialNumber(gwSerialNumber);
         processor.setConfigProps(props);
         processor.setHomePath(homePath);
@@ -307,13 +307,10 @@ public class Agent {
     }
 
     @VisibleForTesting
-    AgentMessageProcessor createProcessor(Properties props) {
+    AgentMessageProcessor createProcessor() {
 		try {
 			Class<?> clazz = Class.forName(commandProcessorClassname);
 			AgentMessageProcessor processor = (AgentMessageProcessor) clazz.newInstance();
-            if (props != null) {
-                processor.init(props);
-            }
 			return processor;
 		} catch (Exception e) {
 			throw Throwables.propagate(e);

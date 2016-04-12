@@ -58,10 +58,4 @@ public interface AgentMessageProcessor {
      */
     void setPKI(X509Certificate publicCert, PrivateKey privateKey);
 
-    /**
-     * Initializes processor with properties.
-     *
-     * @param props
-     */
-    void init(Properties props);
 }
