@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tritonsvc.httpd.model.NetworkSettings;
 import com.tritonsvc.httpd.model.RegisterUserResponse;
 import com.tritonsvc.httpd.model.Wifi;
+import com.tritonsvc.httpd.model.WifiSecurity;
 import org.junit.*;
 
 import javax.net.ssl.*;
@@ -60,7 +61,7 @@ public class WebServerTest extends WebServerTestBase {
         final Wifi wifi = new Wifi();
         wifi.setSsid("spa001");
         wifi.setPassword("passwd");
-        wifi.setSecurity("WPA2");
+        wifi.setSecurity(WifiSecurity.WPA2);
         networkSettings.setWifi(wifi);
 
         final URL url = new URL("https://localhost:8000/networkSettings");
@@ -84,7 +85,7 @@ public class WebServerTest extends WebServerTestBase {
         Assert.assertNull(saved.getEthernet());
         Assert.assertEquals("spa001", saved.getWifi().getSsid());
         Assert.assertEquals("passwd", saved.getWifi().getPassword());
-        Assert.assertEquals("WPA2", saved.getWifi().getSecurity());
+        Assert.assertEquals(WifiSecurity.WPA2, saved.getWifi().getSecurity());
     }
 
     @Test

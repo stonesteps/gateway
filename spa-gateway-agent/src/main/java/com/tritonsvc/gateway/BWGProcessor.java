@@ -77,8 +77,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.gwSerialNumber = gwSerialNumber;
         this.configProps = configProps;
         this.homePath = homePath;
+        this.webServer = new WebServer(configProps, this);
 
-        setupWebServer(configProps);
         setUpRS485();
         validateOidProperties();
         obtainSpaRegistration();
@@ -658,16 +658,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             }
         }
         return false;
-    }
-
-    private void setupWebServer(Properties props) {
-        try {
-            this.webServer = new WebServer(props, this);
-            // FIXME when shall webServer start/stop methods be called?
-        } catch (final Exception e) {
-            LOGGER.error("Could not instantiate web serwer", e);
-            throw Throwables.propagate(e);
-        }
     }
 
     private void setUpRS485() {

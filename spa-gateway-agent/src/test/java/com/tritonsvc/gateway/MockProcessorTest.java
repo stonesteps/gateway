@@ -3,6 +3,7 @@ package com.tritonsvc.gateway;
 import com.tritonsvc.agent.GatewayEventDispatcher;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentMatcher;
@@ -36,6 +37,12 @@ public class MockProcessorTest {
         mockProcessor = new MockProcessor();
         mockProcessor.handleStartup("1234", props, "./", null);
         mockProcessor.setEventDispatcher(mockGatewayEventDispatcher);
+    }
+    @After
+    public void cleanup() {
+        if (mockProcessor != null) {
+            mockProcessor.handleShutdown();
+        }
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.tritonsvc.httpd.handler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
@@ -57,6 +58,8 @@ public class RegisterUserToSpaHandler implements HttpHandler {
     private void writeResponse(final HttpExchange httpExchange, final RegisterUserResponse response) throws IOException {
         final String responseStr = mapper.writeValueAsString(response);
 
+        final Headers responseHeaders = httpExchange.getResponseHeaders();
+        responseHeaders.set("Content-Type", "application/json");
         httpExchange.sendResponseHeaders(200, responseStr.length());
         try (final OutputStream os = httpExchange.getResponseBody()) {
             os.write(responseStr.getBytes());

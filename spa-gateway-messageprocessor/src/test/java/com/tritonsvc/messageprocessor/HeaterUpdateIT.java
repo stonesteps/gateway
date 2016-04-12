@@ -64,7 +64,7 @@ public class HeaterUpdateIT {
                     agent = new Agent();
                     agent.start(agentFolder.getAbsolutePath());
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    log.error("Error starting up the agent");
                 }
             }
         }).start();

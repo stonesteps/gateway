@@ -60,16 +60,6 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         }
 	}
 
-    private void setupWebServer(Properties props) {
-        try {
-            this.webServer = new WebServer(props, this);
-            this.webServer.start();
-        } catch (final Exception e) {
-            LOGGER.error("Could not instantiate web serwer", e);
-            throw Throwables.propagate(e);
-        }
-    }
-
     private void init(final Properties props) {
         spaStateHolder = new MockSpaStateHolder(props);
 
@@ -101,6 +91,16 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         final String moteId = props.getProperty("mock.moteId");
         if (moteId != null) {
             registeredMote.setHardwareId(moteId);
+        }
+    }
+
+    private void setupWebServer(Properties props) {
+        try {
+            this.webServer = new WebServer(props, this);
+            this.webServer.start();
+        } catch (final Exception e) {
+            LOGGER.error("Could not instantiate web serwer", e);
+            throw Throwables.propagate(e);
         }
     }
 

@@ -103,7 +103,7 @@ public class SpaRegisterIT {
                     agent = new Agent();
                     agent.start(agentFolder.getAbsolutePath());
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    log.error("Error starting up the agent");
                 }
             }
         }).start();
@@ -118,20 +118,13 @@ public class SpaRegisterIT {
 
     @Test
     public void processHeaterCommand() throws Exception {
-        // wait for spa to be created
+        // wait for spa to be created and configured
         Thread.sleep(3000);
-
-        // create spa (with serialNumber)
-        final Spa spa = spaRepository.findOneBySerialNumber("demo_2872_ep_gateway");
-        Assert.assertNotNull(spa);
-
-        log.info("+++++++++++++++++++++++++++++++");
-        log.info("Spa created properly - continue");
 
         log.info("+++++++++++++++++++++++++");
         log.info("Checking spa registration");
 
-        final Spa updatedSpa = spaRepository.findOneBySerialNumber("demo_2872_ep_gateway");
+        final Spa registeredSpa = spaRepository.findOneBySerialNumber("demo_2872_ep_gateway");
 
         final URL url = new URL("https://localhost:8000/registerUserToSpa");
         HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
@@ -140,7 +133,7 @@ public class SpaRegisterIT {
         final ObjectMapper objectMapper = new ObjectMapper();
         final RegisterUserResponse registerUserResponse = objectMapper.readValue(response, RegisterUserResponse.class);
 
-        Assert.assertEquals(registerUserResponse.getRegKey(), updatedSpa.getRegKey());
+        Assert.assertEquals(registerUserResponse.getRegKey(), registeredSpa.getRegKey());
     }
 
     private String getContent(final HttpsURLConnection conn) throws IOException {

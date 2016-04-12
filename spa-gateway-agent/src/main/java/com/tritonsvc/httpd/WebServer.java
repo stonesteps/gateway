@@ -1,5 +1,6 @@
 package com.tritonsvc.httpd;
 
+import com.google.common.primitives.Ints;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
@@ -11,8 +12,10 @@ import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.security.KeyStore;
+import java.security.*;
+import java.security.cert.CertificateException;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -25,22 +28,41 @@ public class WebServer {
 
     private static final int DEFAULT_PORT = 8000;
     private static final boolean DEFAULT_SSL_ENABLED = true;
-    private HttpServer server;
+
+    private HttpServer server = null;
+    private final int port;
+    private final boolean ssl;
 
     private final RegistrationInfoHolder registrationInfoHolder;
 
     private final NetworkSettingsHandler networkSettingsHandler;
     private final RegisterUserToSpaHandler registerUserToSpaHandler;
 
-    public WebServer(final Properties properties, final RegistrationInfoHolder registrationInfoHolder) throws Exception {
+    public WebServer(final Properties properties, final RegistrationInfoHolder registrationInfoHolder) {
         this.registrationInfoHolder = registrationInfoHolder;
 
         this.networkSettingsHandler = new NetworkSettingsHandler();
         this.registerUserToSpaHandler = new RegisterUserToSpaHandler(this.registrationInfoHolder);
 
-        final int port = getInt(properties, "webServer.port", DEFAULT_PORT);
-        final boolean ssl = getBoolean(properties, "webServer.ssl", DEFAULT_SSL_ENABLED);
+        this.port = getInt(properties, "webServer.port", DEFAULT_PORT);
+        this.ssl = getBoolean(properties, "webServer.ssl", DEFAULT_SSL_ENABLED);
+    }
 
+    public void start() throws CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException, IOException, KeyManagementException, KeyStoreException {
+        if (server == null) {
+            init();
+            server.start();
+        }
+    }
+
+    public void stop() {
+        if (server != null) {
+            server.stop(0);
+            server = null;
+        }
+    }
+
+    private void init() throws CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException, IOException, KeyManagementException, KeyStoreException {
         server = HttpsServer.create(new InetSocketAddress(port), 0);
         if (ssl) {
             ((HttpsServer) server).setHttpsConfigurator(getHttpsConfigurator());
@@ -58,7 +80,7 @@ public class WebServer {
         });
     }
 
-    private HttpsConfigurator getHttpsConfigurator() throws Exception {
+    private HttpsConfigurator getHttpsConfigurator() throws CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException, IOException, KeyManagementException, KeyStoreException {
         final SSLContext sslContext = SSLContext.getInstance("TLS");
         char[] keystorePassword = "bwg123".toCharArray();
         KeyStore ks = KeyStore.getInstance("JKS");
@@ -71,25 +93,13 @@ public class WebServer {
         return configurator;
     }
 
-    public void start() {
-        server.start();
-    }
-
-    public void stop() {
-        server.stop(0);
-    }
-
     private int getInt(final Properties properties, final String key, int defaultValue) {
-        int val = defaultValue;
+        Integer val = null;
         final String valStr = properties.getProperty(key);
         if (valStr != null && valStr.length() > 0) {
-            try {
-                val = Integer.parseInt(valStr);
-            } catch (final NumberFormatException e) {
-                // ignore
-            }
+            val = Ints.tryParse(valStr);
         }
-        return val;
+        return val != null?  val.intValue() : defaultValue;
     }
 
     private boolean getBoolean(final Properties properties, final String key, boolean defaultValue) {

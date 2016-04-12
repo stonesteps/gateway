@@ -6,7 +6,7 @@ package com.tritonsvc.httpd.model;
 public class Wifi {
     private String ssid;
     private String password;
-    private String security;
+    private WifiSecurity security;
 
     public String getSsid() {
         return ssid;
@@ -24,11 +24,11 @@ public class Wifi {
         this.password = password;
     }
 
-    public String getSecurity() {
+    public WifiSecurity getSecurity() {
         return security;
     }
 
-    public void setSecurity(String security) {
+    public void setSecurity(WifiSecurity security) {
         this.security = security;
     }
 }

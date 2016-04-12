@@ -2,6 +2,7 @@ package com.tritonsvc.httpd.handler;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.tritonsvc.httpd.model.NetworkSettings;
@@ -61,6 +62,8 @@ public class NetworkSettingsHandler implements HttpHandler {
 
         final String response = mapper.writeValueAsString(networkSettings);
 
+        final Headers responseHeaders = httpExchange.getResponseHeaders();
+        responseHeaders.set("Content-Type", "application/json");
         httpExchange.sendResponseHeaders(200, response.length());
         try (final OutputStream os = httpExchange.getResponseBody()) {
             os.write(response.getBytes());
