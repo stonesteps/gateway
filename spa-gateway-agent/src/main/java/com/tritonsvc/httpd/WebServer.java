@@ -17,7 +17,6 @@ import java.net.InetSocketAddress;
 import java.security.*;
 import java.security.cert.CertificateException;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Created by holow on 4/6/2016.
@@ -34,14 +33,16 @@ public class WebServer {
     private final boolean ssl;
 
     private final RegistrationInfoHolder registrationInfoHolder;
+    private final NetworkSettingsHolder networkSettingsHolder;
 
     private final NetworkSettingsHandler networkSettingsHandler;
     private final RegisterUserToSpaHandler registerUserToSpaHandler;
 
-    public WebServer(final Properties properties, final RegistrationInfoHolder registrationInfoHolder) {
+    public WebServer(final Properties properties, final RegistrationInfoHolder registrationInfoHolder, final NetworkSettingsHolder networkSettingsHolder) {
         this.registrationInfoHolder = registrationInfoHolder;
+        this.networkSettingsHolder = networkSettingsHolder;
 
-        this.networkSettingsHandler = new NetworkSettingsHandler();
+        this.networkSettingsHandler = new NetworkSettingsHandler(this.networkSettingsHolder);
         this.registerUserToSpaHandler = new RegisterUserToSpaHandler(this.registrationInfoHolder);
 
         this.port = getInt(properties, "webServer.port", DEFAULT_PORT);
@@ -99,7 +100,7 @@ public class WebServer {
         if (valStr != null && valStr.length() > 0) {
             val = Ints.tryParse(valStr);
         }
-        return val != null?  val.intValue() : defaultValue;
+        return val != null ? val.intValue() : defaultValue;
     }
 
     private boolean getBoolean(final Properties properties, final String key, boolean defaultValue) {
@@ -109,18 +110,5 @@ public class WebServer {
             val = Boolean.parseBoolean(valStr);
         }
         return val;
-    }
-
-    public NetworkSettings getNetworkSettings() {
-        return this.networkSettingsHandler.getNetworkSettings();
-    }
-
-    public void setNetworkSettings(final NetworkSettings networkSettings) {
-        this.networkSettingsHandler.setNetworkSettings(networkSettings);
-    }
-
-    public static void main(String... args) throws Exception {
-        WebServer ws = new WebServer(new Properties(), null);
-        ws.start();
     }
 }

@@ -27,6 +27,7 @@ public class WebServerTest extends WebServerTestBase {
 
     private static WebServer webServer;
     private static BaseRegistrationInfoHolder registrationInfoHolder;
+    private static BaseNetworkSettingsHolder networkSettingsHolder;
 
     @BeforeClass
     public static void init() throws Exception {
@@ -34,8 +35,9 @@ public class WebServerTest extends WebServerTestBase {
         props.setProperty("webServer.port", "8001");
 
         registrationInfoHolder = new BaseRegistrationInfoHolder();
+        networkSettingsHolder = new BaseNetworkSettingsHolder();
 
-        webServer = new WebServer(props, registrationInfoHolder);
+        webServer = new WebServer(props, registrationInfoHolder, networkSettingsHolder);
         webServer.start();
     }
 

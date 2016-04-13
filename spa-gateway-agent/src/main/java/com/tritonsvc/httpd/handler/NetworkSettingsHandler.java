@@ -1,10 +1,10 @@
 package com.tritonsvc.httpd.handler;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import com.tritonsvc.httpd.NetworkSettingsHolder;
 import com.tritonsvc.httpd.model.NetworkSettings;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -22,8 +22,12 @@ public class NetworkSettingsHandler implements HttpHandler {
 
     private static final Logger log = LoggerFactory.getLogger(NetworkSettingsHandler.class);
 
-    private NetworkSettings networkSettings = new NetworkSettings();
     private final ObjectMapper mapper = new ObjectMapper();
+    private final NetworkSettingsHolder networkSettingsHolder;
+
+    public NetworkSettingsHandler(NetworkSettingsHolder networkSettingsHolder) {
+        this.networkSettingsHolder = networkSettingsHolder;
+    }
 
     @Override
     public void handle(final HttpExchange httpExchange) throws IOException {
@@ -51,7 +55,7 @@ public class NetworkSettingsHandler implements HttpHandler {
             log.debug("Got in request: {}", body);
 
             final NetworkSettings networkSettings = mapper.readValue(body, NetworkSettings.class);
-            this.networkSettings = networkSettings;
+            this.networkSettingsHolder.setNetworkSettings(networkSettings);
 
             httpExchange.sendResponseHeaders(200, 0); // OK
         }
@@ -60,7 +64,7 @@ public class NetworkSettingsHandler implements HttpHandler {
     private void handleGet(final HttpExchange httpExchange) throws IOException {
         log.debug("Handling network settings get");
 
-        final String response = mapper.writeValueAsString(networkSettings);
+        final String response = mapper.writeValueAsString(this.networkSettingsHolder.getNetworkSettings());
 
         final Headers responseHeaders = httpExchange.getResponseHeaders();
         responseHeaders.set("Content-Type", "application/json");
@@ -68,13 +72,5 @@ public class NetworkSettingsHandler implements HttpHandler {
         try (final OutputStream os = httpExchange.getResponseBody()) {
             os.write(response.getBytes());
         }
-    }
-
-    public void setNetworkSettings(NetworkSettings networkSettings) {
-        this.networkSettings = networkSettings;
-    }
-
-    public NetworkSettings getNetworkSettings() {
-        return networkSettings;
     }
 }
