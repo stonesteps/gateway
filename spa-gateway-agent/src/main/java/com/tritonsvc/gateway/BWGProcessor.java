@@ -10,8 +10,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
+import com.tritonsvc.httpd.NetworkSettingsHolder;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
+import com.tritonsvc.httpd.model.NetworkSettings;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
@@ -44,7 +46,7 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  * Gateway Agent processing, collects WSN data also.
  */
-public class BWGProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
+public class BWGProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder, NetworkSettingsHolder {
 
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_NEW_REG_WAIT_TIME = 120000;
@@ -63,6 +65,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private WebServer webServer = null;
+    private NetworkSettings networkSettings = new NetworkSettings();
 
     @Override
     public void handleShutdown() {
@@ -77,7 +80,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.gwSerialNumber = gwSerialNumber;
         this.configProps = configProps;
         this.homePath = homePath;
-        this.webServer = new WebServer(configProps, this);
+        this.webServer = new WebServer(configProps, this, this);
 
         setUpRS485();
         validateOidProperties();
@@ -589,6 +592,16 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         final String gatewayKey = generateRegistrationKey(null, "gateway", new HashMap<>());
         final DeviceRegistration gateway = getRegisteredHWIds().get(gatewayKey);
         return gateway;
+    }
+
+    @Override
+    public NetworkSettings getNetworkSettings() {
+        return this.networkSettings;
+    }
+
+    @Override
+    public void setNetworkSettings(final NetworkSettings networkSettings) {
+        this.networkSettings = networkSettings;
     }
 
     private static class RequiredParams {

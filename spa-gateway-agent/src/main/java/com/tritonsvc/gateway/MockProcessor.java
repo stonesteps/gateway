@@ -7,14 +7,12 @@ package com.tritonsvc.gateway;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.tritonsvc.agent.MQTTCommandProcessor;
+import com.tritonsvc.httpd.NetworkSettingsHolder;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
+import com.tritonsvc.httpd.model.NetworkSettings;
 import com.tritonsvc.spa.communication.proto.Bwg;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,11 +25,10 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  * A very simple mocked out Spa Controller, will register controller and send some fake
  * temperature data
- *
  */
-public class MockProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
+public class MockProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder, NetworkSettingsHolder {
 
-	private static Logger LOGGER = LoggerFactory.getLogger(MockProcessor.class);
+    private static Logger LOGGER = LoggerFactory.getLogger(MockProcessor.class);
     private DeviceRegistration registeredSpa = new DeviceRegistration();
     private DeviceRegistration registeredController = new DeviceRegistration();
     private DeviceRegistration registeredMote = new DeviceRegistration();
@@ -40,6 +37,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     private MockSpaStateHolder spaStateHolder = null;
     private WebServer webServer = null;
+    private NetworkSettings networkSettings = new NetworkSettings();
 
     @Override
     public void handleShutdown() {
@@ -50,8 +48,8 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         }
     }
 
-	@Override
-	public void handleStartup(String hardwareId, Properties configProps, String homePath, ScheduledExecutorService executorService) {
+    @Override
+    public void handleStartup(String hardwareId, Properties configProps, String homePath, ScheduledExecutorService executorService) {
         init(configProps);
         setupWebServer(configProps);
         this.gwSerialNumber = hardwareId;
@@ -61,7 +59,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         } else {
             LOGGER.info("Spa already registered.");
         }
-	}
+    }
 
     private void init(final Properties props) {
         spaStateHolder = new MockSpaStateHolder(props);
@@ -99,7 +97,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     private void setupWebServer(Properties props) {
         try {
-            this.webServer = new WebServer(props, this);
+            this.webServer = new WebServer(props, this, this);
             if ("true".equalsIgnoreCase(props.getProperty("mock.webServer.runOnStart"))) {
                 this.webServer.start();
             }
@@ -110,7 +108,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     }
 
     @Override
-	public void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId) {
+    public void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId) {
         if (response.getState() == RegistrationAckState.REGISTRATION_ERROR) {
             LOGGER.info("received registration error state {}", response.getErrorMessage());
             return;
@@ -127,7 +125,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         }
 
         LOGGER.info("received registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
-	}
+    }
 
     @Override
     public void handleSpaRegistrationAck(SpaRegistrationResponse response, String originatorId, String hardwareId) {
@@ -149,7 +147,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     }
 
     @Override
-	public void handleDownlinkCommand(Request request, String hardwareId, String originatorId) {
+    public void handleDownlinkCommand(Request request, String hardwareId, String originatorId) {
         if (request == null || !request.hasRequestType()) {
             LOGGER.error("Request is null, not processing, []", originatorId);
             sendAck(hardwareId, originatorId, Bwg.AckResponseCode.ERROR, "gateway has not registered with controller yet");
@@ -201,13 +199,12 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
                         sendAck(hardwareId, originatorId, Bwg.AckResponseCode.ERROR, "not supported");
                 }
             }
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             LOGGER.error("had problem when sending a command ", ex);
             sendAck(hardwareId, originatorId, Bwg.AckResponseCode.ERROR, ex.getMessage());
             return;
         }
-	}
+    }
 
     private void updateHeater(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId) {
         final String tempStr = BwgHelper.getRequestMetadataValue(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDTEMP.name(), metadataList);
@@ -261,25 +258,25 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     }
 
     @Override
-	public void handleUplinkAck(UplinkAcknowledge ack, String originatorId) {
-		// not required here?
-	}
+    public void handleUplinkAck(UplinkAcknowledge ack, String originatorId) {
+        // not required here?
+    }
 
     @Override
     public void processDataHarvestIteration() {
 
         if (registeredSpa.getHardwareId() == null) {
-            sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(),"spa_originatorid");
+            sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
             return;
         }
 
         if (registeredController.getHardwareId() == null) {
-            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "controller", newHashMap(),"controller_originatorid");
+            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "controller", newHashMap(), "controller_originatorid");
             return;
         }
 
         if (registeredMote.getHardwareId() == null) {
-            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockMAC"),"mote_originatorid");
+            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockMAC"), "mote_originatorid");
             return;
         }
 
@@ -314,5 +311,15 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     @Override
     public String getSpaId() {
         return registeredSpa.getHardwareId();
+    }
+
+    @Override
+    public NetworkSettings getNetworkSettings() {
+        return networkSettings;
+    }
+
+    @Override
+    public void setNetworkSettings(final NetworkSettings networkSettings) {
+        this.networkSettings = networkSettings;
     }
 }
