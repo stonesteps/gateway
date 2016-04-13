@@ -71,6 +71,32 @@ If your using linksprite rs485 shield with raspberry pi 3, you need to use /dev/
 in agent's config.properties file, change rs485.port=ttyS0, and then then add 
 core_freq=250 in /boot/config.txt - https://frillip.com/raspberry-pi-3-uart-baud-rate-workaround/
 
+Here's how to create PKI/Certificates which the MQTT broker requires. 
+ 
+create ca root(don't do this, use the existing test ca root in src/test/resources)
+openssl genrsa -out ca_root_key.pem 2048
+openssl req -x509 -new -nodes -key ca_root_key.pem -sha256 -days 18250 -out ca_root_cert.pem
+
+mqtt broker(used for server ssl)
+openssl genrsa -out broker_key.pem 2048
+openssl req -new -key broker_key.pem -out broker.csr
+openssl x509 -req -in broker.csr -CA ca_root_cert.pem -CAkey ca_root_key.pem -CAcreateserial -out broker_cert.pem -days 18250 -sha256
+
+gateways and message-processor(any mqtt clients)
+openssl genrsa -out gateway_key.pem 2048
+openssl req -new -key gateway_key.pem -out gateway.csr
+openssl x509 -req -in gateway.csr -CA ca_root_cert.pem -CAkey ca_root_key.pem -CAcreateserial -out gateway_cert.pem -days 18250 -sha256 -addtrust clientAuth
+openssl pkcs8 -topk8 -inform PEM -outform DER -in gateway_key.pem -out gateway_key.pkcs8 -nocrypt
+
+for whatever reason, if you want to package up a gateway or broker cert(clients) and the trusted ca root into a java key store: 
+Create PKCS12 keystore from private key and public certificate.
+openssl pkcs12 -export -name brokercert -in broker_cert.pem -inkey broker_key.pem -out broker_keystore.p12
+Convert PKCS12 keystore into a JKS keystore
+keytool -importkeystore -destkeystore broker_ssl.jks -srckeystore broker_keystore.p12 -srcstoretype pkcs12 -alias brokercert
+keytool -import -trustcacerts -alias root -file ca_root.cert.pem -keystore broker_ssl.jks
+
+
+
 
 
     
