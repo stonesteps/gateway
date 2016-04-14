@@ -110,29 +110,21 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
 
         Spa spa = (gatewayComponent.getSpaId() != null ? spaRepository.findOne(gatewayComponent.getSpaId()) : null);
 
-        boolean save = false;
         if (spa == null) {
             log.info("Creating new spa object");
             spa = new Spa();
             spa.setSerialNumber(serialNumber);
-            save = true;
         }
 
         if (spa.getRegistrationDate() == null || spa.getP2pAPPassword() == null || spa.getP2pAPSSID() == null) {
             spa.setRegistrationDate(regTimestamp);
             spa.setP2pAPSSID(generateP2pAPSSID(serialNumber));
             spa.setP2pAPPassword(DEFAULT_P2PAP_PASSWORD);
-            save = true;
         }
 
-        if (spa.getRegKey() == null) {
-            spa.setRegKey(generateRandomString(16));
-            save = true;
-        }
-
-        if (save) {
-            spaRepository.save(spa);
-        }
+        // generate new registration key with each registration call
+        spa.setRegKey(generateRandomString(16));
+        spaRepository.save(spa);
 
         if (dirtyGateway) {
             gatewayComponent.setSpaId(spa.get_id());
