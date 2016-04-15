@@ -14,15 +14,9 @@ import com.tritonsvc.httpd.NetworkSettingsHolder;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.httpd.model.NetworkSettings;
+import com.tritonsvc.httpd.util.NetworkSettingsPersister;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestType;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
@@ -35,6 +29,7 @@ import jdk.dio.uart.UARTConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
@@ -62,16 +57,18 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private RS485MessagePublisher rs485MessagePublisher;
     private UART rs485Uart;
     private String homePath;
+    private String dataPath;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private WebServer webServer = null;
-    private NetworkSettings networkSettings = new NetworkSettings();
+    private NetworkSettings networkSettings = null;
 
     @Override
     public void handleShutdown() {
         try {rs485Uart.stopReading();} catch (Exception ex) {}
         try {rs485Uart.stopWriting();} catch (Exception ex) {}
         try {rs485Uart.close();} catch (Exception ex) {}
+        saveNetworkSettings();
     }
 
     @Override
@@ -80,7 +77,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.gwSerialNumber = gwSerialNumber;
         this.configProps = configProps;
         this.homePath = homePath;
+        this.dataPath = configProps.getProperty("dataPath", homePath);
         this.webServer = new WebServer(configProps, this, this);
+
+        loadNetworkSettings();
 
         setUpRS485();
         validateOidProperties();
@@ -693,5 +693,15 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         LOGGER.info("initialized rs 485 serial port {}", serialPort);
+    }
+
+    private void loadNetworkSettings() {
+        final File networkSettingFile = new File(dataPath, "networkSettings.properties");
+        this.networkSettings = NetworkSettingsPersister.load(networkSettingFile);
+    }
+
+    private void saveNetworkSettings() {
+        final File networkSettingFile = new File(dataPath, "networkSettings.properties");
+        NetworkSettingsPersister.save(networkSettingFile, this.networkSettings);
     }
 }

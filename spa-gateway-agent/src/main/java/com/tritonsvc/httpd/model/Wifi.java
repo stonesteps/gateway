@@ -7,7 +7,7 @@ public class Wifi {
     private String ssid;
     private String password;
     private WifiSecurity security;
-
+    
     public String getSsid() {
         return ssid;
     }
