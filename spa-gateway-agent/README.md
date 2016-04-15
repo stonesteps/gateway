@@ -85,7 +85,7 @@ openssl x509 -req -in broker.csr -CA ca_root_cert.pem -CAkey ca_root_key.pem -CA
 gateways and message-processor(any mqtt clients)
 openssl genrsa -out gateway_key.pem 2048
 openssl req -new -key gateway_key.pem -out gateway.csr
-openssl x509 -req -in gateway.csr -CA ca_root_cert.pem -CAkey ca_root_key.pem -CAcreateserial -out gateway_cert.pem -days 18250 -sha256 -addtrust clientAuth
+openssl x509 -req -in gateway.csr -CA ca_root_cert.pem -CAkey ca_root_key.pem -CAcreateserial -out gateway_cert.pem -days 18250 -sha256
 openssl pkcs8 -topk8 -inform PEM -outform DER -in gateway_key.pem -out gateway_key.pkcs8 -nocrypt
 
 for whatever reason, if you want to package up a gateway or broker cert(clients) and the trusted ca root into a java key store: 
