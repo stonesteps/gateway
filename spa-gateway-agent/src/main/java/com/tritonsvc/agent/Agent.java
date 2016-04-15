@@ -18,6 +18,8 @@ import org.fusesource.mqtt.client.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
@@ -32,9 +34,12 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * Agent that handles message processing.
@@ -126,18 +131,18 @@ public class Agent {
      * @param homePath
 	 */
 	public void start(String homePath) {
-        Properties props = loadProperties(homePath);
 		LOGGER.info("BWG agent starting...");
+        Properties props;
 
 		this.mqttSub = createMQTT();
         this.mqttPub = createMQTT();
 		try {
             obtainPKIArtifacts(homePath);
-            if (sslContext != null) {
-                mqttPort = DEFAULT_MQTTS_PORT;
-                LOGGER.info("server ssl being used, mqtt port will be {}", mqttPort);
-            }
+            props = loadProperties(homePath);
 
+            if (gwSerialNumber == null) {
+                throw new IllegalStateException("no gateway serial number was found in properties or from a certificate, cannot continue");
+            }
             //tcp://host:port or tls://host:port
             mqttSub.setHost( getProtocolPrefix() + mqttHostname + ":" + mqttPort);
             mqttSub.setCleanSession(true);
@@ -169,11 +174,11 @@ public class Agent {
                 });
             }
 
-            if (gatewayPublic == null && mqttUsername != null) {
+            if (mqttUsername != null) {
                 mqttSub.setUserName(mqttUsername);
                 mqttPub.setUserName(mqttUsername);
             }
-            if (gatewayPublic == null && mqttPassword != null) {
+            if (mqttPassword != null) {
                 mqttSub.setPassword(mqttPassword);
                 mqttPub.setPassword(mqttPassword);
             }
@@ -261,7 +266,15 @@ public class Agent {
                 gatewayPrivate = kf.generatePrivate(spec);
                 ks.setKeyEntry("gateway", gatewayPrivate, "bwgkey".toCharArray(), new Certificate[]{gatewayPublic});
                 kmf.init(ks, "bwgkey".toCharArray());
-                LOGGER.info("found gateway_cert.pem and gateway_key.pkcs8, will submit as client in ssl handshake");
+                List<Rdn> cns = new LdapName(gatewayPublic.getSubjectX500Principal().getName())
+                        .getRdns()
+                        .stream()
+                        .filter( rdn -> rdn.getType().equalsIgnoreCase("cn"))
+                        .collect(toList());
+                if (cns.size() > 0) {
+                    gwSerialNumber = cns.get(0).getValue().toString();
+                }
+                LOGGER.info("found gateway_cert.pem and gateway_key.pkcs8, cn={}, will submit as client in ssl handshake", gwSerialNumber);
             } catch (Exception ex) {
                 gatewayPublic = null;
                 gatewayPrivate = null;
@@ -475,39 +488,43 @@ public class Agent {
 	 * 
 	 * @return
 	 */
-	private boolean load(Properties properties) {
+	private void load(Properties properties) {
 		LOGGER.info("Validating configuration...");
 
      	// Load command processor class name.
         commandProcessorClassname = properties.getProperty(AgentConfiguration.COMMAND_PROCESSOR_CLASSNAME);
 		if (commandProcessorClassname == null) {
 			LOGGER.error("Command processor class name not specified.");
-			return false;
+			throw new IllegalStateException(AgentConfiguration.COMMAND_PROCESSOR_CLASSNAME + " is required property");
 		}
         LOGGER.info("Using configured processor: " + commandProcessorClassname);
 
 		// Validate hardware id.
-		gwSerialNumber = properties.getProperty(AgentConfiguration.GATEWAY_SERIALNUMBER);
-		if (gwSerialNumber == null) {
-			return false;
-		}
-		LOGGER.info("Using configured gateway serial number: " + gwSerialNumber);
+        if (gwSerialNumber == null) {
+            gwSerialNumber = properties.getProperty(AgentConfiguration.GATEWAY_SERIALNUMBER);
+        }
+		LOGGER.info("Using gateway serial number property: " + gwSerialNumber);
 
 		// Validate MQTT hostname.
 		mqttHostname = properties.getProperty(AgentConfiguration.MQTT_HOSTNAME);
-        mqttPort = DEFAULT_MQTT_PORT;
 		if (mqttHostname == null) {
 			mqttHostname = DEFAULT_MQTT_HOSTNAME;
 		}
+
+        if (sslContext != null) {
+            mqttPort = DEFAULT_MQTTS_PORT;
+        } else {
+            mqttPort = DEFAULT_MQTT_PORT;
+        }
         LOGGER.info("Using MQTT host: {}, {}", mqttHostname, mqttPort);
 
         // Validate MQTT username.
         mqttUsername = properties.getProperty(AgentConfiguration.MQTT_USERNAME);
-        if (mqttUsername != null && mqttUsername.trim().length() < 1) {
+        if (gatewayPublic != null || (mqttUsername != null && mqttUsername.trim().length() < 1)) {
             mqttUsername = null;
         }
         mqttPassword = properties.getProperty(AgentConfiguration.MQTT_PASSWORD);
-        if (mqttPassword != null && mqttPassword.trim().length() < 1) {
+        if (gatewayPublic != null || (mqttPassword != null && mqttPassword.trim().length() < 1)) {
             mqttPassword = null;
         }
         LOGGER.info("Using MQTT username: " + mqttUsername);
@@ -528,8 +545,6 @@ public class Agent {
             inboundTopic = calculateInboundTopic(DEFAULT_MQTT_BASE_PATH + "/downlink");
         }
         LOGGER.info("Using downlink MQTT topic: " + inboundTopic);
-
-		return true;
 	}
 
 	private String calculateInboundTopic(String inboundPrefix) {
