@@ -92,7 +92,7 @@ public class AgentTest {
      * gateway(client)
      * openssl genrsa -out gateway_key.pem 2048
      * openssl req -new -key gateway_key.pem -out gateway.csr
-     * openssl x509 -req -in gateway.csr -CA ca_root_cert.pem -CAkey ca_root_key.pem -CAcreateserial -out gateway_cert.pem -days 18250 -sha256 -addtrust clientAuth
+     * openssl x509 -req -in gateway.csr -CA ca_root_cert.pem -CAkey ca_root_key.pem -CAcreateserial -out gateway_cert.pem -days 18250 -sha256
      * openssl pkcs8 -topk8 -inform PEM -outform DER -in gateway_key.pem -out gateway_key.pkcs8 -nocrypt
      *
      * some mqtt broker's require the certs/keys to be in a keystore file:
@@ -122,6 +122,7 @@ public class AgentTest {
         verify(mqttPub).setHost(eq("tls://localhost:8883"));
 
         verify(processor).setPKI(isNull(X509Certificate.class), isNull(PrivateKey.class));
+        verify(processor).setGwSerialNumber(eq("spatime"));
     }
 
     @Test
@@ -145,6 +146,7 @@ public class AgentTest {
 
         ArgumentCaptor<X509Certificate> certCaptor = ArgumentCaptor.forClass(X509Certificate.class);
         verify(processor).setPKI(certCaptor.capture(), any(PrivateKey.class));
+        verify(processor).setGwSerialNumber(eq("test1"));
         assertThat("cert dn not obtained correctly", certCaptor.getValue().getSubjectDN().getName().equals("CN=test1, OU=unit_test, O=test, L=san diego, ST=CA, C=US"));
     }
 }
