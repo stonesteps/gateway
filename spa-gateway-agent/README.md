@@ -73,7 +73,7 @@ core_freq=250 in /boot/config.txt - https://frillip.com/raspberry-pi-3-uart-baud
 
 Here's how to create PKI/Certificates which the MQTT broker requires. 
  
-create ca root(don't do this, use the existing test ca root in src/test/resources)
+create self signed ca root(don't redo this, use the existing test ca root in src/test/resources)
 openssl genrsa -out ca_root_key.pem 2048
 openssl req -x509 -new -nodes -key ca_root_key.pem -sha256 -days 18250 -out ca_root_cert.pem
 
@@ -94,6 +94,10 @@ openssl pkcs12 -export -name brokercert -in broker_cert.pem -inkey broker_key.pe
 Convert PKCS12 keystore into a JKS keystore
 keytool -importkeystore -destkeystore broker_ssl.jks -srckeystore broker_keystore.p12 -srcstoretype pkcs12 -alias brokercert
 keytool -import -trustcacerts -alias root -file ca_root.cert.pem -keystore broker_ssl.jks
+
+If you ever want to create a self-signed 'non-root' cert, here's the way:
+openssl req -new -key my_key.pem -out my.csr
+openssl x509 -req -days 16000 -in my.csr -signkey my_key.pem -out my_cert.pem
 
 
 
