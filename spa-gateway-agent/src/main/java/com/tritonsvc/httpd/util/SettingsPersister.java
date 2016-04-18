@@ -13,11 +13,11 @@ import java.util.Properties;
 /**
  * Created by holow on 4/14/2016.
  */
-public final class NetworkSettingsPersister {
+public final class SettingsPersister {
 
-    private static final Logger log = LoggerFactory.getLogger(NetworkSettingsPersister.class);
+    private static final Logger log = LoggerFactory.getLogger(SettingsPersister.class);
 
-    private NetworkSettingsPersister() {
+    private SettingsPersister() {
         // utility class
     }
 

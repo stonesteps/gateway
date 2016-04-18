@@ -14,7 +14,7 @@ import com.tritonsvc.httpd.NetworkSettingsHolder;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.httpd.model.NetworkSettings;
-import com.tritonsvc.httpd.util.NetworkSettingsPersister;
+import com.tritonsvc.httpd.util.SettingsPersister;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
@@ -41,7 +41,7 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  * Gateway Agent processing, collects WSN data also.
  */
-public class BWGProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder, NetworkSettingsHolder {
+public class BWGProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_NEW_REG_WAIT_TIME = 120000;
@@ -56,19 +56,15 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private RS485DataHarvester rs485DataHarvester;
     private RS485MessagePublisher rs485MessagePublisher;
     private UART rs485Uart;
-    private String homePath;
-    private String dataPath;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private WebServer webServer = null;
-    private NetworkSettings networkSettings = null;
 
     @Override
     public void handleShutdown() {
         try {rs485Uart.stopReading();} catch (Exception ex) {}
         try {rs485Uart.stopWriting();} catch (Exception ex) {}
         try {rs485Uart.close();} catch (Exception ex) {}
-        saveNetworkSettings();
     }
 
     @Override
@@ -76,11 +72,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         // persistent key/value db
         this.gwSerialNumber = gwSerialNumber;
         this.configProps = configProps;
-        this.homePath = homePath;
-        this.dataPath = configProps.getProperty("dataPath", homePath);
         this.webServer = new WebServer(configProps, this, this);
-
-        loadNetworkSettings();
 
         setUpRS485();
         validateOidProperties();
@@ -594,16 +586,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         return gateway;
     }
 
-    @Override
-    public NetworkSettings getNetworkSettings() {
-        return this.networkSettings;
-    }
-
-    @Override
-    public void setNetworkSettings(final NetworkSettings networkSettings) {
-        this.networkSettings = networkSettings;
-    }
-
     private static class RequiredParams {
         int port;
         String desiredState;
@@ -693,15 +675,5 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         LOGGER.info("initialized rs 485 serial port {}", serialPort);
-    }
-
-    private void loadNetworkSettings() {
-        final File networkSettingFile = new File(dataPath, "networkSettings.properties");
-        this.networkSettings = NetworkSettingsPersister.load(networkSettingFile);
-    }
-
-    private void saveNetworkSettings() {
-        final File networkSettingFile = new File(dataPath, "networkSettings.properties");
-        NetworkSettingsPersister.save(networkSettingFile, this.networkSettings);
     }
 }

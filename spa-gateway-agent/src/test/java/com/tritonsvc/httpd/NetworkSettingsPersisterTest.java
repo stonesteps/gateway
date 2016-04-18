@@ -4,7 +4,7 @@ import com.tritonsvc.httpd.model.Ethernet;
 import com.tritonsvc.httpd.model.NetworkSettings;
 import com.tritonsvc.httpd.model.Wifi;
 import com.tritonsvc.httpd.model.WifiSecurity;
-import com.tritonsvc.httpd.util.NetworkSettingsPersister;
+import com.tritonsvc.httpd.util.SettingsPersister;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -39,9 +39,9 @@ public class NetworkSettingsPersisterTest {
         ethernet.setNetmask("1.1.1.4");
 
         final File networkSettingsFile = folder.newFile("networkSettings.properties");
-        NetworkSettingsPersister.save(networkSettingsFile, networkSettings);
+        SettingsPersister.save(networkSettingsFile, networkSettings);
 
-        final NetworkSettings loaded = NetworkSettingsPersister.load(networkSettingsFile);
+        final NetworkSettings loaded = SettingsPersister.load(networkSettingsFile);
 
         Assert.assertEquals(networkSettings.getWifi().getPassword(), loaded.getWifi().getPassword());
         Assert.assertEquals(networkSettings.getWifi().getSecurity(), loaded.getWifi().getSecurity());

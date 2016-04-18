@@ -44,6 +44,13 @@ public interface AgentMessageProcessor {
     void setHomePath(String path);
 
     /**
+     * Set theruntime data directory for agent process
+     *
+     * @param path
+     */
+    void setDataPath(String path);
+
+    /**
      * Set the event dispatcher that allows data to be sent on uplink to cloud.
      *
      * @param dispatcher

@@ -200,11 +200,15 @@ public class Agent {
 		// Create outbound message processor.
 		outbound = new MQTTOutbound(pubConnection, outboundTopic);
 
-		// Create an instance of the command processor.
+        // data path
+        final String dataPath = props.getProperty("dataPath", homePath);
+
+        // Create an instance of the command processor.
         processor = createProcessor();
 		processor.setGwSerialNumber(gwSerialNumber);
         processor.setConfigProps(props);
         processor.setHomePath(homePath);
+        processor.setDataPath(dataPath);
         processor.setEventDispatcher(outbound);
         processor.setPKI(gatewayPublic, gatewayPrivate);
 

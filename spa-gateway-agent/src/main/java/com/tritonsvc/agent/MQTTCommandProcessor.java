@@ -1,6 +1,9 @@
 package com.tritonsvc.agent;
 
 import com.google.common.base.Throwables;
+import com.tritonsvc.httpd.NetworkSettingsHolder;
+import com.tritonsvc.httpd.model.NetworkSettings;
+import com.tritonsvc.httpd.util.SettingsPersister;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
@@ -8,19 +11,14 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DeviceMeasurements;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.naming.ldap.LdapName;
-import javax.naming.ldap.Rdn;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
@@ -35,26 +33,33 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Concrete class for handling downlink and sending uplink on MQTT
- *
  */
-public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
+public abstract class MQTTCommandProcessor implements AgentMessageProcessor, NetworkSettingsHolder {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(MQTTCommandProcessor.class);
-	private String gwSerialNumber;
-	private Properties configProps;
+    private static final Logger LOGGER = LoggerFactory.getLogger(MQTTCommandProcessor.class);
+    private String gwSerialNumber;
+    private Properties configProps;
     private String homePath;
+    private String dataPath;
     private GatewayEventDispatcher eventDispatcher;
     private int controllerUpdateInterval = 3;
-    private final ScheduledExecutorService scheduledExecutorService =  new ScheduledThreadPoolExecutor(3);
+    private final ScheduledExecutorService scheduledExecutorService = new ScheduledThreadPoolExecutor(3);
     private X509Certificate publicCert;
     private PrivateKey privateKey;
+    protected NetworkSettings networkSettings;
 
     protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId);
+
     protected abstract void handleSpaRegistrationAck(SpaRegistrationResponse response, String originatorId, String hardwareId);
+
     protected abstract void handleDownlinkCommand(Request request, String hardwareId, String originatorId);
+
     protected abstract void handleUplinkAck(UplinkAcknowledge ack, String originatorId);
+
     protected abstract void handleStartup(String gwSerialNumber, Properties configProps, String homePath, ScheduledExecutorService executorService);
+
     protected abstract void handleShutdown();
+
     protected abstract void processDataHarvestIteration();
 
     /**
@@ -66,7 +71,10 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
             public void run() {
                 handleShutdown();
                 scheduledExecutorService.shutdownNow();
-                try {scheduledExecutorService.awaitTermination(10, TimeUnit.SECONDS);} catch (InterruptedException ex){}
+                try {
+                    scheduledExecutorService.awaitTermination(10, TimeUnit.SECONDS);
+                } catch (InterruptedException ex) {
+                }
             }
         });
     }
@@ -78,18 +86,18 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
     }
 
     @Override
-	public void processDownlinkCommand(byte[] message) {
-		ByteArrayInputStream stream = new ByteArrayInputStream(message);
-		try {
-			Bwg.Header header = Bwg.Header.parseDelimitedFrom(stream);
-			if (!header.getCommand().equals(Bwg.CommandType.DOWNLINK)) {
+    public void processDownlinkCommand(byte[] message) {
+        ByteArrayInputStream stream = new ByteArrayInputStream(message);
+        try {
+            Bwg.Header header = Bwg.Header.parseDelimitedFrom(stream);
+            if (!header.getCommand().equals(Bwg.CommandType.DOWNLINK)) {
                 throw new IllegalArgumentException("Invalid downlink command received");
-			}
+            }
 
             Bwg.Downlink.DownlinkHeader downlinkHeader = Bwg.Downlink.DownlinkHeader.parseDelimitedFrom(stream);
 
             LOGGER.info("received downlink command " + downlinkHeader.getCommandType().name() + ", dated " + header.getSentTimestamp());
-			switch (downlinkHeader.getCommandType()) {
+            switch (downlinkHeader.getCommandType()) {
                 case REGISTRATION_RESPONSE: {
                     RegistrationResponse response = RegistrationResponse.parseDelimitedFrom(stream);
                     handleRegistrationAck(response, header.getOriginator(), downlinkHeader.getHardwareId());
@@ -110,25 +118,29 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
                     handleUplinkAck(ack, header.getOriginator());
                     break;
                 }
-			}
-		} catch (IOException e) {
-			throw Throwables.propagate(e);
-		}
-	}
+            }
+        } catch (IOException e) {
+            throw Throwables.propagate(e);
+        }
+    }
 
     @Override
-	public void setGwSerialNumber(String gwSerialNumber) {
-		this.gwSerialNumber = gwSerialNumber;
-	}
+    public void setGwSerialNumber(String gwSerialNumber) {
+        this.gwSerialNumber = gwSerialNumber;
+    }
 
     @Override
-	public void setConfigProps(Properties props) {
-		this.configProps = props;
-	}
+    public void setConfigProps(Properties props) {
+        this.configProps = props;
+    }
 
     @Override
     public void setHomePath(String path) {
         this.homePath = path;
+    }
+
+    public void setDataPath(String path) {
+        this.dataPath = path;
     }
 
     @Override
@@ -151,7 +163,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
             LdapName ldapDN = new LdapName(dn);
             ldapDN.getRdns()
                     .stream()
-                    .filter( rdn -> rdn.getType().equalsIgnoreCase("CN"))
+                    .filter(rdn -> rdn.getType().equalsIgnoreCase("CN"))
                     .map(rdn -> this.gwSerialNumber = rdn.getValue().toString());
         } catch (Exception ex) {
             LOGGER.error("unable to extract CN from gateway certificate DN {}", dn);
@@ -160,7 +172,8 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
 
     /**
      * Convenience method to tell if the processor is enabled to be executing
-     * @return   true if running
+     *
+     * @return true if running
      */
     public boolean stillRunning() {
         return !Thread.currentThread().isInterrupted() && !scheduledExecutorService.isShutdown();
@@ -174,9 +187,9 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
      * @param deviceTypeName
      * @param meta
      */
-	public void sendRegistration(String parentHardwareId, String gwSerialNumber, String deviceTypeName, Map<String, String> meta, String originatorId) {
+    public void sendRegistration(String parentHardwareId, String gwSerialNumber, String deviceTypeName, Map<String, String> meta, String originatorId) {
         RegisterDevice.Builder builder = RegisterDevice.newBuilder();
-        for (Map.Entry<String,String> entry : meta.entrySet()) {
+        for (Map.Entry<String, String> entry : meta.entrySet()) {
             builder.addMetadata(Metadata.newBuilder().setName(entry.getKey()).setValue(entry.getValue()).build());
         }
         builder.setDeviceTypeName(deviceTypeName);
@@ -184,35 +197,35 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
             builder.setParentDeviceHardwareId(parentHardwareId);
         }
         builder.setGatewaySerialNumber(gwSerialNumber);
-		eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build());
-	    LOGGER.info("sent device registration for {}", deviceTypeName);
+        eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build());
+        LOGGER.info("sent device registration for {}", deviceTypeName);
     }
 
-	/**
-	 * Convenience method for sending an acknowledgement event for prior downlink
-	 * 
-	 * @param hardwareId
-	 * @param originator
-	 */
-	public void sendAck(String hardwareId, String originator, AckResponseCode code, String description) {
+    /**
+     * Convenience method for sending an acknowledgement event for prior downlink
+     *
+     * @param hardwareId
+     * @param originator
+     */
+    public void sendAck(String hardwareId, String originator, AckResponseCode code, String description) {
         DownlinkAcknowledge.Builder builder = DownlinkAcknowledge.newBuilder()
                 .setCode(code);
         if (description != null) {
             builder.setDescription(description);
         }
         eventDispatcher.sendUplink(hardwareId, originator, UplinkCommandType.ACKNOWLEDGEMENT, builder.build());
-	}
+    }
 
-	/**
-	 * Convenience method for sending a measurement event to cloud.
-	 * 
-	 * @param hardwareId
+    /**
+     * Convenience method for sending a measurement event to cloud.
+     *
+     * @param hardwareId
      * @param originator
-	 * @param measurements
-	 * @param measurementTimestampMillis
+     * @param measurements
+     * @param measurementTimestampMillis
      * @param meta
-	 */
-	public void sendMeasurements(String hardwareId,
+     */
+    public void sendMeasurements(String hardwareId,
                                  String originator,
                                  Map<String, Double> measurements,
                                  long measurementTimestampMillis,
@@ -224,11 +237,11 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
             builder.addMeasurement(Measurement.newBuilder().setMeasurementId(entry.getKey()).setMeasurementValue(entry.getValue()).build());
         }
 
-        for (Map.Entry<String,String> entry : meta.entrySet()) {
+        for (Map.Entry<String, String> entry : meta.entrySet()) {
             builder.addMetadata(Metadata.newBuilder().setName(entry.getKey()).setValue(entry.getValue()).build());
         }
         eventDispatcher.sendUplink(hardwareId, originator, UplinkCommandType.MEASUREMENT, builder.build());
-	}
+    }
 
     /**
      * convenience method to send events to cloud
@@ -238,15 +251,15 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
      * @param eventTimestampMillis
      * @param meta
      */
-	public void sendEvent(String hardwareId, Constants.EventType eventType, long eventTimestampMillis, Map<String, String> meta ) {
-		Event.Builder eb = Event.newBuilder();
+    public void sendEvent(String hardwareId, Constants.EventType eventType, long eventTimestampMillis, Map<String, String> meta) {
+        Event.Builder eb = Event.newBuilder();
         eb.setEventTimestamp(eventTimestampMillis);
         eb.setEventType(eventType);
-        for (Map.Entry<String,String> entry : meta.entrySet()) {
+        for (Map.Entry<String, String> entry : meta.entrySet()) {
             eb.addMetadata(Metadata.newBuilder().setName(entry.getKey()).setValue(entry.getValue()).build());
         }
-		eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.EVENT, eb.build());
-	}
+        eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.EVENT, eb.build());
+    }
 
     public void sendSpaState(String hardwareId, Bwg.Uplink.Model.SpaState spaState) {
         getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.SPA_STATE, spaState);
@@ -266,6 +279,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
 
     /**
      * retrieve the instance of mqtt message dispatcher to send messages up to cloud
+     *
      * @return
      */
     public GatewayEventDispatcher getCloudDispatcher() {
@@ -275,13 +289,34 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor {
     // after 30 seconds from start, and once every X minutes send up to cloud whatever system states
     // the X reporting interval should be settable via other reuest messages like setSystemStateReportInterval(), etc
     private void kickOffDataHarvest() {
-        scheduledExecutorService.scheduleWithFixedDelay ((Runnable) () -> {
+        scheduledExecutorService.scheduleWithFixedDelay((Runnable) () -> {
             try {
                 processDataHarvestIteration();
-            }
-            catch (Exception ex) {
+            } catch (Exception ex) {
                 LOGGER.error("unable to obtain controller device info", ex);
             }
         }, controllerUpdateInterval, controllerUpdateInterval, TimeUnit.SECONDS);
+    }
+
+    @Override
+    public NetworkSettings loadAndGetNetworkSettings() {
+        loadNetworkSettings();
+        return this.networkSettings;
+    }
+
+    private void loadNetworkSettings() {
+        final File networkSettingFile = new File(dataPath, "networkSettings.properties");
+        this.networkSettings = SettingsPersister.load(networkSettingFile);
+    }
+
+    @Override
+    public void setAndSaveNetworkSettings(final NetworkSettings networkSettings) {
+        this.networkSettings = networkSettings;
+        saveNetworkSettings();
+    }
+
+    private void saveNetworkSettings() {
+        final File networkSettingFile = new File(dataPath, "networkSettings.properties");
+        SettingsPersister.save(networkSettingFile, this.networkSettings);
     }
 }
