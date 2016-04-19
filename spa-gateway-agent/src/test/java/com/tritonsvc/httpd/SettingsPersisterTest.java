@@ -16,7 +16,7 @@ import java.io.IOException;
 /**
  * Created by holow on 4/14/2016.
  */
-public class NetworkSettingsPersisterTest {
+public class SettingsPersisterTest {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
