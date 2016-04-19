@@ -14,15 +14,9 @@ import com.tritonsvc.httpd.NetworkSettingsHolder;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.httpd.model.NetworkSettings;
+import com.tritonsvc.httpd.util.SettingsPersister;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestType;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
@@ -35,6 +29,7 @@ import jdk.dio.uart.UARTConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
@@ -46,7 +41,7 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  * Gateway Agent processing, collects WSN data also.
  */
-public class BWGProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder, NetworkSettingsHolder {
+public class BWGProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_NEW_REG_WAIT_TIME = 120000;
@@ -61,11 +56,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private RS485DataHarvester rs485DataHarvester;
     private RS485MessagePublisher rs485MessagePublisher;
     private UART rs485Uart;
-    private String homePath;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private WebServer webServer = null;
-    private NetworkSettings networkSettings = new NetworkSettings();
 
     @Override
     public void handleShutdown() {
@@ -79,7 +72,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         // persistent key/value db
         this.gwSerialNumber = gwSerialNumber;
         this.configProps = configProps;
-        this.homePath = homePath;
         this.webServer = new WebServer(configProps, this, this);
 
         setUpRS485();
@@ -592,16 +584,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         final String gatewayKey = generateRegistrationKey(null, "gateway", new HashMap<>());
         final DeviceRegistration gateway = getRegisteredHWIds().get(gatewayKey);
         return gateway;
-    }
-
-    @Override
-    public NetworkSettings getNetworkSettings() {
-        return this.networkSettings;
-    }
-
-    @Override
-    public void setNetworkSettings(final NetworkSettings networkSettings) {
-        this.networkSettings = networkSettings;
     }
 
     private static class RequiredParams {

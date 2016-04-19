@@ -7,10 +7,8 @@ package com.tritonsvc.gateway;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.tritonsvc.agent.MQTTCommandProcessor;
-import com.tritonsvc.httpd.NetworkSettingsHolder;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
-import com.tritonsvc.httpd.model.NetworkSettings;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
@@ -26,7 +24,7 @@ import static com.google.common.collect.Maps.newHashMap;
  * A very simple mocked out Spa Controller, will register controller and send some fake
  * temperature data
  */
-public class MockProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder, NetworkSettingsHolder {
+public class MockProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
     private static Logger LOGGER = LoggerFactory.getLogger(MockProcessor.class);
     private DeviceRegistration registeredSpa = new DeviceRegistration();
@@ -37,7 +35,6 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     private MockSpaStateHolder spaStateHolder = null;
     private WebServer webServer = null;
-    private NetworkSettings networkSettings = new NetworkSettings();
 
     @Override
     public void handleShutdown() {
@@ -50,7 +47,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     @Override
     public void handleStartup(String hardwareId, Properties configProps, String homePath, ScheduledExecutorService executorService) {
-        init(configProps);
+        init(configProps, homePath);
         setupWebServer(configProps);
         this.gwSerialNumber = hardwareId;
         if (registeredSpa.getHardwareId() == null) {
@@ -61,7 +58,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         }
     }
 
-    private void init(final Properties props) {
+    private void init(final Properties props, String homePath) {
         spaStateHolder = new MockSpaStateHolder(props);
 
         final String spaId = props.getProperty("mock.spaId");
@@ -311,15 +308,5 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     @Override
     public String getSpaId() {
         return registeredSpa.getHardwareId();
-    }
-
-    @Override
-    public NetworkSettings getNetworkSettings() {
-        return networkSettings;
-    }
-
-    @Override
-    public void setNetworkSettings(final NetworkSettings networkSettings) {
-        this.networkSettings = networkSettings;
     }
 }
