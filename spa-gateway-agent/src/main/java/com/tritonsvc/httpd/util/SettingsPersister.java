@@ -17,6 +17,15 @@ public final class SettingsPersister {
 
     private static final Logger log = LoggerFactory.getLogger(SettingsPersister.class);
 
+    private static final String ETHERNET_DNS = "ethernet.dns";
+    private static final String WIFI_SSID = "wifi.ssid";
+    private static final String WIFI_SECURITY = "wifi.security";
+    private static final String WIFI_PASSWORD = "wifi.password";
+    private static final String ETHERNET_IP = "ethernet.ip";
+    private static final String ETHERNET_NETMASK = "ethernet.netmask";
+    private static final String ETHERNET_GATEWAY = "ethernet.gateway";
+    private static final String ETHERNET_DHCP = "ethernet.dhcp";
+
     private SettingsPersister() {
         // utility class
     }
@@ -28,7 +37,7 @@ public final class SettingsPersister {
             props.load(in);
             fillNetworkSettings(networkSettings, props);
         } catch (final IOException e) {
-            log.error("Error saving network settings to properties file", e);
+            log.error("Error loading network settings to properties file", e);
         }
 
         return networkSettings;
@@ -36,38 +45,38 @@ public final class SettingsPersister {
 
     private static void fillNetworkSettings(final NetworkSettings networkSettings, final Properties props) {
         final Wifi wifi = new Wifi();
-        final String ssid = props.getProperty("wifi.ssid");
+        final String ssid = props.getProperty(WIFI_SSID);
         if (ssid != null) {
             wifi.setSsid(ssid);
         }
-        final String security = props.getProperty("wifi.security");
+        final String security = props.getProperty(WIFI_SECURITY);
         if (security != null) {
             wifi.setSecurity(WifiSecurity.valueOf(security));
         }
-        final String password = props.getProperty("wifi.password");
+        final String password = props.getProperty(WIFI_PASSWORD);
         if (password != null) {
             wifi.setPassword(password);
         }
         networkSettings.setWifi(wifi);
 
         final Ethernet ethernet = new Ethernet();
-        final String ip = props.getProperty("ethernet.ip");
+        final String ip = props.getProperty(ETHERNET_IP);
         if (ip != null) {
             ethernet.setIpAddress(ip);
         }
-        final String netmask = props.getProperty("ethernet.netmask");
+        final String netmask = props.getProperty(ETHERNET_NETMASK);
         if (netmask != null) {
             ethernet.setNetmask(netmask);
         }
-        final String gateway = props.getProperty("ethernet.gateway");
+        final String gateway = props.getProperty(ETHERNET_GATEWAY);
         if (gateway != null) {
             ethernet.setGateway(gateway);
         }
-        final String dns = props.getProperty("ethernet.dns");
+        final String dns = props.getProperty(ETHERNET_DNS);
         if (dns != null) {
             ethernet.setDnsServer(dns);
         }
-        final String dhcp = props.getProperty("ethernet.dhcp");
+        final String dhcp = props.getProperty(ETHERNET_DHCP);
         if (dhcp != null) {
             ethernet.setDhcp(Boolean.parseBoolean(dhcp));
         }
@@ -81,29 +90,29 @@ public final class SettingsPersister {
             final Properties props = new Properties();
             if (networkSettings.getWifi() != null) {
                 if (networkSettings.getWifi().getSsid() != null) {
-                    props.setProperty("wifi.ssid", networkSettings.getWifi().getSsid());
+                    props.setProperty(WIFI_SSID, networkSettings.getWifi().getSsid());
                 }
                 if (networkSettings.getWifi().getSecurity() != null) {
-                    props.setProperty("wifi.security", networkSettings.getWifi().getSecurity().toString());
+                    props.setProperty(WIFI_SECURITY, networkSettings.getWifi().getSecurity().toString());
                 }
                 if (networkSettings.getWifi().getPassword() != null) {
-                    props.setProperty("wifi.password", networkSettings.getWifi().getPassword());
+                    props.setProperty(WIFI_PASSWORD, networkSettings.getWifi().getPassword());
                 }
             }
             if (networkSettings.getEthernet() != null) {
                 if (networkSettings.getEthernet().getIpAddress() != null) {
-                    props.setProperty("ethernet.ip", networkSettings.getEthernet().getIpAddress());
+                    props.setProperty(ETHERNET_IP, networkSettings.getEthernet().getIpAddress());
                 }
                 if (networkSettings.getEthernet().getNetmask() != null) {
-                    props.setProperty("ethernet.netmask", networkSettings.getEthernet().getNetmask());
+                    props.setProperty(ETHERNET_NETMASK, networkSettings.getEthernet().getNetmask());
                 }
                 if (networkSettings.getEthernet().getGateway() != null) {
-                    props.setProperty("ethernet.gateway", networkSettings.getEthernet().getGateway());
+                    props.setProperty(ETHERNET_GATEWAY, networkSettings.getEthernet().getGateway());
                 }
                 if (networkSettings.getEthernet().getDnsServer() != null) {
-                    props.setProperty("ethernet.dns", networkSettings.getEthernet().getDnsServer());
+                    props.setProperty(ETHERNET_DNS, networkSettings.getEthernet().getDnsServer());
                 }
-                props.setProperty("ethernet.dhcp", String.valueOf(networkSettings.getEthernet().isDhcp()));
+                props.setProperty(ETHERNET_DHCP, String.valueOf(networkSettings.getEthernet().isDhcp()));
             }
 
             props.store(out, "Network settings");
