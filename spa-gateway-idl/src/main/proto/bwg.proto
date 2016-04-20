@@ -125,10 +125,9 @@ message Uplink {
         message Components {
             // the heater state is read-only, there is no command to change it's state
             enum HeaterState {
-                HEATER_OFF = 0;
-                HEATER_ON = 1;
-                HEATER_WAITING = 2;
-                HEATER_UNDEFINED = 3;
+                OFF = 0;
+                ON = 1;
+                WAITING = 2;
             }
             optional HeaterState heater1= 1;
             optional HeaterState heater2= 2;

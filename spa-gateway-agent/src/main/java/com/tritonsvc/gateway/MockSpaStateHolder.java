@@ -79,8 +79,8 @@ public class MockSpaStateHolder {
         controllerBuilder.setCurrentWaterTemp(temperature.intValue());
         controllerBuilder.setTargetWaterTemperature(temperature.intValue());
 
-        componentsBuilder.setHeater1(Bwg.Uplink.Model.Components.HeaterState.HEATER_ON);
-        componentsBuilder.setHeater2(Bwg.Uplink.Model.Components.HeaterState.HEATER_ON);
+        componentsBuilder.setHeater1(Bwg.Uplink.Model.Components.HeaterState.ON);
+        componentsBuilder.setHeater2(Bwg.Uplink.Model.Components.HeaterState.ON);
     }
 
     public void updateFilterCycle(final Integer port, final Integer durationMinutes) {
@@ -239,8 +239,8 @@ public class MockSpaStateHolder {
             addLightComponent(Bwg.Uplink.Model.Constants.ComponentType.LIGHT, i);
         }
 
-        componentsBuilder.setHeater1(Bwg.Uplink.Model.Components.HeaterState.HEATER_OFF);
-        componentsBuilder.setHeater2(Bwg.Uplink.Model.Components.HeaterState.HEATER_OFF);
+        componentsBuilder.setHeater1(Bwg.Uplink.Model.Components.HeaterState.OFF);
+        componentsBuilder.setHeater2(Bwg.Uplink.Model.Components.HeaterState.OFF);
 
         setupPeripherlalBuilders();
 

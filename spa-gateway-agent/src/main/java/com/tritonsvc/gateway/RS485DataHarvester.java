@@ -926,13 +926,13 @@ public class RS485DataHarvester implements Runnable {
         }
 
         if ((0x10 & message[7]) > 0) {
-            compsBuilder.setHeater1(Components.HeaterState.HEATER_UNDEFINED);
+            compsBuilder.setHeater1(Components.HeaterState.OFF);
         } else {
             compsBuilder.clearHeater1();
         }
 
         if ((0x20 & message[7]) > 0) {
-            compsBuilder.setHeater2(Components.HeaterState.HEATER_UNDEFINED);
+            compsBuilder.setHeater2(Components.HeaterState.OFF);
         } else {
             compsBuilder.clearHeater2();
         }
