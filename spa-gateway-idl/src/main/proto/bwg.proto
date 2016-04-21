@@ -116,6 +116,7 @@ message Uplink {
             optional SystemInfo systemInfo = 3;
             optional Components components = 4;
             optional fixed64 lastUpdateTimestamp = 5;
+            required uint32 updateInterval = 6;
         }
 
         // this is the state of each known component attached to controller

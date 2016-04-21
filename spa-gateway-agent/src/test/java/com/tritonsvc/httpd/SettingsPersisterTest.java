@@ -39,9 +39,9 @@ public class SettingsPersisterTest {
         ethernet.setNetmask("1.1.1.4");
 
         final File networkSettingsFile = folder.newFile("networkSettings.properties");
-        SettingsPersister.save(networkSettingsFile, networkSettings);
+        SettingsPersister.saveNetworkSettings(networkSettingsFile, networkSettings);
 
-        final NetworkSettings loaded = SettingsPersister.load(networkSettingsFile);
+        final NetworkSettings loaded = SettingsPersister.loadNetworkSettings(networkSettingsFile);
 
         Assert.assertEquals(networkSettings.getWifi().getPassword(), loaded.getWifi().getPassword());
         Assert.assertEquals(networkSettings.getWifi().getSecurity(), loaded.getWifi().getSecurity());

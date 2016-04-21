@@ -143,6 +143,10 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
         this.dataPath = path;
     }
 
+    public String getDataPath() {
+        return this.dataPath;
+    }
+
     @Override
     public void setEventDispatcher(GatewayEventDispatcher eventDispatcher) {
         this.eventDispatcher = eventDispatcher;
@@ -306,7 +310,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     private void loadNetworkSettings() {
         final File networkSettingFile = new File(dataPath, "networkSettings.properties");
-        this.networkSettings = SettingsPersister.load(networkSettingFile);
+        this.networkSettings = SettingsPersister.loadNetworkSettings(networkSettingFile);
     }
 
     @Override
@@ -317,6 +321,6 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     private void saveNetworkSettings() {
         final File networkSettingFile = new File(dataPath, "networkSettings.properties");
-        SettingsPersister.save(networkSettingFile, this.networkSettings);
+        SettingsPersister.saveNetworkSettings(networkSettingFile, this.networkSettings);
     }
 }

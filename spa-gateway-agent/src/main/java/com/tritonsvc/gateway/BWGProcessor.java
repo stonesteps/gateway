@@ -10,10 +10,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
-import com.tritonsvc.httpd.NetworkSettingsHolder;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
-import com.tritonsvc.httpd.model.NetworkSettings;
 import com.tritonsvc.httpd.util.SettingsPersister;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
@@ -23,6 +21,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpCom
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
+import com.tritonsvc.spa.communication.proto.BwgHelper;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
 import jdk.dio.uart.UARTConfig;
@@ -33,6 +32,8 @@ import java.io.File;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -47,6 +48,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private static final long MAX_NEW_REG_WAIT_TIME = 120000;
     private static final long MAX_REG_LIFETIME = 240000;
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
+    private static final long DEFAULT_UPDATE_INTERVAL = 60000;
+    public static final String UPDATE_INTERVAL_PROPERTIES_FILE_NAME = "updateInterval.properties";
+    public static final String UPDATE_INTERVAL_PROPERTY_NAME = "updateInterval";
+
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
     private Map<String, DeviceRegistration> registeredHwIds = newHashMap();
@@ -58,13 +63,26 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private UART rs485Uart;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
+    private AtomicLong updateInterval = new AtomicLong(DEFAULT_UPDATE_INTERVAL);
     private WebServer webServer = null;
+    private ScheduledExecutorService es = null;
+    private ScheduledFuture<?> intervalResetFuture = null;
 
     @Override
     public void handleShutdown() {
-        try {rs485Uart.stopReading();} catch (Exception ex) {}
-        try {rs485Uart.stopWriting();} catch (Exception ex) {}
-        try {rs485Uart.close();} catch (Exception ex) {}
+        try {
+            rs485Uart.stopReading();
+        } catch (Exception ex) {
+        }
+        try {
+            rs485Uart.stopWriting();
+        } catch (Exception ex) {
+        }
+        try {
+            rs485Uart.close();
+        } catch (Exception ex) {
+        }
+        es.shutdown();
     }
 
     @Override
@@ -73,7 +91,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.gwSerialNumber = gwSerialNumber;
         this.configProps = configProps;
         this.webServer = new WebServer(configProps, this, this);
+        this.es = executorService;
 
+        loadUpdateInterval();
         setUpRS485();
         validateOidProperties();
         obtainSpaRegistration();
@@ -120,7 +140,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         if (response.getState() == RegistrationAckState.ALREADY_REGISTERED &&
                 getRegisteredHWIds().containsKey(originatorId) &&
-                Objects.equals(getRegisteredHWIds().get(originatorId).getHardwareId(),hardwareId)) {
+                Objects.equals(getRegisteredHWIds().get(originatorId).getHardwareId(), hardwareId)) {
             LOGGER.info("confirmed registration state in cloud for spa id = {}", hardwareId);
             return;
         }
@@ -160,6 +180,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         try {
             if (request.getRequestType().equals(RequestType.HEATER)) {
                 updateHeater(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId, rs485DataHarvester.requiresCelsius());
+            } else if (request.getRequestType().equals(RequestType.UPDATE_SPA_STATE_INTERVAL)) {
+                updateSpaStateInterval(request.getMetadataList());
             } else {
                 rs485DataHarvester.arePanelCommandsSafe(false);
                 switch (request.getRequestType()) {
@@ -194,15 +216,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                         sendAck(hardwareId, originatorId, AckResponseCode.ERROR, "not supported");
                 }
             }
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             LOGGER.error("had problem when sending a command ", ex);
             sendAck(hardwareId, originatorId, AckResponseCode.ERROR, ex.getMessage());
             return;
         }
     }
 
-    private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId, boolean celsius) throws Exception{
+    private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId, boolean celsius) throws Exception {
         rs485DataHarvester.arePanelCommandsSafe(true);
         Integer temperature = null;
         if (metadataList != null && metadataList.size() > 0) {
@@ -217,13 +238,34 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             if (celsius) {
                 // convert fahr temp into bwg celsius value
                 temperature = new BigDecimal(2 *
-                        (new BigDecimal((5.0/9.0)*(temperature - 32)).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue()))
+                        (new BigDecimal((5.0 / 9.0) * (temperature - 32)).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue()))
                         .setScale(0, BigDecimal.ROUND_HALF_UP).intValue();
             }
             rs485DataHarvester.prepareForTemperatureChangeRequest(temperature);
             rs485MessagePublisher.setTemperature(temperature, registeredAddress, originatorId, hardwareId);
         } else {
             throw new RS485Exception("Update heater command did not have required metadata param: " + SpaCommandAttribName.DESIREDTEMP.name());
+        }
+    }
+
+    private void updateSpaStateInterval(final List<RequestMetadata> metadataList) {
+        final Integer intervalSeconds = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.INTERVAL_SECONDS.name(), metadataList));
+        final Integer durationMinutes = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DURATION_MINUTES.name(), metadataList));
+        if (intervalSeconds != null && durationMinutes != null) {
+            updateInterval.set(1000L * intervalSeconds.longValue());
+            if (this.intervalResetFuture != null) {
+                this.intervalResetFuture.cancel(false);
+            }
+            if (durationMinutes == -1) {
+                saveUpdateInterval();
+            } else {
+                // after given minutes, update interval returns to its original state
+                if (this.es != null) {
+                    this.intervalResetFuture = this.es.schedule(() -> {
+                        updateInterval.set(DEFAULT_UPDATE_INTERVAL);
+                    }, durationMinutes.longValue(), TimeUnit.MINUTES);
+                }
+            }
         }
     }
 
@@ -247,7 +289,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         if (Objects.equals(desiredState, currentState.getCurrentState())) {
-            LOGGER.info("Request to change {} to {} was already current state, not sending rs485 command" , componentType.name(), desiredState);
+            LOGGER.info("Request to change {} to {} was already current state, not sending rs485 command", componentType.name(), desiredState);
             sendAck(hardwareId, originatorId, AckResponseCode.OK, null);
             return;
         }
@@ -290,7 +332,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         if (Objects.equals(params.getDesiredState(), currentState.getCurrentState())) {
-            LOGGER.info("Request to change {} to {} was already current state, not sending rs485 command" , componentType.name(), params.getDesiredState());
+            LOGGER.info("Request to change {} to {} was already current state, not sending rs485 command", componentType.name(), params.getDesiredState());
             sendAck(hardwareId, originatorId, AckResponseCode.OK, null);
             return;
         }
@@ -327,7 +369,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private void updateCircPump(final List<RequestMetadata> metadataList, final byte registeredAddress,
-                                   final String originatorId, final String hardwareId) throws Exception {
+                                final String originatorId, final String hardwareId) throws Exception {
         String desiredState = null;
 
         if (metadataList != null) {
@@ -349,7 +391,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         if (Objects.equals(desiredState, currentState.getCurrentState())) {
-            LOGGER.info("Request to change {} to {} was already current state, not sending rs485 command" , ComponentType.CIRCULATION_PUMP.name(), desiredState);
+            LOGGER.info("Request to change {} to {} was already current state, not sending rs485 command", ComponentType.CIRCULATION_PUMP.name(), desiredState);
             sendAck(hardwareId, originatorId, AckResponseCode.OK, null);
             return;
         }
@@ -412,7 +454,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             }
 
             // this loop runs often(once every 3 seconds), but only send up to cloud when timestamps on state data change
-            if ( rs485DataHarvester.getLatestSpaInfo().hasLastUpdateTimestamp() && lastSpaDetailsSent.get() != rs485DataHarvester.getLatestSpaInfo().getLastUpdateTimestamp()) {
+            if (rs485DataHarvester.getLatestSpaInfo().hasLastUpdateTimestamp() &&
+                    lastSpaDetailsSent.get() != rs485DataHarvester.getLatestSpaInfo().getLastUpdateTimestamp() &&
+                    System.currentTimeMillis() - lastSpaDetailsSent.get() > updateInterval.get()) {
                 getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, rs485DataHarvester.getLatestSpaInfo());
                 lastSpaDetailsSent.set(rs485DataHarvester.getLatestSpaInfo().getLastUpdateTimestamp());
                 LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
@@ -428,6 +472,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     /**
      * get the oid properties mapping in config file
+     *
      * @return
      */
     public OidProperties getOidProperties() {
@@ -445,6 +490,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     /**
      * get the handle to the rs 485 serial port
+     *
      * @return
      */
     public UART getRS485UART() {
@@ -462,6 +508,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     /**
      * initiate a cloud registration for spa system as whole based on gateway serial number
+     *
      * @return
      */
     public DeviceRegistration obtainSpaRegistration() {
@@ -470,6 +517,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     /**
      * initiate a cloud reg for the spa controller
+     *
      * @param spaHardwareId
      * @return
      */
@@ -479,6 +527,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     /**
      * initiate a cloud reg for a mote
+     *
      * @param spaHardwareId
      * @param macAddress
      * @return
@@ -657,7 +706,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     private void setUpRS485() {
         String serialPort = configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT, "/dev/ttys0");
-        int baudRate = Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD,"")) != null ?
+        int baudRate = Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD, "")) != null ?
                 Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD)) : 115200;
 
         UARTConfig config = new UARTConfig.Builder()
@@ -675,5 +724,27 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         LOGGER.info("initialized rs 485 serial port {}", serialPort);
+    }
+
+    private void saveUpdateInterval() {
+        final File updateIntervalFile = new File(getDataPath(), UPDATE_INTERVAL_PROPERTIES_FILE_NAME);
+        final Properties props = new Properties();
+        props.setProperty(UPDATE_INTERVAL_PROPERTY_NAME, String.valueOf(updateInterval.get() / 1000L));
+        SettingsPersister.saveProperties(updateIntervalFile, props, "Update Interval (seconds)");
+    }
+
+    private void loadUpdateInterval() {
+        final File updateIntervalFile = new File(getDataPath(), UPDATE_INTERVAL_PROPERTIES_FILE_NAME);
+        if (updateIntervalFile.exists()) {
+            final Properties props = SettingsPersister.loadProperties(updateIntervalFile);
+            final Integer value = Ints.tryParse(props.getProperty(UPDATE_INTERVAL_PROPERTY_NAME));
+            if (value != null) {
+                updateInterval.set(value.longValue() * 1000L);
+            }
+        }
+    }
+
+    public int getUpdateIntervalSeconds() {
+        return (int) (updateInterval.get() / 1000L);
     }
 }

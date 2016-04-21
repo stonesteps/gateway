@@ -194,7 +194,7 @@ public final class DownlinkRequestor {
                     if (spa.getCurrentState() == null) {
                         spa.setCurrentState(new SpaState());
                     }
-                    // FIXME save some state?
+                    // FIXME saveNetworkSettings some state?
                 }
             }
         }

@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -40,17 +41,22 @@ public final class SettingsPersister {
         // utility class
     }
 
-    public static NetworkSettings load(final File file) {
+    public static NetworkSettings loadNetworkSettings(final File file) {
         final NetworkSettings networkSettings = new NetworkSettings();
+        final Properties props = loadProperties(file);
+        fillNetworkSettings(networkSettings, props);
+        return networkSettings;
+    }
+
+    public static Properties loadProperties(final File file) {
         final Properties props = new Properties();
         try (final InputStream in = new FileInputStream(file)) {
             props.load(in);
-            fillNetworkSettings(networkSettings, props);
         } catch (final IOException e) {
-            log.error("Error loading network settings to properties file", e);
+            log.error("Error loading properties file", e);
         }
 
-        return networkSettings;
+        return props;
     }
 
     private static void fillNetworkSettings(final NetworkSettings networkSettings, final Properties props) {
@@ -83,12 +89,12 @@ public final class SettingsPersister {
         return map;
     }
 
-    public static void save(final File file, final NetworkSettings networkSettings) {
+    public static void saveNetworkSettings(final File file, final NetworkSettings networkSettings) {
         if (networkSettings == null) return;
 
-        try (final OutputStream out = new FileOutputStream(file)) {
-            final Properties props = new Properties();
+        final Properties props = new Properties();
 
+        try {
             if (networkSettings.getWifi() != null) {
                 final Map<String, String> wifiSettings = beanUtilsBean.describe(networkSettings.getWifi());
                 props.putAll(wifiSettings);
@@ -98,10 +104,18 @@ public final class SettingsPersister {
                 final Map<String, String> ethSettings = beanUtilsBean.describe(networkSettings.getEthernet());
                 props.putAll(ethSettings);
             }
-
-            props.store(out, "Network settings");
         } catch (Exception e) {
-            log.error("Error saving network settings to properties file", e);
+            log.error("Error getting properties from network settings", e);
+        }
+
+        saveProperties(file, props, "Network Settings");
+    }
+
+    public static void saveProperties(final File file, final Properties props, final String title) {
+        try (final OutputStream out = new FileOutputStream(file)) {
+            props.store(out, title);
+        } catch (Exception e) {
+            log.error("Error saving properties file", e);
         }
     }
 }
