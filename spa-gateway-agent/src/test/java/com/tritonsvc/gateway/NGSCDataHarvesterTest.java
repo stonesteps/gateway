@@ -16,12 +16,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RS485DataHarvesterTest {
+public class NGSCDataHarvesterTest {
 
     private BWGProcessor processor;
-    private RS485MessagePublisher publisher;
+    private NGSCMessagePublisher publisher;
     private UART uart;
-    private RS485DataHarvester harvester;
+    private NGSCDataHarvester harvester;
     private int read;
     private CountDownLatch cdl;
 
@@ -29,10 +29,10 @@ public class RS485DataHarvesterTest {
     public void setUp() {
         processor = mock(BWGProcessor.class);
         uart = mock(UART.class);
-        publisher = mock(RS485MessagePublisher.class);
+        publisher = mock(NGSCMessagePublisher.class);
         when(processor.getRS485UART()).thenReturn(uart);
         when(processor.stillRunning()).thenReturn(true);
-        harvester = new RS485DataHarvester(processor, publisher);
+        harvester = new NGSCDataHarvester(processor, publisher);
         read = 0;
         cdl = new CountDownLatch(1);
     }

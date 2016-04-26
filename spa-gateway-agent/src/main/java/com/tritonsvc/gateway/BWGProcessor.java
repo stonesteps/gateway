@@ -10,13 +10,17 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
-import com.tritonsvc.httpd.NetworkSettingsHolder;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
-import com.tritonsvc.httpd.model.NetworkSettings;
-import com.tritonsvc.httpd.util.SettingsPersister;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestType;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
@@ -29,9 +33,12 @@ import jdk.dio.uart.UARTConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -59,6 +66,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private WebServer webServer = null;
+    private RS485DataHarvester dataHarvester;
+    private RS485MessagePublisher messagePublisher;
 
     @Override
     public void handleShutdown() {
@@ -78,8 +87,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         validateOidProperties();
         obtainSpaRegistration();
 
-        setRS485MessagePublisher(new RS485MessagePublisher(this));
-        setRS485DataHarvester(new RS485DataHarvester(this, rs485MessagePublisher));
+        setRS485MessagePublisher(messagePublisher);
+        setRS485DataHarvester(dataHarvester);
         executorService.execute(new WSNDataHarvester(this));
         executorService.execute(rs485DataHarvester);
 
@@ -659,6 +668,16 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         String serialPort = configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT, "/dev/ttys0");
         int baudRate = Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD,"")) != null ?
                 Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD)) : 115200;
+
+        if (configProps.getProperty(AgentConfiguration.RS485_PARSER_NAME) != null &&
+                configProps.getProperty(AgentConfiguration.RS485_PARSER_NAME).equalsIgnoreCase("jacuzzi")) {
+//                TODO implement the Jacuzzi classes
+//                messagePublisher = new JacuzziMessagePublisher(this);
+//                dataHarvester = new JacuzziDataHarvester(this, (NGSCMessagePublisher)messagePublisher);
+        } else {
+            messagePublisher = new NGSCMessagePublisher(this);
+            dataHarvester = new NGSCDataHarvester(this, (NGSCMessagePublisher) messagePublisher);
+        }
 
         UARTConfig config = new UARTConfig.Builder()
                 .setControllerName(serialPort)
