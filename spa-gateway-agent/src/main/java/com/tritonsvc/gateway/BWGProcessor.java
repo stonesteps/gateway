@@ -749,7 +749,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     private void setupUpdateInterval() {
         final AgentSettings agentSettings = getAgentSettings();
-        if (agentSettings.getGenericSettings() != null && agentSettings.getGenericSettings().getUpdateInterval() != null) {
+        if (agentSettings != null && agentSettings.getGenericSettings() != null && agentSettings.getGenericSettings().getUpdateInterval() != null) {
             // translate seconds to milliseconds
             updateInterval.set(agentSettings.getGenericSettings().getUpdateInterval().longValue() * 1000L);
         }
