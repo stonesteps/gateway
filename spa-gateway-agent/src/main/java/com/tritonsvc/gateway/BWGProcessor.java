@@ -12,7 +12,8 @@ import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
-import com.tritonsvc.httpd.util.SettingsPersister;
+import com.tritonsvc.httpd.model.AgentSettings;
+import com.tritonsvc.httpd.model.GenericSettings;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
@@ -28,7 +29,6 @@ import jdk.dio.uart.UARTConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
@@ -49,8 +49,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private static final long MAX_REG_LIFETIME = 240000;
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static final long DEFAULT_UPDATE_INTERVAL = 60000;
-    public static final String UPDATE_INTERVAL_PROPERTIES_FILE_NAME = "updateInterval.properties";
-    public static final String UPDATE_INTERVAL_PROPERTY_NAME = "updateInterval";
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
@@ -93,7 +91,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.webServer = new WebServer(configProps, this, this);
         this.es = executorService;
 
-        loadUpdateInterval();
+        setupUpdateInterval();
         setUpRS485();
         validateOidProperties();
         obtainSpaRegistration();
@@ -256,9 +254,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             if (this.intervalResetFuture != null) {
                 this.intervalResetFuture.cancel(false);
             }
+            // -1 tells to save current update interval in agent settings for reuse with next software startup
+            // update interval is set permanently
             if (durationMinutes == -1) {
-                saveUpdateInterval();
+                saveCurrentUpdateIntervalInAgentSettings();
             } else {
+                // clear update interval from agent settings, so update interval goes to default state with next
+                // software startup and furthermore is reverted to default (60s) after given duration minutes
+                clearUpdateIntervalFromAgentSettings();
                 // after given minutes, update interval returns to its original state
                 if (this.es != null) {
                     this.intervalResetFuture = this.es.schedule(() -> {
@@ -726,25 +729,34 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         LOGGER.info("initialized rs 485 serial port {}", serialPort);
     }
 
-    private void saveUpdateInterval() {
-        final File updateIntervalFile = new File(getDataPath(), UPDATE_INTERVAL_PROPERTIES_FILE_NAME);
-        final Properties props = new Properties();
-        props.setProperty(UPDATE_INTERVAL_PROPERTY_NAME, String.valueOf(updateInterval.get() / 1000L));
-        SettingsPersister.saveProperties(updateIntervalFile, props, "Update Interval (seconds)");
+    private void saveCurrentUpdateIntervalInAgentSettings() {
+        if (getAgentSettings() != null) {
+            GenericSettings genericSettings = getAgentSettings().getGenericSettings();
+            if (genericSettings == null) {
+                genericSettings = new GenericSettings();
+                getAgentSettings().setGenericSettings(genericSettings);
+            }
+            genericSettings.setUpdateInterval(getUpdateIntervalSeconds());
+        }
     }
 
-    private void loadUpdateInterval() {
-        final File updateIntervalFile = new File(getDataPath(), UPDATE_INTERVAL_PROPERTIES_FILE_NAME);
-        if (updateIntervalFile.exists()) {
-            final Properties props = SettingsPersister.loadProperties(updateIntervalFile);
-            final Integer value = Ints.tryParse(props.getProperty(UPDATE_INTERVAL_PROPERTY_NAME));
-            if (value != null) {
-                updateInterval.set(value.longValue() * 1000L);
-            }
+    private void clearUpdateIntervalFromAgentSettings() {
+        if (getAgentSettings() != null && getAgentSettings().getGenericSettings() != null) {
+            getAgentSettings().getGenericSettings().setUpdateInterval(null);
+        }
+        saveAgentSettings();
+    }
+
+    private void setupUpdateInterval() {
+        final AgentSettings agentSettings = getAgentSettings();
+        if (agentSettings.getGenericSettings() != null && agentSettings.getGenericSettings().getUpdateInterval() != null) {
+            // translate seconds to milliseconds
+            updateInterval.set(agentSettings.getGenericSettings().getUpdateInterval().longValue() * 1000L);
         }
     }
 
     public int getUpdateIntervalSeconds() {
         return (int) (updateInterval.get() / 1000L);
     }
+
 }

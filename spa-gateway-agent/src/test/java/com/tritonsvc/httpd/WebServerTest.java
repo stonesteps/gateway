@@ -5,19 +5,14 @@ import com.tritonsvc.httpd.model.NetworkSettings;
 import com.tritonsvc.httpd.model.RegisterUserResponse;
 import com.tritonsvc.httpd.model.Wifi;
 import com.tritonsvc.httpd.model.WifiSecurity;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
-import javax.net.ssl.*;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import javax.net.ssl.HttpsURLConnection;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.X509Certificate;
 import java.util.Properties;
 
 /**
@@ -56,7 +51,7 @@ public class WebServerTest extends WebServerTestBase {
         wifi.setSecurity(WifiSecurity.WPA2);
         networkSettings.setWifi(wifi);
 
-        final URL url = new URL("https://localhost:8001/networkSettings");
+        final URL url = new URL("https://localhost:8001/agentSettings");
         HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
         conn.setDoOutput(true);
         conn.setRequestMethod("POST");

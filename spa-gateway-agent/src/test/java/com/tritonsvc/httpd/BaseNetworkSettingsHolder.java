@@ -10,12 +10,12 @@ public class BaseNetworkSettingsHolder implements NetworkSettingsHolder {
     private NetworkSettings networkSettings = new NetworkSettings();
 
     @Override
-    public NetworkSettings loadAndGetNetworkSettings() {
+    public NetworkSettings getNetworkSettings() {
         return networkSettings;
     }
 
     @Override
-    public void setAndSaveNetworkSettings(NetworkSettings networkSettings) {
+    public void setNetworkSettings(NetworkSettings networkSettings) {
         this.networkSettings = networkSettings;
     }
 }

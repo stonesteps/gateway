@@ -1,9 +1,10 @@
 package com.tritonsvc.httpd.model;
 
 /**
- * Created by holow on 4/8/2016.
+ * Created by holow on 4/26/2016.
  */
 public class NetworkSettings {
+
     private Wifi wifi;
     private Ethernet ethernet;
 

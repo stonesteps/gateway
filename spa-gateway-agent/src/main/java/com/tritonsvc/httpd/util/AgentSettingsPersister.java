@@ -1,15 +1,12 @@
 package com.tritonsvc.httpd.util;
 
-import com.tritonsvc.httpd.model.Ethernet;
-import com.tritonsvc.httpd.model.NetworkSettings;
-import com.tritonsvc.httpd.model.Wifi;
+import com.tritonsvc.httpd.model.*;
 import org.apache.commons.beanutils.BeanUtilsBean;
 import org.apache.commons.beanutils.ConvertUtilsBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -17,9 +14,9 @@ import java.util.Properties;
 /**
  * Created by holow on 4/14/2016.
  */
-public final class SettingsPersister {
+public final class AgentSettingsPersister {
 
-    private static final Logger log = LoggerFactory.getLogger(SettingsPersister.class);
+    private static final Logger log = LoggerFactory.getLogger(AgentSettingsPersister.class);
 
     private static final BeanUtilsBean beanUtilsBean = new BeanUtilsBean(new ConvertUtilsBean() {
         @Override
@@ -37,18 +34,18 @@ public final class SettingsPersister {
         }
     });
 
-    private SettingsPersister() {
+    private AgentSettingsPersister() {
         // utility class
     }
 
-    public static NetworkSettings loadNetworkSettings(final File file) {
-        final NetworkSettings networkSettings = new NetworkSettings();
+    public static AgentSettings load(final File file) {
+        final AgentSettings agentSettings = new AgentSettings();
         final Properties props = loadProperties(file);
-        fillNetworkSettings(networkSettings, props);
-        return networkSettings;
+        fillAgentSettings(agentSettings, props);
+        return agentSettings;
     }
 
-    public static Properties loadProperties(final File file) {
+    private static Properties loadProperties(final File file) {
         final Properties props = new Properties();
         try (final InputStream in = new FileInputStream(file)) {
             props.load(in);
@@ -59,7 +56,8 @@ public final class SettingsPersister {
         return props;
     }
 
-    private static void fillNetworkSettings(final NetworkSettings networkSettings, final Properties props) {
+    private static void fillAgentSettings(final AgentSettings agentSettings, final Properties props) {
+        final NetworkSettings networkSettings = new NetworkSettings();
         final Wifi wifi = new Wifi();
 
         final Map<String, String> propertiesMap = toMap(props);
@@ -79,6 +77,16 @@ public final class SettingsPersister {
             log.error("Could not set ethernet properties", e);
         }
         networkSettings.setEthernet(ethernet);
+        agentSettings.setNetworkSettings(networkSettings);
+
+        // load generic settings
+        final GenericSettings genericSettings = new GenericSettings();
+        try {
+            beanUtilsBean.populate(genericSettings, propertiesMap);
+        } catch (final Exception e) {
+            log.error("Could not set wifi properties", e);
+        }
+        agentSettings.setGenericSettings(genericSettings);
     }
 
     private static Map<String, String> toMap(final Properties properties) {
@@ -89,29 +97,35 @@ public final class SettingsPersister {
         return map;
     }
 
-    public static void saveNetworkSettings(final File file, final NetworkSettings networkSettings) {
-        if (networkSettings == null) return;
+    public static void save(final File file, final AgentSettings agentSettings) {
+        if (agentSettings == null) return;
 
         final Properties props = new Properties();
 
         try {
-            if (networkSettings.getWifi() != null) {
-                final Map<String, String> wifiSettings = beanUtilsBean.describe(networkSettings.getWifi());
-                props.putAll(wifiSettings);
-            }
+            if (agentSettings.getNetworkSettings() != null) {
+                if (agentSettings.getNetworkSettings().getWifi() != null) {
+                    final Map<String, String> wifiSettings = beanUtilsBean.describe(agentSettings.getNetworkSettings().getWifi());
+                    props.putAll(wifiSettings);
+                }
 
-            if (networkSettings.getEthernet() != null) {
-                final Map<String, String> ethSettings = beanUtilsBean.describe(networkSettings.getEthernet());
-                props.putAll(ethSettings);
+                if (agentSettings.getNetworkSettings().getEthernet() != null) {
+                    final Map<String, String> ethSettings = beanUtilsBean.describe(agentSettings.getNetworkSettings().getEthernet());
+                    props.putAll(ethSettings);
+                }
+            }
+            if (agentSettings.getGenericSettings() != null) {
+                final Map<String, String> genericSettings = beanUtilsBean.describe(agentSettings.getGenericSettings());
+                props.putAll(genericSettings);
             }
         } catch (Exception e) {
             log.error("Error getting properties from network settings", e);
         }
 
-        saveProperties(file, props, "Network Settings");
+        saveProperties(file, props, "Agent Settings");
     }
 
-    public static void saveProperties(final File file, final Properties props, final String title) {
+    private static void saveProperties(final File file, final Properties props, final String title) {
         try (final OutputStream out = new FileOutputStream(file)) {
             props.store(out, title);
         } catch (Exception e) {

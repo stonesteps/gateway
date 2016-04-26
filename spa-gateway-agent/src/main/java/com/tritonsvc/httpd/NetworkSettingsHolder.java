@@ -7,7 +7,8 @@ import com.tritonsvc.httpd.model.NetworkSettings;
  */
 public interface NetworkSettingsHolder {
 
-    NetworkSettings loadAndGetNetworkSettings();
-    void setAndSaveNetworkSettings(final NetworkSettings networkSettings);
+    NetworkSettings getNetworkSettings();
+
+    void setNetworkSettings(final NetworkSettings networkSettings);
 
 }

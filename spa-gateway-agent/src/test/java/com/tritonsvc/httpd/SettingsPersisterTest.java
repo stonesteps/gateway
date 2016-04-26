@@ -1,10 +1,7 @@
 package com.tritonsvc.httpd;
 
-import com.tritonsvc.httpd.model.Ethernet;
-import com.tritonsvc.httpd.model.NetworkSettings;
-import com.tritonsvc.httpd.model.Wifi;
-import com.tritonsvc.httpd.model.WifiSecurity;
-import com.tritonsvc.httpd.util.SettingsPersister;
+import com.tritonsvc.httpd.model.*;
+import com.tritonsvc.httpd.util.AgentSettingsPersister;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -23,7 +20,9 @@ public class SettingsPersisterTest {
 
     @Test
     public void testLoadSave() throws IOException {
+        final AgentSettings agentSettings = new AgentSettings();
         final NetworkSettings networkSettings = new NetworkSettings();
+        agentSettings.setNetworkSettings(networkSettings);
         final Wifi wifi = new Wifi();
         networkSettings.setWifi(wifi);
         wifi.setPassword("passwd");
@@ -38,19 +37,47 @@ public class SettingsPersisterTest {
         ethernet.setGateway("1.1.1.3");
         ethernet.setNetmask("1.1.1.4");
 
-        final File networkSettingsFile = folder.newFile("networkSettings.properties");
-        SettingsPersister.saveNetworkSettings(networkSettingsFile, networkSettings);
+        final GenericSettings genericSettings = new GenericSettings();
+        agentSettings.setGenericSettings(genericSettings);
+        genericSettings.setUpdateInterval(12);
 
-        final NetworkSettings loaded = SettingsPersister.loadNetworkSettings(networkSettingsFile);
+        final File agentSettingsFile = folder.newFile("agentSettings.properties");
+        AgentSettingsPersister.save(agentSettingsFile, agentSettings);
 
-        Assert.assertEquals(networkSettings.getWifi().getPassword(), loaded.getWifi().getPassword());
-        Assert.assertEquals(networkSettings.getWifi().getSecurity(), loaded.getWifi().getSecurity());
-        Assert.assertEquals(networkSettings.getWifi().getSsid(), loaded.getWifi().getSsid());
+        final AgentSettings loaded = AgentSettingsPersister.load(agentSettingsFile);
 
-        Assert.assertEquals(networkSettings.getEthernet().getDnsServer(), loaded.getEthernet().getDnsServer());
-        Assert.assertEquals(networkSettings.getEthernet().getGateway(), loaded.getEthernet().getGateway());
-        Assert.assertEquals(networkSettings.getEthernet().getIpAddress(), loaded.getEthernet().getIpAddress());
-        Assert.assertEquals(networkSettings.getEthernet().getNetmask(), loaded.getEthernet().getNetmask());
-        Assert.assertEquals(networkSettings.getEthernet().isDhcp(), loaded.getEthernet().isDhcp());
+        Assert.assertEquals(agentSettings.getNetworkSettings().getWifi().getPassword(), loaded.getNetworkSettings().getWifi().getPassword());
+        Assert.assertEquals(agentSettings.getNetworkSettings().getWifi().getSecurity(), loaded.getNetworkSettings().getWifi().getSecurity());
+        Assert.assertEquals(agentSettings.getNetworkSettings().getWifi().getSsid(), loaded.getNetworkSettings().getWifi().getSsid());
+
+        Assert.assertEquals(agentSettings.getNetworkSettings().getEthernet().getDnsServer(), loaded.getNetworkSettings().getEthernet().getDnsServer());
+        Assert.assertEquals(agentSettings.getNetworkSettings().getEthernet().getGateway(), loaded.getNetworkSettings().getEthernet().getGateway());
+        Assert.assertEquals(agentSettings.getNetworkSettings().getEthernet().getIpAddress(), loaded.getNetworkSettings().getEthernet().getIpAddress());
+        Assert.assertEquals(agentSettings.getNetworkSettings().getEthernet().getNetmask(), loaded.getNetworkSettings().getEthernet().getNetmask());
+        Assert.assertEquals(agentSettings.getNetworkSettings().getEthernet().isDhcp(), loaded.getNetworkSettings().getEthernet().isDhcp());
+
+        Assert.assertNotNull(loaded.getGenericSettings().getUpdateInterval());
+        Assert.assertEquals(agentSettings.getGenericSettings().getUpdateInterval(), loaded.getGenericSettings().getUpdateInterval());
+    }
+
+    @Test
+    public void testNullUpdateIntervalSettings() throws IOException {
+        final AgentSettings agentSettings = new AgentSettings();
+        final GenericSettings genericSettings = new GenericSettings();
+        agentSettings.setGenericSettings(genericSettings);
+        genericSettings.setUpdateInterval(12);
+
+        final File agentSettingsFile = folder.newFile("agentSettings.properties");
+        AgentSettingsPersister.save(agentSettingsFile, agentSettings);
+
+        final AgentSettings loaded = AgentSettingsPersister.load(agentSettingsFile);
+        Assert.assertNotNull(loaded.getGenericSettings().getUpdateInterval());
+        Assert.assertEquals(agentSettings.getGenericSettings().getUpdateInterval(), loaded.getGenericSettings().getUpdateInterval());
+
+        loaded.getGenericSettings().setUpdateInterval(null);
+        AgentSettingsPersister.save(agentSettingsFile, loaded);
+
+        final AgentSettings reloaded = AgentSettingsPersister.load(agentSettingsFile);
+        Assert.assertNull(reloaded.getGenericSettings().getUpdateInterval());
     }
 }

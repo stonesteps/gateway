@@ -55,7 +55,7 @@ public class NetworkSettingsHandler implements HttpHandler {
             log.debug("Got in request: {}", body);
 
             final NetworkSettings networkSettings = mapper.readValue(body, NetworkSettings.class);
-            this.networkSettingsHolder.setAndSaveNetworkSettings(networkSettings);
+            this.networkSettingsHolder.setNetworkSettings(networkSettings);
 
             httpExchange.sendResponseHeaders(200, 0); // OK
         }
@@ -64,7 +64,7 @@ public class NetworkSettingsHandler implements HttpHandler {
     private void handleGet(final HttpExchange httpExchange) throws IOException {
         log.debug("Handling network settings get");
 
-        final String response = mapper.writeValueAsString(this.networkSettingsHolder.loadAndGetNetworkSettings());
+        final String response = mapper.writeValueAsString(this.networkSettingsHolder.getNetworkSettings());
 
         final Headers responseHeaders = httpExchange.getResponseHeaders();
         responseHeaders.set("Content-Type", "application/json");
