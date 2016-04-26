@@ -19,6 +19,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Mqtt service class. Responsible for sending and receiving messages from mqtt.
@@ -58,14 +59,7 @@ public final class MqttSubscribeService {
         if (currentSubscription != null) {
             currentSubscription.cancel(true);
         }
-
-        if (connection != null && connection.isConnected()) {
-            try {
-                connection.disconnect();
-            } catch (Exception e) {
-                log.error("error when closing connection with mqtt broker {}:{}", mqttHostname, mqttPort);
-            }
-        }
+        disconnect();
     }
 
     public void subscribe(final String topic, final MessageListener listener) throws Exception {
@@ -77,6 +71,17 @@ public final class MqttSubscribeService {
     private void checkConnection() throws Exception {
         if (connection == null || !connection.isConnected()) {
             connect();
+        }
+    }
+
+    private void disconnect() {
+        if (connection != null && connection.isConnected()) {
+            try {
+                connection.disconnect();
+                connection = null;
+            } catch (Exception e) {
+                log.error("error when closing connection with mqtt broker {}:{}", mqttHostname, mqttPort);
+            }
         }
     }
 
@@ -127,18 +132,23 @@ public final class MqttSubscribeService {
                     connection.subscribe(topics);
                 } catch (Exception e) {
                     log.error("error with connection to mqtt broker {}:{} while subscribing to quete {}", mqttHostname, mqttPort, topic);
-                    // FIXME wait for some time before reconnect?
+                    disconnect();
+                    Thread.sleep(10000);
                     continue;
                 }
 
                 try {
                     while (!Thread.currentThread().isInterrupted()) {
                         log.info("waiting for message...");
-                        final Message message = connection.receive().await();
+                        final Message message = connection.receive().await(2, TimeUnit.MINUTES);
                         if (message != null) {
                             message.ack();
                             log.info("got message, processing");
                             listener.processMessage(message.getPayload());
+                        } else {
+                            log.info("no uplink messages received in 2 minutes, will recreate subscription ...");
+                            disconnect();
+                            break;
                         }
                     }
                 } catch (final InterruptedException e) {
