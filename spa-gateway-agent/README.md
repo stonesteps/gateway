@@ -71,23 +71,16 @@ If your using linksprite rs485 shield with raspberry pi 3, you need to use /dev/
 in agent's config.properties file, change rs485.port=ttyS0, and then then add 
 core_freq=250 in /boot/config.txt - https://frillip.com/raspberry-pi-3-uart-baud-rate-workaround/
 
-Here's how to create PKI/Certificates which the MQTT broker requires. 
+How to create PKI/Certificates which the QA MQTT broker requires. 
  
-create self signed ca root(don't redo this, use the existing test ca root in src/test/resources)
-openssl genrsa -out ca_root_key.pem 2048
-openssl req -x509 -new -nodes -key ca_root_key.pem -sha256 -days 18250 -out ca_root_cert.pem
+1. checkout http://iotdev05.bi.local/infrastructure/pki.git
+2. cd pki/scripts, run ./generate_cert.sh -q -s <your_serial_number>
+3. copy ./certs_qa/<your_serial_number>/ca.cert.pem to 'gateway_agent'/ca_root_cert.pem
+4. copy ./certs_qa/<your_serial_number>/<your_serial_number>.cert.pem to 'gateway_agent'/gateway_cert.pem
+5. copy ./certs_qa/<your_serial_number>/<your_serial_number>.key.pkcs8 to 'gateway_agent'/gateway_key.pkcs8
 
-mqtt broker(used for server ssl)
-openssl genrsa -out broker_key.pem 2048
-openssl req -new -key broker_key.pem -out broker.csr
-openssl x509 -req -in broker.csr -CA ca_root_cert.pem -CAkey ca_root_key.pem -CAcreateserial -out broker_cert.pem -days 18250 -sha256
 
-gateways and message-processor(any mqtt clients)
-openssl genrsa -out gateway_key.pem 2048
-openssl req -new -key gateway_key.pem -out gateway.csr
-openssl x509 -req -in gateway.csr -CA ca_root_cert.pem -CAkey ca_root_key.pem -CAcreateserial -out gateway_cert.pem -days 18250 -sha256
-openssl pkcs8 -topk8 -inform PEM -outform DER -in gateway_key.pem -out gateway_key.pkcs8 -nocrypt
-
+Additional comments/notes:
 for whatever reason, if you want to package up a gateway or broker cert(clients) and the trusted ca root into a java key store: 
 Create PKCS12 keystore from private key and public certificate.
 openssl pkcs12 -export -name brokercert -in broker_cert.pem -inkey broker_key.pem -out broker_keystore.p12
