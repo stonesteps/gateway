@@ -34,21 +34,13 @@ If you want to just simulate mock data and are not connecting to a real Spa cont
 then in config.properties, make sure to specify:
 command.processor.classname=com.tritonsvc.gateway.MockProcessor
 
-If you need to connect to a mqtt broker that is on ssl and requires client certificates.
-then copy ca_root_cert.pem(the public ca root cert that broker's server cert is signed with) and custom key pair files 
-for this gateway instance as a client(gateway_cert.pem and gateway_key.pkcs8) to 'gateway_agent' directory also.
-
-
 Optional - If wanting to run agent from IDE, define run/debug launch config for AgentLoader.java and set Program Arguments to have one argument
 which should be set to the 'gateway_agent' directory specified as full path, now execute AgentLoader.
 
-
-Using build: 
+Using standalone build artifacts: 
 run mvn clean install from 'spa' directory
 
-
-this will create spa/spa-gateway-agent/target/bwg-gateway-agent
-
+this will create a single file that is a executable jar file - spa/spa-gateway-agent/target/bwg-gateway-agent
 
 To kick off the agent as configured for MockProcessor from 'spa' directory:
 java -jar spa-gateway-agent/target/bwg-gateway-agent <gateway_agent directory path>
@@ -71,14 +63,26 @@ If your using linksprite rs485 shield with raspberry pi 3, you need to use /dev/
 in agent's config.properties file, change rs485.port=ttyS0, and then then add 
 core_freq=250 in /boot/config.txt - https://frillip.com/raspberry-pi-3-uart-baud-rate-workaround/
 
-How to create PKI/Certificates which the QA MQTT broker requires. 
+If connecting to DEV, set in config.properties:
+mqtt.hostname=65.60.69.134 
+mqtt.username=cyberhive 
+mqtt.password=fr1eswiththat 
+spa.gateway.serialnumber=<your serial number>
+
+
+if connecting to QA, set mqtt.hostname=iotqa.controlmyspa.com in config.properties, 
+you'll need to generate a Certificate for each gw instance, the cert will supply the serial number 
+and the MQTT broker in QA will not accept connections w/o a cert: 
+How to create PKI/Certificates for QA MQTT broker: 
  
 1. checkout http://iotdev05.bi.local/infrastructure/pki.git
 2. cd pki/scripts, run ./generate_cert.sh -q -s <your_serial_number>
 3. copy ./certs_qa/<your_serial_number>/ca.cert.pem to 'gateway_agent'/ca_root_cert.pem
 4. copy ./certs_qa/<your_serial_number>/<your_serial_number>.cert.pem to 'gateway_agent'/gateway_cert.pem
 5. copy ./certs_qa/<your_serial_number>/<your_serial_number>.key.pkcs8 to 'gateway_agent'/gateway_key.pkcs8
-
+6. restart the gateway agent:
+   sudo service bwg-gateway-agent stop
+   sudo service bwg-gateway-agent start
 
 Additional comments/notes:
 for whatever reason, if you want to package up a gateway or broker cert(clients) and the trusted ca root into a java key store: 

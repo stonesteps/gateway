@@ -116,6 +116,7 @@ message Uplink {
             optional SystemInfo systemInfo = 3;
             optional Components components = 4;
             optional fixed64 lastUpdateTimestamp = 5;
+            optional uint32 updateInterval = 6;
         }
 
         // this is the state of each known component attached to controller
@@ -440,6 +441,7 @@ message Downlink {
             CIRCULATION_PUMP = 12;
             RESTART_AGENT = 13;
             REBOOT_GATEWAY = 14;
+            UPDATE_SPA_STATE_INTERVAL = 15;
         }
 
         enum SpaCommandAttribName {
@@ -447,6 +449,8 @@ message Downlink {
             DESIREDSTATE = 2;
             PORT = 3;
             FILTER_DURATION_15MINUTE_INTERVALS = 4;
+            INTERVAL_SECONDS = 5;
+            DURATION_MINUTES = 6;
         }
 
         message RequestMetadata {

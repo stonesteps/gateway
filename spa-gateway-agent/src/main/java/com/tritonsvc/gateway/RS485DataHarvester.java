@@ -602,6 +602,7 @@ public abstract class RS485DataHarvester implements Runnable {
                 builder.setComponents(components);
             }
             builder.setLastUpdateTimestamp(new Date().getTime());
+            builder.setUpdateInterval(processor.getUpdateIntervalSeconds());
             spaState = builder.build();
         } catch (Exception ex) {
             throw Throwables.propagate(ex);

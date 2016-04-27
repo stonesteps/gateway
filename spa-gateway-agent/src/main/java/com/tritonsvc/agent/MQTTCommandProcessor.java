@@ -2,8 +2,8 @@ package com.tritonsvc.agent;
 
 import com.google.common.base.Throwables;
 import com.tritonsvc.httpd.NetworkSettingsHolder;
-import com.tritonsvc.httpd.model.NetworkSettings;
-import com.tritonsvc.httpd.util.SettingsPersister;
+import com.tritonsvc.model.AgentSettings;
+import com.tritonsvc.model.NetworkSettings;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
@@ -37,6 +37,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public abstract class MQTTCommandProcessor implements AgentMessageProcessor, NetworkSettingsHolder {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MQTTCommandProcessor.class);
+    private static final String AGENT_SETTINGS_PROPERTIES_FILENAME = "agentSettings.properties";
+
     private String gwSerialNumber;
     private Properties configProps;
     private String homePath;
@@ -46,7 +48,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
     private final ScheduledExecutorService scheduledExecutorService = new ScheduledThreadPoolExecutor(3);
     private X509Certificate publicCert;
     private PrivateKey privateKey;
-    protected NetworkSettings networkSettings;
+    private AgentSettings agentSettings;
 
     protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId);
 
@@ -81,6 +83,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     @Override
     public void executeStartup() {
+        loadAgentSettings();
         handleStartup(gwSerialNumber, configProps, homePath, scheduledExecutorService);
         kickOffDataHarvest();
     }
@@ -141,6 +144,10 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     public void setDataPath(String path) {
         this.dataPath = path;
+    }
+
+    public String getDataPath() {
+        return this.dataPath;
     }
 
     @Override
@@ -299,24 +306,27 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
     }
 
     @Override
-    public NetworkSettings loadAndGetNetworkSettings() {
-        loadNetworkSettings();
-        return this.networkSettings;
-    }
-
-    private void loadNetworkSettings() {
-        final File networkSettingFile = new File(dataPath, "networkSettings.properties");
-        this.networkSettings = SettingsPersister.load(networkSettingFile);
+    public NetworkSettings getNetworkSettings() {
+        return this.agentSettings.getNetworkSettings();
     }
 
     @Override
-    public void setAndSaveNetworkSettings(final NetworkSettings networkSettings) {
-        this.networkSettings = networkSettings;
-        saveNetworkSettings();
+    public void setNetworkSettings(final NetworkSettings networkSettings) {
+        this.agentSettings.setNetworkSettings(networkSettings);
+        saveAgentSettings();
     }
 
-    private void saveNetworkSettings() {
-        final File networkSettingFile = new File(dataPath, "networkSettings.properties");
-        SettingsPersister.save(networkSettingFile, this.networkSettings);
+    protected AgentSettings getAgentSettings() {
+        return agentSettings;
+    }
+
+    protected synchronized void loadAgentSettings() {
+        final File networkSettingFile = new File(dataPath, AGENT_SETTINGS_PROPERTIES_FILENAME);
+        this.agentSettings = AgentSettingsPersister.load(networkSettingFile);
+    }
+
+    protected synchronized void saveAgentSettings() {
+        final File networkSettingFile = new File(dataPath, AGENT_SETTINGS_PROPERTIES_FILENAME);
+        AgentSettingsPersister.save(networkSettingFile, this.agentSettings);
     }
 }
