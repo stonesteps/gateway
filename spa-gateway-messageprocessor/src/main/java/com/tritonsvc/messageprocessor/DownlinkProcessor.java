@@ -58,12 +58,14 @@ public class DownlinkProcessor {
             try {
                 if (SpaCommand.RequestType.HEATER.getCode() == command.getRequestTypeId().intValue()) {
                     sent = downlinkRequestor.sendHeaterUpdateCommand(command);
+                } else if (SpaCommand.RequestType.FILTER.getCode() == command.getRequestTypeId().intValue()) {
+                    sent = downlinkRequestor.sendFilterUpdateCommand(command);
+                } else if (SpaCommand.RequestType.UPDATE_SPA_STATE_INTERVAL.getCode() == command.getRequestTypeId().intValue()) {
+                    sent = downlinkRequestor.sendUpdateSpaSatteIntervalCommand(command);
                 } else if (SpaCommand.RequestType.RESTART_AGENT.getCode() == command.getRequestTypeId().intValue()) {
                     sent = downlinkRequestor.sendPlainCommand(command);
                 } else if (SpaCommand.RequestType.REBOOT_GATEWAY.getCode() == command.getRequestTypeId().intValue()) {
                     sent = downlinkRequestor.sendPlainCommand(command);
-                } else if (SpaCommand.RequestType.FILTER.getCode() == command.getRequestTypeId().intValue()) {
-                    sent = downlinkRequestor.sendFilterUpdateCommand(command);
                 } else {
                     sent = downlinkRequestor.sendPeripheralStateUpdateCommand(command);
                 }

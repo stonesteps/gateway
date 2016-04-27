@@ -6,7 +6,9 @@ package com.tritonsvc.httpd;
 public interface RegistrationInfoHolder {
 
     String getRegKey();
+
     String getRegUserId();
+
     String getSpaId();
 
 }
