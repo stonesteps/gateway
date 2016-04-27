@@ -1,10 +1,10 @@
 package com.tritonsvc.httpd;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tritonsvc.httpd.model.NetworkSettings;
-import com.tritonsvc.httpd.model.RegisterUserResponse;
-import com.tritonsvc.httpd.model.Wifi;
-import com.tritonsvc.httpd.model.WifiSecurity;
+import com.tritonsvc.model.NetworkSettings;
+import com.tritonsvc.model.RegisterUserResponse;
+import com.tritonsvc.model.Wifi;
+import com.tritonsvc.model.WifiSecurity;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -51,7 +51,7 @@ public class WebServerTest extends WebServerTestBase {
         wifi.setSecurity(WifiSecurity.WPA2);
         networkSettings.setWifi(wifi);
 
-        final URL url = new URL("https://localhost:8001/agentSettings");
+        final URL url = new URL("https://localhost:8001/networkSettings");
         HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
         conn.setDoOutput(true);
         conn.setRequestMethod("POST");

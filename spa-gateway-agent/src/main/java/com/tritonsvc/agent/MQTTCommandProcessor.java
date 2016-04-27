@@ -2,9 +2,8 @@ package com.tritonsvc.agent;
 
 import com.google.common.base.Throwables;
 import com.tritonsvc.httpd.NetworkSettingsHolder;
-import com.tritonsvc.httpd.model.AgentSettings;
-import com.tritonsvc.httpd.model.NetworkSettings;
-import com.tritonsvc.httpd.util.AgentSettingsPersister;
+import com.tritonsvc.model.AgentSettings;
+import com.tritonsvc.model.NetworkSettings;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
@@ -72,7 +71,6 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
-                saveAgentSettings();
                 handleShutdown();
                 scheduledExecutorService.shutdownNow();
                 try {
@@ -81,11 +79,11 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
                 }
             }
         });
-        loadAgentSettings();
     }
 
     @Override
     public void executeStartup() {
+        loadAgentSettings();
         handleStartup(gwSerialNumber, configProps, homePath, scheduledExecutorService);
         kickOffDataHarvest();
     }
@@ -309,7 +307,6 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     @Override
     public NetworkSettings getNetworkSettings() {
-        loadAgentSettings();
         return this.agentSettings.getNetworkSettings();
     }
 

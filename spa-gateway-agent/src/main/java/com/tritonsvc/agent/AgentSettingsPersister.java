@@ -1,6 +1,6 @@
-package com.tritonsvc.httpd.util;
+package com.tritonsvc.agent;
 
-import com.tritonsvc.httpd.model.*;
+import com.tritonsvc.model.*;
 import org.apache.commons.beanutils.BeanUtilsBean;
 import org.apache.commons.beanutils.ConvertUtilsBean;
 import org.slf4j.Logger;
@@ -105,24 +105,29 @@ public final class AgentSettingsPersister {
         try {
             if (agentSettings.getNetworkSettings() != null) {
                 if (agentSettings.getNetworkSettings().getWifi() != null) {
-                    final Map<String, String> wifiSettings = beanUtilsBean.describe(agentSettings.getNetworkSettings().getWifi());
+                    final Map<String, String> wifiSettings = removeNulls(beanUtilsBean.describe(agentSettings.getNetworkSettings().getWifi()));
                     props.putAll(wifiSettings);
                 }
 
                 if (agentSettings.getNetworkSettings().getEthernet() != null) {
-                    final Map<String, String> ethSettings = beanUtilsBean.describe(agentSettings.getNetworkSettings().getEthernet());
+                    final Map<String, String> ethSettings = removeNulls(beanUtilsBean.describe(agentSettings.getNetworkSettings().getEthernet()));
                     props.putAll(ethSettings);
                 }
             }
             if (agentSettings.getGenericSettings() != null) {
-                final Map<String, String> genericSettings = beanUtilsBean.describe(agentSettings.getGenericSettings());
+                final Map<String, String> genericSettings = removeNulls(beanUtilsBean.describe(agentSettings.getGenericSettings()));
                 props.putAll(genericSettings);
             }
         } catch (Exception e) {
-            log.error("Error getting properties from network settings", e);
+            log.error("Error setting properties from agent settings", e);
         }
 
         saveProperties(file, props, "Agent Settings");
+    }
+
+    private static Map<String, String> removeNulls(Map<String, String> inMap) {
+        while(inMap.values().remove(null)){}
+        return inMap;
     }
 
     private static void saveProperties(final File file, final Properties props, final String title) {

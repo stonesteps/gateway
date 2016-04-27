@@ -5,7 +5,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.tritonsvc.httpd.NetworkSettingsHolder;
-import com.tritonsvc.httpd.model.NetworkSettings;
+import com.tritonsvc.model.NetworkSettings;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

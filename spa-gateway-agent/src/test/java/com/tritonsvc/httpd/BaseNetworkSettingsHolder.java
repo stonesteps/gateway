@@ -1,6 +1,6 @@
 package com.tritonsvc.httpd;
 
-import com.tritonsvc.httpd.model.NetworkSettings;
+import com.tritonsvc.model.NetworkSettings;
 
 /**
  * Created by holow on 4/13/2016.

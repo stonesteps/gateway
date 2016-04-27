@@ -68,7 +68,7 @@ public class WebServer {
             ((HttpsServer) server).setHttpsConfigurator(getHttpsConfigurator());
         }
 
-        server.createContext("/agentSettings", networkSettingsHandler);
+        server.createContext("/networkSettings", networkSettingsHandler);
         server.createContext("/registerUserToSpa", registerUserToSpaHandler);
         server.setExecutor(null);
 

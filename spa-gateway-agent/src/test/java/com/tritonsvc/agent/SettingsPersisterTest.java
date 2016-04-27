@@ -1,7 +1,7 @@
-package com.tritonsvc.httpd;
+package com.tritonsvc.agent;
 
-import com.tritonsvc.httpd.model.*;
-import com.tritonsvc.httpd.util.AgentSettingsPersister;
+import com.tritonsvc.model.*;
+import com.tritonsvc.agent.AgentSettingsPersister;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;

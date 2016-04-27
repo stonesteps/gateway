@@ -1,4 +1,4 @@
-package com.tritonsvc.httpd.model;
+package com.tritonsvc.model;
 
 /**
  * Created by holow on 4/26/2016.

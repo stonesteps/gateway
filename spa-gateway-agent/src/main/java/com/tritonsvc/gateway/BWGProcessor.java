@@ -12,8 +12,8 @@ import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
-import com.tritonsvc.httpd.model.AgentSettings;
-import com.tritonsvc.httpd.model.GenericSettings;
+import com.tritonsvc.model.AgentSettings;
+import com.tritonsvc.model.GenericSettings;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
@@ -80,7 +80,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             rs485Uart.close();
         } catch (Exception ex) {
         }
-        es.shutdown();
+
+        if (es != null) {es.shutdown();}
     }
 
     @Override
