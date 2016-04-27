@@ -1,5 +1,6 @@
 package com.tritonsvc.messageprocessor.mqtt;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.tritonsvc.messageprocessor.MessageProcessorConfiguration;
 import com.tritonsvc.messageprocessor.PkiInfo;
@@ -19,12 +20,14 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Mqtt service class. Responsible for sending and receiving messages from mqtt.
  */
 @Service
-public final class MqttSubscribeService {
+public class MqttSubscribeService {
 
     private static final Logger log = LoggerFactory.getLogger(MqttSubscribeService.class);
 
@@ -58,14 +61,7 @@ public final class MqttSubscribeService {
         if (currentSubscription != null) {
             currentSubscription.cancel(true);
         }
-
-        if (connection != null && connection.isConnected()) {
-            try {
-                connection.disconnect();
-            } catch (Exception e) {
-                log.error("error when closing connection with mqtt broker {}:{}", mqttHostname, mqttPort);
-            }
-        }
+        disconnect();
     }
 
     public void subscribe(final String topic, final MessageListener listener) throws Exception {
@@ -74,16 +70,25 @@ public final class MqttSubscribeService {
         currentSubscription = es.submit(subscription);
     }
 
-    private void checkConnection() throws Exception {
-        if (connection == null || !connection.isConnected()) {
-            connect();
+    @VisibleForTesting
+    MQTT acquireMQTT() {
+        return new MQTT();
+    }
+
+    private void disconnect() {
+        if (connection != null && connection.isConnected()) {
+            try {
+                connection.disconnect();
+            } catch (Exception e) {
+                log.error("error when closing connection with mqtt broker {}:{}", mqttHostname, mqttPort);
+            }
         }
+        connection = null;
     }
 
     private void connect() throws Exception {
-        log.info("connecting to mqtt {}:{}...", mqttHostname, mqttPort);
         try {
-            mqtt = new MQTT();
+            mqtt = acquireMQTT();
 
             PkiInfo pki = messageProcessorConfiguration.obtainPKIArtifacts();
             if (pki.getSslContext() != null) {
@@ -91,6 +96,7 @@ public final class MqttSubscribeService {
                 log.info("server ssl being used, mqtt port will be {}", mqttPort);
             }
 
+            log.info("connecting to mqtt {}:{}...", mqttHostname, mqttPort);
             mqtt.setHost(pki.getProtocolPrefix() + mqttHostname + ":" + mqttPort);
             mqtt.setKeepAlive(mqttKeepAliveSeconds);
             mqtt.setSslContext(pki.getSslContext());
@@ -122,30 +128,35 @@ public final class MqttSubscribeService {
         public Void call() throws Exception {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    checkConnection();
-                    final Topic[] topics = new Topic[]{new Topic(topic, QoS.AT_LEAST_ONCE)};
-                    connection.subscribe(topics);
+                    disconnect();
+                    connect();
+                    connection.subscribe(new Topic[]{new Topic(topic, QoS.AT_LEAST_ONCE)});
                 } catch (Exception e) {
                     log.error("error with connection to mqtt broker {}:{} while subscribing to quete {}", mqttHostname, mqttPort, topic);
-                    // FIXME wait for some time before reconnect?
+                    try {Thread.sleep(10000);} catch (InterruptedException ie){};
                     continue;
                 }
 
                 try {
                     while (!Thread.currentThread().isInterrupted()) {
                         log.info("waiting for message...");
-                        final Message message = connection.receive().await();
+                        final Message message = connection.receive().await(2, TimeUnit.MINUTES);
                         if (message != null) {
                             message.ack();
                             log.info("got message, processing");
                             listener.processMessage(message.getPayload());
+                        } else {
+                            log.info("received a null message, skipping");
                         }
                     }
                 } catch (final InterruptedException e) {
                     log.warn("subscription interrupted, quitting");
                     return null;
+                } catch (TimeoutException te) {
+                    log.info("no uplink messages received in 2 minutes, will recreate subscription ...");
                 } catch (final Throwable e) {
-                    log.error("exception processing message", e);
+                    log.error("exception processing message, will recreate subscription ...", e);
+                    try {Thread.sleep(10000);} catch (InterruptedException ie){};
                 }
             }
             return null;
