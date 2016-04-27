@@ -1,23 +1,18 @@
 package com.tritonsvc.httpd;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tritonsvc.httpd.model.NetworkSettings;
-import com.tritonsvc.httpd.model.RegisterUserResponse;
-import com.tritonsvc.httpd.model.Wifi;
-import com.tritonsvc.httpd.model.WifiSecurity;
-import org.junit.*;
+import com.tritonsvc.model.NetworkSettings;
+import com.tritonsvc.model.RegisterUserResponse;
+import com.tritonsvc.model.Wifi;
+import com.tritonsvc.model.WifiSecurity;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
-import javax.net.ssl.*;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import javax.net.ssl.HttpsURLConnection;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.X509Certificate;
 import java.util.Properties;
 
 /**

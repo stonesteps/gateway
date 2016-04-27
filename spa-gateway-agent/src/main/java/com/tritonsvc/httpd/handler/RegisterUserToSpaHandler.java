@@ -5,7 +5,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
-import com.tritonsvc.httpd.model.RegisterUserResponse;
+import com.tritonsvc.model.RegisterUserResponse;
 
 import java.io.IOException;
 import java.io.OutputStream;

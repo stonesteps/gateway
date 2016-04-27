@@ -1,15 +1,12 @@
 package com.tritonsvc.messageprocessor;
 
-import com.bwg.iot.model.ProcessedResult;
 import com.bwg.iot.model.Spa;
-import com.bwg.iot.model.SpaCommand;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tritonsvc.agent.Agent;
-import com.tritonsvc.httpd.model.RegisterUserResponse;
+import com.tritonsvc.model.RegisterUserResponse;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
-import com.tritonsvc.spa.communication.proto.Bwg;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.junit.*;
@@ -29,7 +26,6 @@ import java.net.URL;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
-import java.util.HashMap;
 
 /**
  * Created by holow on 3/26/2016.

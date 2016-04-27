@@ -6,7 +6,6 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import com.tritonsvc.httpd.handler.NetworkSettingsHandler;
 import com.tritonsvc.httpd.handler.RegisterUserToSpaHandler;
-import com.tritonsvc.httpd.model.NetworkSettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
