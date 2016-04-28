@@ -15,7 +15,14 @@ import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.model.AgentSettings;
 import com.tritonsvc.model.GenericSettings;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestType;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
@@ -30,12 +37,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.net.URL;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.jar.Manifest;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -51,6 +65,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private static final long DEFAULT_UPDATE_INTERVAL = 60000;
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
+    private static Map<String, String> DEFAULT_EMPTY_MAP = newHashMap();
     final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
     private Map<String, DeviceRegistration> registeredHwIds = newHashMap();
     private Properties configProps;
@@ -65,6 +80,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private WebServer webServer = null;
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
+    private Map<String, String> buildParams;
 
     @Override
     public void handleShutdown() {
@@ -101,6 +117,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         setRS485DataHarvester(new RS485DataHarvester(this, rs485MessagePublisher));
         executorService.execute(new WSNDataHarvester(this));
         executorService.execute(rs485DataHarvester);
+        buildParams = getBuildProps();
 
         LOGGER.info("finished startup.");
     }
@@ -516,7 +533,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
      * @return
      */
     public DeviceRegistration obtainSpaRegistration() {
-        return sendRegistration(null, gwSerialNumber, "gateway", newHashMap());
+        return sendRegistration(null, gwSerialNumber, "gateway", DEFAULT_EMPTY_MAP, buildParams);
     }
 
     /**
@@ -526,7 +543,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
      * @return
      */
     public DeviceRegistration obtainControllerRegistration(String spaHardwareId) {
-        return sendRegistration(spaHardwareId, gwSerialNumber, "controller", newHashMap());
+        return sendRegistration(spaHardwareId, gwSerialNumber, "controller", DEFAULT_EMPTY_MAP, DEFAULT_EMPTY_MAP);
     }
 
     /**
@@ -537,7 +554,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
      * @return
      */
     public DeviceRegistration obtainMoteRegistration(String spaHardwareId, String macAddress) {
-        return sendRegistration(spaHardwareId, gwSerialNumber, "mote", ImmutableMap.of("mac", macAddress));
+        return sendRegistration(spaHardwareId, gwSerialNumber, "mote", ImmutableMap.of("mac", macAddress), DEFAULT_EMPTY_MAP);
     }
 
     @VisibleForTesting
@@ -657,7 +674,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
     }
 
-    private DeviceRegistration sendRegistration(String parentHwId, String gwSerialNumber, String deviceTypeName, Map<String, String> identityAttributes) {
+    private DeviceRegistration sendRegistration(String parentHwId, String gwSerialNumber, String deviceTypeName, Map<String, String> identityAttributes, Map<String, String> metaAttributes) {
         boolean readLocked = false;
         boolean writeLocked = false;
         try {
@@ -682,7 +699,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
             registeredDevice.setLastTime(System.currentTimeMillis());
             getRegisteredHWIds().put(registrationHashCode, registeredDevice);
-            super.sendRegistration(parentHwId, gwSerialNumber, deviceTypeName, identityAttributes, registrationHashCode);
+            Map<String, String> deviceMeta = newHashMap(identityAttributes);
+            deviceMeta.putAll(metaAttributes);
+            super.sendRegistration(parentHwId, gwSerialNumber, deviceTypeName, deviceMeta, registrationHashCode);
             return registeredDevice;
         } catch (InterruptedException ex) {
             throw Throwables.propagate(ex);
@@ -754,6 +773,25 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             // translate seconds to milliseconds
             updateInterval.set(agentSettings.getGenericSettings().getUpdateInterval().longValue() * 1000L);
         }
+    }
+
+    private Map<String, String> getBuildProps() {
+        Map<String, String> params = newHashMap();
+        try {
+            Enumeration<URL> resources = getClass().getClassLoader().getResources("META-INF/MANIFEST.MF");
+            while (resources.hasMoreElements()) {
+                Manifest manifest = new Manifest(resources.nextElement().openStream());
+                if (manifest.getMainAttributes().getValue("BWG-Version") != null ) {
+                    params.put("BWG-Agent-Version", manifest.getMainAttributes().getValue("BWG-Version"));
+                    params.put("BWG-Agent-Build-Number", manifest.getMainAttributes().getValue("BWG-Build-Number"));
+                    params.put("BWG-Agent-SCM-Revision", manifest.getMainAttributes().getValue("BWG-SCM-Revision"));
+                    break;
+                }
+            }
+        } catch (Exception ex) {
+            LOGGER.info("unable to obtain build info from jar");
+        }
+        return params;
     }
 
     public int getUpdateIntervalSeconds() {
