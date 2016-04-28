@@ -11,6 +11,13 @@
     <description>Java agent for interacting with Spa and Cloud</description>
     <url>http://www.tritonsvc.com/</url>
 
+    <properties>
+        <build.local>LOCAL</build.local>
+        <build.release>${build.local}</build.release>
+        <build.number>${build.local}</build.number>
+        <build.revision>${build.local}</build.revision>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.tritonsvc</groupId>
@@ -130,6 +137,25 @@
             </extension>
         </extensions>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>false</addClasspath>
+                        </manifest>
+                        <manifestEntries>
+                            <Build-Time>${maven.build.timestamp}</Build-Time>
+                            <Implementation-Title>${project.name}</Implementation-Title>
+                            <BWG-Version>${build.release}</BWG-Version>
+                            <BWG-Build-Number>${build.number}</BWG-Build-Number>
+                            <BWG-SCM-Revision>${build.revision}</BWG-SCM-Revision>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
