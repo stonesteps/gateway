@@ -4,7 +4,6 @@ import com.bwg.iot.model.ProcessedResult;
 import com.bwg.iot.model.SpaCommand;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mqtt.DownlinkRequestor;
-import com.tritonsvc.spa.communication.proto.Bwg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,8 +59,8 @@ public class DownlinkProcessor {
                     sent = downlinkRequestor.sendHeaterUpdateCommand(command);
                 } else if (SpaCommand.RequestType.FILTER.getCode() == command.getRequestTypeId().intValue()) {
                     sent = downlinkRequestor.sendFilterUpdateCommand(command);
-                } else if (SpaCommand.RequestType.UPDATE_SPA_STATE_INTERVAL.getCode() == command.getRequestTypeId().intValue()) {
-                    sent = downlinkRequestor.sendUpdateSpaSatteIntervalCommand(command);
+                } else if (SpaCommand.RequestType.UPDATE_AGENT_SETTINGS.getCode() == command.getRequestTypeId().intValue()) {
+                    sent = downlinkRequestor.sendUpdateAgentSettingsCommand(command);
                 } else if (SpaCommand.RequestType.RESTART_AGENT.getCode() == command.getRequestTypeId().intValue()) {
                     sent = downlinkRequestor.sendPlainCommand(command);
                 } else if (SpaCommand.RequestType.REBOOT_GATEWAY.getCode() == command.getRequestTypeId().intValue()) {

@@ -81,6 +81,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
     private Map<String, String> buildParams;
+    private String rs485ControllerType = null;
 
     @Override
     public void handleShutdown() {
@@ -108,15 +109,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.webServer = new WebServer(configProps, this, this);
         this.es = executorService;
 
-        setupUpdateInterval();
+        setupAgentSettings();
         setUpRS485();
         validateOidProperties();
         obtainSpaRegistration();
+        setUpRS485Processors();
 
-        setRS485MessagePublisher(new RS485MessagePublisher(this));
-        setRS485DataHarvester(new RS485DataHarvester(this, rs485MessagePublisher));
         executorService.execute(new WSNDataHarvester(this));
-        executorService.execute(rs485DataHarvester);
+        executorService.execute(getRS485DataHarvester());
         buildParams = getBuildProps();
 
         LOGGER.info("finished startup.");
@@ -177,14 +177,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     @Override
-    public void handleDownlinkCommand(Request request, String hardwareId, String originatorId) {
+    public synchronized void handleDownlinkCommand(Request request, String hardwareId, String originatorId) {
         if (request == null || !request.hasRequestType()) {
             LOGGER.error("Request is null, not processing, []", originatorId);
             sendAck(hardwareId, originatorId, AckResponseCode.ERROR, "gateway has not registered with controller yet");
             return;
         }
 
-        if (rs485DataHarvester.getRegisteredAddress() == null) {
+        if (getRS485DataHarvester().getRegisteredAddress() == null) {
             LOGGER.error("received request {}, gateway has not registered with controller yet ", request.getRequestType().name());
             sendAck(hardwareId, originatorId, AckResponseCode.ERROR, "gateway has not registered with controller yet");
             return;
@@ -195,29 +195,29 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         try {
             if (request.getRequestType().equals(RequestType.HEATER)) {
-                updateHeater(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId, rs485DataHarvester.requiresCelsius());
-            } else if (request.getRequestType().equals(RequestType.UPDATE_SPA_STATE_INTERVAL)) {
-                updateSpaStateInterval(request.getMetadataList());
+                updateHeater(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, getRS485DataHarvester().requiresCelsius());
+            } else if (request.getRequestType().equals(RequestType.UPDATE_AGENT_SETTINGS)) {
+                updateAgentSettings(request.getMetadataList());
             } else {
-                rs485DataHarvester.arePanelCommandsSafe(false);
+                getRS485DataHarvester().arePanelCommandsSafe(false);
                 switch (request.getRequestType()) {
                     case PUMPS:
-                        updatePeripherlal(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId, "kJets<port>MetaButton", ComponentType.PUMP);
+                        updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kJets<port>MetaButton", ComponentType.PUMP);
                         break;
                     case CIRCULATION_PUMP:
-                        updateCircPump(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+                        updateCircPump(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
                         break;
                     case LIGHTS:
-                        updatePeripherlal(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId, "kLight<port>MetaButton", ComponentType.LIGHT);
+                        updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kLight<port>MetaButton", ComponentType.LIGHT);
                         break;
                     case BLOWER:
-                        updatePeripherlal(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId, "kBlower<port>MetaButton", ComponentType.BLOWER);
+                        updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kBlower<port>MetaButton", ComponentType.BLOWER);
                         break;
                     case MISTER:
-                        updatePeripherlal(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId, "kMister<port>MetaButton", ComponentType.MISTER);
+                        updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kMister<port>MetaButton", ComponentType.MISTER);
                         break;
                     case FILTER:
-                        updateFilter(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+                        updateFilter(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
                         break;
                     case OZONE:
                         updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.OZONE, ButtonCode.kOzoneMetaButton);
@@ -226,7 +226,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                         updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.MICROSILK, ButtonCode.kMicroSilkQuietMetaButton);
                         break;
                     case AUX:
-                        updatePeripherlal(request.getMetadataList(), rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId, "kOption<port>MetaButton", ComponentType.AUX);
+                        updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kOption<port>MetaButton", ComponentType.AUX);
                         break;
                     default:
                         sendAck(hardwareId, originatorId, AckResponseCode.ERROR, "not supported");
@@ -240,7 +240,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId, boolean celsius) throws Exception {
-        rs485DataHarvester.arePanelCommandsSafe(true);
+        getRS485DataHarvester().arePanelCommandsSafe(true);
         Integer temperature = null;
         if (metadataList != null && metadataList.size() > 0) {
             for (final RequestMetadata metadata : metadataList) {
@@ -257,16 +257,18 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                         (new BigDecimal((5.0 / 9.0) * (temperature - 32)).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue()))
                         .setScale(0, BigDecimal.ROUND_HALF_UP).intValue();
             }
-            rs485DataHarvester.prepareForTemperatureChangeRequest(temperature);
-            rs485MessagePublisher.setTemperature(temperature, registeredAddress, originatorId, hardwareId);
+            getRS485DataHarvester().prepareForTemperatureChangeRequest(temperature);
+            getRS485MessagePublisher().setTemperature(temperature, registeredAddress, originatorId, hardwareId);
         } else {
             throw new RS485Exception("Update heater command did not have required metadata param: " + SpaCommandAttribName.DESIREDTEMP.name());
         }
     }
 
-    private void updateSpaStateInterval(final List<RequestMetadata> metadataList) {
+    private void updateAgentSettings(final List<RequestMetadata> metadataList) {
         final Integer intervalSeconds = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.INTERVAL_SECONDS.name(), metadataList));
         final Integer durationMinutes = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DURATION_MINUTES.name(), metadataList));
+        final String rs485ControllerType = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.RS485_CONTROLLER_TYPE.name(), metadataList);
+
         if (intervalSeconds != null && durationMinutes != null) {
             updateInterval.set(1000L * intervalSeconds.longValue());
             if (this.intervalResetFuture != null) {
@@ -288,6 +290,24 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 }
             }
         }
+
+        if (rs485ControllerType != null) {
+            this.rs485ControllerType = rs485ControllerType;
+            if (getRS485DataHarvester() != null) {
+                getRS485DataHarvester().cancel();
+            }
+            setUpRS485Processors();
+            es.execute(getRS485DataHarvester());
+        }
+    }
+
+    private synchronized void setUpRS485Processors() {
+        if (rs485ControllerType != null && rs485ControllerType.equalsIgnoreCase("JACUZZI")) {
+            //TODO use new jacuzzi class here
+        } else {
+            setRS485MessagePublisher(new RS485MessagePublisher(this));
+            setRS485DataHarvester(new RS485DataHarvester(this, getRS485MessagePublisher()));
+        }
     }
 
     private void updateReservedComponent(final List<RequestMetadata> metadataList, String originatorId, String hardwareId, ComponentType componentType, ButtonCode buttonCode) throws Exception {
@@ -303,7 +323,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             throw new RS485Exception("Device command for " + componentType.name() + " did not have required desiredState param");
         }
 
-        ComponentInfo currentState = rs485DataHarvester.getComponentState(componentType, 0);
+        ComponentInfo currentState = getRS485DataHarvester().getComponentState(componentType, 0);
         if (currentState == null) {
             LOGGER.error("Request for state for {} component was not found, aborting command", componentType.name());
             throw new RS485Exception(componentType.name() + " Device is not installed, cannot submit command for it");
@@ -315,7 +335,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             return;
         }
 
-        rs485MessagePublisher.sendButtonCode(buttonCode, rs485DataHarvester.getRegisteredAddress(), originatorId, hardwareId);
+        getRS485MessagePublisher().sendButtonCode(buttonCode, getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
     }
 
     private void updateFilter(List<RequestMetadata> metadataList, Byte registeredAddress, String originatorId, String hardwareId) throws Exception {
@@ -336,7 +356,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         if (port == null || durationMinutes == null) {
             throw new RS485Exception("Device command for " + ComponentType.FILTER.name() + " did not have required port and duration param");
         }
-        rs485MessagePublisher.initiateFilterCycleRequest(port, durationMinutes, registeredAddress, originatorId, hardwareId);
+        getRS485MessagePublisher().initiateFilterCycleRequest(port, durationMinutes, registeredAddress, originatorId, hardwareId);
     }
 
     private void updatePeripherlal(final List<RequestMetadata> metadataList, final byte registeredAddress,
@@ -346,7 +366,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         RequiredParams params = collectRequiredParams(metadataList, componentType.name());
         ButtonCode deviceButton = ButtonCode.valueOf(buttonCodeTemplate.replaceAll("<port>", Integer.toString(params.getPort())));
 
-        ComponentInfo currentState = rs485DataHarvester.getComponentState(componentType, params.getPort());
+        ComponentInfo currentState = getRS485DataHarvester().getComponentState(componentType, params.getPort());
         if (currentState == null) {
             LOGGER.error("Request for state for port {} of component {} was not found, aborting command", params.getPort(), componentType.name());
             throw new RS485Exception("Device command for " + componentType.name() + " did not have required port " + params.getPort() + "  and desiredState " + params.getDesiredState());
@@ -378,13 +398,13 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         if (currentIndex < 0 || desiredIndex < 0) {
             LOGGER.warn("{} command request state {} or current state {} were not valid, ignoring, will send one button command", componentType.name(), params.getDesiredState(), currentState.getCurrentState());
-            rs485MessagePublisher.sendButtonCode(deviceButton, registeredAddress, originatorId, hardwareId);
+            getRS485MessagePublisher().sendButtonCode(deviceButton, registeredAddress, originatorId, hardwareId);
             return;
         }
 
         // this sends multiple button commands to get to the desired state within available states for compnonent
         while (currentIndex != desiredIndex) {
-            rs485MessagePublisher.sendButtonCode(deviceButton, registeredAddress, originatorId, hardwareId);
+            getRS485MessagePublisher().sendButtonCode(deviceButton, registeredAddress, originatorId, hardwareId);
             currentIndex = (currentIndex + 1) % availableStates.size();
         }
     }
@@ -405,7 +425,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             throw new RS485Exception("Device command for " + ComponentType.CIRCULATION_PUMP.name() + " did not have required desiredState param");
         }
 
-        ComponentInfo currentState = rs485DataHarvester.getComponentState(ComponentType.CIRCULATION_PUMP, 0);
+        ComponentInfo currentState = getRS485DataHarvester().getComponentState(ComponentType.CIRCULATION_PUMP, 0);
         if (currentState == null) {
             LOGGER.error("Requested component {} was not found, aborting command", ComponentType.CIRCULATION_PUMP.name());
             throw new RS485Exception("Device command for " + ComponentType.CIRCULATION_PUMP.name() + ", component does not exist on current system.");
@@ -424,13 +444,13 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         if (currentIndex < 0 || desiredIndex < 0) {
             LOGGER.warn("{} command request state {} or current state {} were not valid, ignoring, will send one button command", ComponentType.CIRCULATION_PUMP.name(), desiredState, currentState.getCurrentState());
-            rs485MessagePublisher.sendButtonCode(ButtonCode.kPump0MetaButton, registeredAddress, originatorId, hardwareId);
+            getRS485MessagePublisher().sendButtonCode(ButtonCode.kPump0MetaButton, registeredAddress, originatorId, hardwareId);
             return;
         }
 
         // this sends multiple button commands to get to the desired state within available states for compnonent
         while (currentIndex != desiredIndex) {
-            rs485MessagePublisher.sendButtonCode(ButtonCode.kPump0MetaButton, registeredAddress, originatorId, hardwareId);
+            getRS485MessagePublisher().sendButtonCode(ButtonCode.kPump0MetaButton, registeredAddress, originatorId, hardwareId);
             currentIndex = (currentIndex + 1) % availableStates.size();
         }
     }
@@ -441,7 +461,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     @Override
-    public void processDataHarvestIteration() {
+    public synchronized void processDataHarvestIteration() {
         DeviceRegistration registeredSpa = obtainSpaRegistration();
         if (registeredSpa.getHardwareId() == null) {
             LOGGER.info("skipping data harvest, spa gateway has not been registered");
@@ -451,42 +471,42 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         // make sure the controller is registered as a compoenent to cloud
         obtainControllerRegistration(registeredSpa.getHardwareId());
 
-        if (rs485DataHarvester.getRegisteredAddress() == null) {
+        if (getRS485DataHarvester().getRegisteredAddress() == null) {
             LOGGER.info("skipping data harvest, gateway has not registered over 485 bus with spa controller yet");
             return;
         }
 
         boolean locked = false;
         try {
-            rs485DataHarvester.getLatestSpaInfoLock().readLock().lockInterruptibly();
+            getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
-            if (rs485DataHarvester.getLatestSpaInfo().hasController() == false) {
+            if (getRS485DataHarvester().getLatestSpaInfo().hasController() == false) {
                 throw new RS485Exception("panel update message has not been received yet, cannot generate spa state yet.");
             }
 
-            if ((rs485DataHarvester.getLatestSpaInfo().hasComponents() == false ||
-                    rs485DataHarvester.getLatestSpaInfo().hasSystemInfo() == false ||
-                    rs485DataHarvester.getLatestSpaInfo().hasSetupParams() == false ||
-                    rs485DataHarvester.getLatestSpaInfo().getComponents().hasFilterCycle1() == false) &&
+            if ((getRS485DataHarvester().getLatestSpaInfo().hasComponents() == false ||
+                    getRS485DataHarvester().getLatestSpaInfo().hasSystemInfo() == false ||
+                    getRS485DataHarvester().getLatestSpaInfo().hasSetupParams() == false ||
+                    getRS485DataHarvester().getLatestSpaInfo().getComponents().hasFilterCycle1() == false) &&
                     System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM) {
-                rs485MessagePublisher.sendPanelRequest(rs485DataHarvester.getRegisteredAddress(), null);
+                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), null);
                 LOGGER.info("do not have all DeviceConfig, SystemInfo, SetupParams, FilterCycle yet, sent panel request");
                 lastPanelRequestSent.set(System.currentTimeMillis());
             }
 
             // this loop runs often(once every 3 seconds), but only send up to cloud when timestamps on state data change
-            if (rs485DataHarvester.getLatestSpaInfo().hasLastUpdateTimestamp() &&
-                    lastSpaDetailsSent.get() != rs485DataHarvester.getLatestSpaInfo().getLastUpdateTimestamp() &&
+            if (getRS485DataHarvester().getLatestSpaInfo().hasLastUpdateTimestamp() &&
+                    lastSpaDetailsSent.get() != getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp() &&
                     System.currentTimeMillis() - lastSpaDetailsSent.get() > updateInterval.get()) {
-                getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, rs485DataHarvester.getLatestSpaInfo());
-                lastSpaDetailsSent.set(rs485DataHarvester.getLatestSpaInfo().getLastUpdateTimestamp());
+                getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, getRS485DataHarvester().getLatestSpaInfo());
+                lastSpaDetailsSent.set(getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp());
                 LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
             }
         } catch (Exception ex) {
             LOGGER.error("error while processing data harvest", ex);
         } finally {
             if (locked) {
-                rs485DataHarvester.getLatestSpaInfoLock().readLock().unlock();
+                getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
             }
         }
     }
@@ -533,6 +553,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
      * @return
      */
     public DeviceRegistration obtainSpaRegistration() {
+        Map<String, String> metaParams = newHashMap(buildParams);
+        metaParams.put("BWG-Agent-RS485-Controller-Type", rs485ControllerType == null ? "NGSC" : rs485ControllerType);
         return sendRegistration(null, gwSerialNumber, "gateway", DEFAULT_EMPTY_MAP, buildParams);
     }
 
@@ -562,9 +584,17 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.rs485MessagePublisher = rs485MessagePublisher;
     }
 
+    private RS485MessagePublisher getRS485MessagePublisher() {
+        return this.rs485MessagePublisher;
+    }
+
     @VisibleForTesting
     void setRS485DataHarvester(RS485DataHarvester rs485DataHarvester) {
         this.rs485DataHarvester = rs485DataHarvester;
+    }
+
+    private RS485DataHarvester getRS485DataHarvester() {
+        return this.rs485DataHarvester;
     }
 
     @VisibleForTesting
@@ -767,11 +797,16 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         saveAgentSettings();
     }
 
-    private void setupUpdateInterval() {
+    private void setupAgentSettings() {
         final AgentSettings agentSettings = getAgentSettings();
         if (agentSettings != null && agentSettings.getGenericSettings() != null && agentSettings.getGenericSettings().getUpdateInterval() != null) {
             // translate seconds to milliseconds
             updateInterval.set(agentSettings.getGenericSettings().getUpdateInterval().longValue() * 1000L);
+        }
+
+        if (agentSettings != null && agentSettings.getGenericSettings() != null && agentSettings.getGenericSettings().getRs485ControllerType() != null) {
+            // translate seconds to milliseconds
+            rs485ControllerType = agentSettings.getGenericSettings().getRs485ControllerType();
         }
     }
 
