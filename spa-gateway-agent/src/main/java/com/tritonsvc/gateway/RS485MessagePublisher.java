@@ -17,7 +17,7 @@ import static javax.xml.bind.DatatypeConverter.printHexBinary;
 /**
  * RS485 message issuer
  */
-public class RS485MessagePublisher {
+public abstract class RS485MessagePublisher {
     private static Logger LOGGER = LoggerFactory.getLogger(RS485MessagePublisher.class);
     protected BWGProcessor processor;
     protected byte POLL_FINAL_CONTROL_BYTE = (byte)0xBF;
@@ -36,9 +36,11 @@ public class RS485MessagePublisher {
         this.processor = processor;
     }
 
-    public void initiateFilterCycleRequest(int port, int durationMinutes, byte address, String originatorId, String hardwareId) throws RS485Exception {
-    }
+    public abstract void initiateFilterCycleRequest(int port, int durationMinutes, byte address, String originatorId, String hardwareId) throws RS485Exception;
 
+    public abstract void sendUnassignedDeviceResponse(int requestId) throws RS485Exception;
+
+    public abstract void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception;
 
     /**
      * assemble the target temperature message and put it on downlink queue
@@ -73,7 +75,7 @@ public class RS485MessagePublisher {
      * @param address
      * @throws RS485Exception
      */
-    public void sendButtonCode(ButtonCode code, byte address, String originatorId, String hardwareId) throws RS485Exception {
+    public void sendCode(Codeable code, byte address, String originatorId, String hardwareId) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(9);
             bb.put(DELIMITER_BYTE); // start flag
@@ -89,67 +91,6 @@ public class RS485MessagePublisher {
         }
         catch (Throwable ex) {
             LOGGER.info("rs485 send button code got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
-     * send the unassigned device response
-     *
-     * @param requestId
-     * @throws RS485Exception
-     */
-    public synchronized void sendUnassignedDeviceResponse(int requestId) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(10);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte)0x08); // length between flags
-            bb.put(LINKING_ADDRESS_BYTE); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte)0x01); // the unassigned device reponse packet type
-            bb.put((byte)0x00); // device type
-            bb.put((byte)(0xFF & (requestId >> 8))); // unique id 1
-            bb.put((byte)(requestId & 0xFF)); // unique id 2
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            bb.position(0);
-
-            pauseForBus();
-            processor.getRS485UART().write(bb);
-            LOGGER.info("sent unassigned device response {}", printHexBinary(bb.array()));
-        }
-        catch (Throwable ex) {
-            LOGGER.info("rs485 sending unnassigned device response got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    public void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception {
-        try {
-
-            int request = 0x07;
-            if (faultLogEntryNumber != null) {
-                request |= 0x20;
-            }
-
-            ByteBuffer bb = ByteBuffer.allocate(10);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte)0x08); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte)0x22); // the panel request packet type
-            bb.put((byte)(0xFF & request)); // requested messages
-            bb.put((byte) (faultLogEntryNumber != null ? (0xFF & faultLogEntryNumber) : 0x00)); // fault log entry number
-            bb.put((byte)0x01); // get device config
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            bb.position(0);
-
-            addToPending(new PendingRequest(bb.array(), "self", null));
-            LOGGER.info("sent panel request {}", printHexBinary(bb.array()));
-        }
-        catch (Throwable ex) {
-            LOGGER.info("rs485 sending panel request got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
     }

@@ -52,6 +52,6 @@ public class BWGProcessorTest {
 
         processor.handleDownlinkCommand(request, "hardwareId", "originatorId");
 
-        verify(rs485MessagePublisher, times(2)).sendButtonCode(eq(ButtonCode.kPump0MetaButton), eq((byte)2), eq("originatorId"), eq("hardwareId"));
+        verify(rs485MessagePublisher, times(2)).sendCode(eq(NGSCButtonCode.kPump0MetaButton), eq((byte)2), eq("originatorId"), eq("hardwareId"));
     }
 }

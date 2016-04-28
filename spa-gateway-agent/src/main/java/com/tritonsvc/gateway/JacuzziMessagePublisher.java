@@ -25,78 +25,32 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
         this.processor = processor;
     }
 
-    /**
-     * assemble the button code request message and put it on queue
-     *
-     * @param code
-     * @param address
-     * @throws RS485Exception
-     */
-    public void sendButtonCode(ButtonCode code, byte address, String originatorId, String hardwareId) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(9);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x06); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x17); // the send button code packet type
-            bb.put((byte) (0xFF & code.getCode()));
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
-        } catch (Throwable ex) {
-            LOGGER.info("rs485 send button code got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
+    @Override
+    public void initiateFilterCycleRequest(int port, int durationMinutes, byte address, String originatorId, String hardwareId) throws RS485Exception {
+        // nothing here?
     }
 
-    /**
-     * send the unassigned device response
-     *
-     * @param requestId
-     * @throws RS485Exception
-     */
-    public synchronized void sendUnassignedDeviceResponse(int requestId) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(10);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x08); // length between flags
-            bb.put(LINKING_ADDRESS_BYTE); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x01); // the unassigned device reponse packet type
-            bb.put((byte) 0x00); // device type
-            bb.put((byte) (0xFF & (requestId >> 8))); // unique id 1
-            bb.put((byte) (requestId & 0xFF)); // unique id 2
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            bb.position(0);
-
-            pauseForBus();
-            processor.getRS485UART().write(bb);
-            LOGGER.info("sent unassigned device response {}", printHexBinary(bb.array()));
-        } catch (Throwable ex) {
-            LOGGER.info("rs485 sending unnassigned device response got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
+    @Override
+    public void sendUnassignedDeviceResponse(int requestId) throws RS485Exception {
+        // nothing here?
     }
 
     public void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception {
+        // information request
         try {
-
-            int request = 0x07;
+            int request = 0x14;
             if (faultLogEntryNumber != null) {
-                request |= 0x20;
+                request |= 0x40;
             }
 
             ByteBuffer bb = ByteBuffer.allocate(10);
             bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x08); // length between flags
+            bb.put((byte) 0x07); // length between flags
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x22); // the panel request packet type
+            bb.put((byte) 0x19); // the panel request packet type
             bb.put((byte) (0xFF & request)); // requested messages
             bb.put((byte) (faultLogEntryNumber != null ? (0xFF & faultLogEntryNumber) : 0x00)); // fault log entry number
-            bb.put((byte) 0x01); // get device config
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);

@@ -58,32 +58,6 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
     }
 
     /**
-     * assemble the button code request message and put it on queue
-     *
-     * @param code
-     * @param address
-     * @throws RS485Exception
-     */
-    public void sendButtonCode(ButtonCode code, byte address, String originatorId, String hardwareId) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(9);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x07); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x11); // the send button code packet type
-            bb.put((byte) (0xFF & code.getCode()));
-            bb.put((byte) 0xFF); // modifier is not specified
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
-        } catch (Throwable ex) {
-            LOGGER.info("rs485 send button code got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
      * send the unassigned device response
      *
      * @param requestId
