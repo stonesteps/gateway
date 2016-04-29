@@ -62,7 +62,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private static final long MAX_NEW_REG_WAIT_TIME = 120000;
     private static final long MAX_REG_LIFETIME = 240000;
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
-    private static final long DEFAULT_UPDATE_INTERVAL = 60000;
+    private static final long DEFAULT_UPDATE_INTERVAL = 0; //continuous
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     private static Map<String, String> DEFAULT_EMPTY_MAP = newHashMap();
