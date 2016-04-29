@@ -26,59 +26,6 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
     }
 
     /**
-     * assemble the target temperature message and put it on downlink queue
-     *
-     * @param newTempFahr
-     * @param address
-     * @throws RS485Exception
-     */
-    public void setTemperature(int newTempFahr, byte address, String originatorId, String hardwareId) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(8);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x06); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x20); // the set target temp packet type
-            bb.put((byte) (0xFF & newTempFahr));
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
-        }
-        catch (Throwable ex) {
-            LOGGER.info("rs485 set temp got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
-     * assemble the button code request message and put it on queue
-     *
-     * @param code
-     * @param address
-     * @throws RS485Exception
-     */
-    public void sendCode(int code, byte address, String originatorId, String hardwareId) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(9);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x07); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x11); // the send button code packet type
-            bb.put((byte) (0xFF & code));
-            bb.put((byte) 0xFF); // modifier is not specified
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
-        }
-        catch (Throwable ex) {
-            LOGGER.info("rs485 send button code got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
      * put request for filter cycle info on downlink queue
      *
      * @param port
@@ -106,36 +53,6 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
             LOGGER.info("sent filter cycle panel request {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
             LOGGER.info("rs485 send filter cycle got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
-     * send the unassigned device response
-     *
-     * @param requestId
-     * @throws RS485Exception
-     */
-    public synchronized void sendUnassignedDeviceResponse(int requestId) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(10);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x08); // length between flags
-            bb.put(LINKING_ADDRESS_BYTE); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x01); // the unassigned device reponse packet type
-            bb.put((byte) 0x00); // device type
-            bb.put((byte) (0xFF & (requestId >> 8))); // unique id 1
-            bb.put((byte) (requestId & 0xFF)); // unique id 2
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            bb.position(0);
-
-            pauseForBus();
-            processor.getRS485UART().write(bb);
-            LOGGER.info("sent unassigned device response {}", printHexBinary(bb.array()));
-        } catch (Throwable ex) {
-            LOGGER.info("rs485 sending unnassigned device response got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
     }
@@ -172,63 +89,6 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
     @Override
     public Codeable getCode(String value) {
         return NGSCButtonCode.valueOf(value);
-    }
-
-    /**
-     * send the address assignemnt acknowledgent message back to controller when
-     *
-     * @param address
-     * @throws RS485Exception
-     */
-    public synchronized void sendAddressAssignmentAck(byte address) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(7);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x05); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x03); // the assigned device ack packet type
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            bb.position(0);
-
-            pauseForBus();
-            processor.getRS485UART().write(bb);
-            LOGGER.info("sent address assignment response for newly acquired address {} {}", address, printHexBinary(bb.array()));
-        } catch (Throwable ex) {
-            LOGGER.info("rs485 sending address assignment ack got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
-     * send the response message for a device query message
-     *
-     * @param address
-     * @throws RS485Exception
-     */
-    public synchronized void sendDeviceQueryResponse(byte address) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(10);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x08); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x05); // the unassigned device reponse packet type
-            bb.put((byte) 0x01); // major
-            bb.put((byte) 0x00); // minor
-            bb.put((byte) 0x00); // build
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            bb.position(0);
-
-            pauseForBus();
-            processor.getRS485UART().write(bb);
-            LOGGER.info("sent device query response {}", printHexBinary(bb.array()));
-        } catch (Throwable ex) {
-            LOGGER.info("rs485 sending device query response got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
     }
 
     /**
