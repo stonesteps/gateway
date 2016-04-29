@@ -42,6 +42,8 @@ public abstract class RS485MessagePublisher {
 
     public abstract void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception;
 
+    public abstract Codeable getCode(final String value);
+
     /**
      * assemble the target temperature message and put it on downlink queue
      *
@@ -75,7 +77,7 @@ public abstract class RS485MessagePublisher {
      * @param address
      * @throws RS485Exception
      */
-    public void sendCode(Codeable code, byte address, String originatorId, String hardwareId) throws RS485Exception {
+    public void sendCode(int code, byte address, String originatorId, String hardwareId) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(9);
             bb.put(DELIMITER_BYTE); // start flag
@@ -83,7 +85,7 @@ public abstract class RS485MessagePublisher {
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
             bb.put((byte) 0x11); // the send button code packet type
-            bb.put((byte) (0xFF & code.getCode()));
+            bb.put((byte) (0xFF & code));
             bb.put((byte) 0xFF); // modifier is not specified
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag

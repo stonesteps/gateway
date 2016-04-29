@@ -63,6 +63,11 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
         }
     }
 
+    @Override
+    public Codeable getCode(final String value) {
+        return JacuzziCommandCode.valueOf(value);
+    }
+
     /**
      * send the address assignemnt acknowledgent message back to controller when
      *

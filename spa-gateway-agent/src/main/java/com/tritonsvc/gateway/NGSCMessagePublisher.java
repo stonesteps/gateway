@@ -116,6 +116,11 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
         }
     }
 
+    @Override
+    public Codeable getCode(String value) {
+        return NGSCButtonCode.valueOf(value);
+    }
+
     /**
      * send the address assignemnt acknowledgent message back to controller when
      *

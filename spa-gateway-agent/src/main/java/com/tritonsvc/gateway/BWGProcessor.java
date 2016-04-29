@@ -225,10 +225,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                         updateFilter(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
                         break;
                     case OZONE:
-                        updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.OZONE, NGSCButtonCode.kOzoneMetaButton);
+                        updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.OZONE, "kOzoneMetaButton");
                         break;
                     case MICROSILK:
-                        updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.MICROSILK, NGSCButtonCode.kMicroSilkQuietMetaButton);
+                        updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.MICROSILK, "kMicroSilkQuietMetaButton");
                         break;
                     case AUX:
                         updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kOption<port>MetaButton", ComponentType.AUX);
@@ -315,7 +315,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
     }
 
-    private void updateReservedComponent(final List<RequestMetadata> metadataList, String originatorId, String hardwareId, ComponentType componentType, NGSCButtonCode buttonCode) throws Exception {
+    private void updateReservedComponent(final List<RequestMetadata> metadataList, String originatorId, String hardwareId, ComponentType componentType, String buttonCodeValue) throws Exception {
         String desiredState = null;
         if (metadataList != null && metadataList.size() > 0) {
             for (final RequestMetadata metadata : metadataList) {
@@ -340,7 +340,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             return;
         }
 
-        getRS485MessagePublisher().sendCode(buttonCode, getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
+        Codeable deviceCode = getRS485MessagePublisher().getCode(buttonCodeValue);
+        getRS485MessagePublisher().sendCode(deviceCode.getCode(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
     }
 
     private void updateFilter(List<RequestMetadata> metadataList, Byte registeredAddress, String originatorId, String hardwareId) throws Exception {
@@ -369,7 +370,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                                    ComponentType componentType) throws Exception {
 
         RequiredParams params = collectRequiredParams(metadataList, componentType.name());
-        NGSCButtonCode deviceButton = NGSCButtonCode.valueOf(buttonCodeTemplate.replaceAll("<port>", Integer.toString(params.getPort())));
+        Codeable deviceButton = getRS485MessagePublisher().getCode(buttonCodeTemplate.replaceAll("<port>", Integer.toString(params.getPort())));
 
         ComponentInfo currentState = getRS485DataHarvester().getComponentState(componentType, params.getPort());
         if (currentState == null) {
@@ -403,13 +404,13 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         if (currentIndex < 0 || desiredIndex < 0) {
             LOGGER.warn("{} command request state {} or current state {} were not valid, ignoring, will send one button command", componentType.name(), params.getDesiredState(), currentState.getCurrentState());
-            getRS485MessagePublisher().sendCode(deviceButton, registeredAddress, originatorId, hardwareId);
+            getRS485MessagePublisher().sendCode(deviceButton.getCode(), registeredAddress, originatorId, hardwareId);
             return;
         }
 
         // this sends multiple button commands to get to the desired state within available states for compnonent
         while (currentIndex != desiredIndex) {
-            getRS485MessagePublisher().sendCode(deviceButton, registeredAddress, originatorId, hardwareId);
+            getRS485MessagePublisher().sendCode(deviceButton.getCode(), registeredAddress, originatorId, hardwareId);
             currentIndex = (currentIndex + 1) % availableStates.size();
         }
     }
@@ -449,13 +450,15 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         if (currentIndex < 0 || desiredIndex < 0) {
             LOGGER.warn("{} command request state {} or current state {} were not valid, ignoring, will send one button command", ComponentType.CIRCULATION_PUMP.name(), desiredState, currentState.getCurrentState());
-            getRS485MessagePublisher().sendCode(NGSCButtonCode.kPump0MetaButton, registeredAddress, originatorId, hardwareId);
+            Codeable deviceButton = getRS485MessagePublisher().getCode("kPump0MetaButton");
+            getRS485MessagePublisher().sendCode(deviceButton.getCode(), registeredAddress, originatorId, hardwareId);
             return;
         }
 
         // this sends multiple button commands to get to the desired state within available states for compnonent
         while (currentIndex != desiredIndex) {
-            getRS485MessagePublisher().sendCode(NGSCButtonCode.kPump0MetaButton, registeredAddress, originatorId, hardwareId);
+            Codeable deviceButton = getRS485MessagePublisher().getCode("kPump0MetaButton");
+            getRS485MessagePublisher().sendCode(deviceButton.getCode(), registeredAddress, originatorId, hardwareId);
             currentIndex = (currentIndex + 1) % availableStates.size();
         }
     }
