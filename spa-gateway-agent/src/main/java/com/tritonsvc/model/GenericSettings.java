@@ -6,6 +6,15 @@ package com.tritonsvc.model;
 public class GenericSettings {
 
     private Integer updateInterval;
+    private String rs485ControllerType;
+
+    public String getRs485ControllerType() {
+        return rs485ControllerType;
+    }
+
+    public void setRs485ControllerType(String rs485ControllerType) {
+        this.rs485ControllerType = rs485ControllerType;
+    }
 
     public Integer getUpdateInterval() {
         return updateInterval;

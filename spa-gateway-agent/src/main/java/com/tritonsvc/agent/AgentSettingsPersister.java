@@ -49,7 +49,8 @@ public final class AgentSettingsPersister {
         final Properties props = new Properties();
         try (final InputStream in = new FileInputStream(file)) {
             props.load(in);
-        } catch (final IOException e) {
+        } catch (final FileNotFoundException e) {}
+        catch (final IOException e) {
             log.error("Error loading properties file", e);
         }
 

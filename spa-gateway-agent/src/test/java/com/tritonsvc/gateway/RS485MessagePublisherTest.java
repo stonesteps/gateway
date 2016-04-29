@@ -1,6 +1,5 @@
 package com.tritonsvc.gateway;
 
-
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import jdk.dio.uart.UART;
 import org.junit.Before;
@@ -23,7 +22,7 @@ public class RS485MessagePublisherTest {
         processor = mock(BWGProcessor.class);
         uart = mock(UART.class);
         when(processor.getRS485UART()).thenReturn(uart);
-        publisher = new RS485MessagePublisher(processor);
+        publisher = new NGSCMessagePublisher(processor);
     }
 
     @Test
@@ -37,5 +36,4 @@ public class RS485MessagePublisherTest {
         verify(uart).write(any());
         verify(processor).sendAck(any(), any() , eq(AckResponseCode.OK), any());
     }
-
 }

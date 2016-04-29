@@ -1,8 +1,7 @@
 package com.tritonsvc.gateway;
 
-public enum ButtonCode
-{
-    kNoMetaButton (0),
+public enum NGSCButtonCode implements Codeable {
+    kNoMetaButton     (0),
     kUpMetaButton     (1),
     kDownMetaButton   (2),
     kTempMetaButton   (3),
@@ -81,10 +80,11 @@ public enum ButtonCode
     kNavChooseMetaButton (128);
 
     private int code;
-    ButtonCode(int code) {
+    NGSCButtonCode(int code) {
        this.code = code;
     }
 
+    @Override
     public int getCode() {
         return code;
     }

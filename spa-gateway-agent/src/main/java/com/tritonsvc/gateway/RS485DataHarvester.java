@@ -9,13 +9,9 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleC
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelDisplayCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelMode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.SwimSpaMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Controller;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SetupParams;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SystemInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +22,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -58,6 +53,9 @@ public abstract class RS485DataHarvester implements Runnable {
     private AtomicReference<SpaClock> spaClock = new AtomicReference<>();;
     private AtomicReference<byte[]> lastPanelUpdate = new AtomicReference<>(new byte[]{});
     private final ReentrantReadWriteLock spaStateLock = new ReentrantReadWriteLock();
+    private BlockingQueue executionQueue;
+    private boolean cancelled;
+
     private SpaState spaState = SpaState.newBuilder().build();
 
     /**
@@ -124,7 +122,7 @@ public abstract class RS485DataHarvester implements Runnable {
         ByteBuffer workingMessage = ByteBuffer.allocate(256);
         ByteBuffer readBytes = ByteBuffer.allocate(1);
 
-        while(processor.stillRunning()) {
+        while(!cancelled && processor.stillRunning()) {
             try {
                 readBytes.clear();
                 int read = processor.getRS485UART().read(readBytes);
@@ -331,10 +329,10 @@ public abstract class RS485DataHarvester implements Runnable {
         }
 
         if (sendTempRangeChange) {
-            rs485MessagePublisher.sendButtonCode(ButtonCode.kTempRangeMetaButton, getRegisteredAddress(), "self", null);
+            rs485MessagePublisher.sendCode(NGSCButtonCode.kTempRangeMetaButton, getRegisteredAddress(), "self", null);
         }
         if (sendModeChange) {
-            rs485MessagePublisher.sendButtonCode(ButtonCode.kHeatModeMetaButton, getRegisteredAddress(), "self", null);
+            rs485MessagePublisher.sendCode(NGSCButtonCode.kHeatModeMetaButton, getRegisteredAddress(), "self", null);
         }
     }
 
@@ -369,6 +367,13 @@ public abstract class RS485DataHarvester implements Runnable {
                 getLatestSpaInfoLock().readLock().unlock();
             }
         }
+    }
+
+    /**
+     * stop running the harvester
+     */
+    public void cancel() {
+        cancelled = true;
     }
 
     private enum State {

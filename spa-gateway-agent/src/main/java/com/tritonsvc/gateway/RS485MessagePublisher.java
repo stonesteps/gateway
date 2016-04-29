@@ -17,7 +17,7 @@ import static javax.xml.bind.DatatypeConverter.printHexBinary;
 /**
  * RS485 message issuer
  */
-public class RS485MessagePublisher {
+public abstract class RS485MessagePublisher {
     private static Logger LOGGER = LoggerFactory.getLogger(RS485MessagePublisher.class);
     protected BWGProcessor processor;
     protected byte POLL_FINAL_CONTROL_BYTE = (byte)0xBF;
@@ -36,9 +36,13 @@ public class RS485MessagePublisher {
         this.processor = processor;
     }
 
-    public void initiateFilterCycleRequest(int port, int durationMinutes, byte address, String originatorId, String hardwareId) throws RS485Exception {
-    }
+    public abstract void initiateFilterCycleRequest(int port, int durationMinutes, byte address, String originatorId, String hardwareId) throws RS485Exception;
 
+    public abstract void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception;
+
+    public abstract void sendFilterCycleRequestIfPending(byte[] currentFilterCycleInfo, SpaClock spaClock);
+
+    public abstract Codeable getCode(final String value);
 
     /**
      * assemble the target temperature message and put it on downlink queue
@@ -73,7 +77,7 @@ public class RS485MessagePublisher {
      * @param address
      * @throws RS485Exception
      */
-    public void sendButtonCode(ButtonCode code, byte address, String originatorId, String hardwareId) throws RS485Exception {
+    public void sendCode(int code, byte address, String originatorId, String hardwareId) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(9);
             bb.put(DELIMITER_BYTE); // start flag
@@ -81,7 +85,7 @@ public class RS485MessagePublisher {
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
             bb.put((byte) 0x11); // the send button code packet type
-            bb.put((byte) (0xFF & code.getCode()));
+            bb.put((byte) (0xFF & code));
             bb.put((byte) 0xFF); // modifier is not specified
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
@@ -103,13 +107,13 @@ public class RS485MessagePublisher {
         try {
             ByteBuffer bb = ByteBuffer.allocate(10);
             bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte)0x08); // length between flags
+            bb.put((byte) 0x08); // length between flags
             bb.put(LINKING_ADDRESS_BYTE); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte)0x01); // the unassigned device reponse packet type
-            bb.put((byte)0x00); // device type
-            bb.put((byte)(0xFF & (requestId >> 8))); // unique id 1
-            bb.put((byte)(requestId & 0xFF)); // unique id 2
+            bb.put((byte) 0x01); // the unassigned device reponse packet type
+            bb.put((byte) 0x00); // device type
+            bb.put((byte) (0xFF & (requestId >> 8))); // unique id 1
+            bb.put((byte) (requestId & 0xFF)); // unique id 2
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
@@ -117,39 +121,8 @@ public class RS485MessagePublisher {
             pauseForBus();
             processor.getRS485UART().write(bb);
             LOGGER.info("sent unassigned device response {}", printHexBinary(bb.array()));
-        }
-        catch (Throwable ex) {
+        } catch (Throwable ex) {
             LOGGER.info("rs485 sending unnassigned device response got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    public void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception {
-        try {
-
-            int request = 0x07;
-            if (faultLogEntryNumber != null) {
-                request |= 0x20;
-            }
-
-            ByteBuffer bb = ByteBuffer.allocate(10);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte)0x08); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte)0x22); // the panel request packet type
-            bb.put((byte)(0xFF & request)); // requested messages
-            bb.put((byte) (faultLogEntryNumber != null ? (0xFF & faultLogEntryNumber) : 0x00)); // fault log entry number
-            bb.put((byte)0x01); // get device config
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            bb.position(0);
-
-            addToPending(new PendingRequest(bb.array(), "self", null));
-            LOGGER.info("sent panel request {}", printHexBinary(bb.array()));
-        }
-        catch (Throwable ex) {
-            LOGGER.info("rs485 sending panel request got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
     }
@@ -164,10 +137,10 @@ public class RS485MessagePublisher {
         try {
             ByteBuffer bb = ByteBuffer.allocate(7);
             bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte)0x05); // length between flags
+            bb.put((byte) 0x05); // length between flags
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte)0x03); // the assigned device ack packet type
+            bb.put((byte) 0x03); // the assigned device ack packet type
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
@@ -175,8 +148,7 @@ public class RS485MessagePublisher {
             pauseForBus();
             processor.getRS485UART().write(bb);
             LOGGER.info("sent address assignment response for newly acquired address {} {}", address, printHexBinary(bb.array()));
-        }
-        catch (Throwable ex) {
+        } catch (Throwable ex) {
             LOGGER.info("rs485 sending address assignment ack got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
@@ -192,13 +164,13 @@ public class RS485MessagePublisher {
         try {
             ByteBuffer bb = ByteBuffer.allocate(10);
             bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte)0x08); // length between flags
+            bb.put((byte) 0x08); // length between flags
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte)0x05); // the unassigned device reponse packet type
-            bb.put((byte)0x01); // major
-            bb.put((byte)0x00); // minor
-            bb.put((byte)0x00); // build
+            bb.put((byte) 0x05); // the unassigned device reponse packet type
+            bb.put((byte) 0x01); // major
+            bb.put((byte) 0x00); // minor
+            bb.put((byte) 0x00); // build
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
@@ -206,8 +178,7 @@ public class RS485MessagePublisher {
             pauseForBus();
             processor.getRS485UART().write(bb);
             LOGGER.info("sent device query response {}", printHexBinary(bb.array()));
-        }
-        catch (Throwable ex) {
+        } catch (Throwable ex) {
             LOGGER.info("rs485 sending device query response got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
@@ -247,76 +218,6 @@ public class RS485MessagePublisher {
         catch (Throwable ex) {
             LOGGER.info("rs485 sending device downlinks for poll check, got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
-     * this is a callback performed by message reception loop, whenever it receives a filter cycle info
-     * it passes the info there, this checkes if a any pending requests are present and if so, overlays them
-     * onto the current cycle info and send that request out
-     *
-     *
-     * @param currentFilterCycleInfo - doesn't have delimiters
-     * @param spaClock
-     */
-    public void sendFilterCycleRequestIfPending(byte[] currentFilterCycleInfo, SpaClock spaClock) {
-        if (filterCycleRequest.get() == null) {
-            return;
-        }
-        FilterCycleRequest cycleRequest = filterCycleRequest.getAndSet(null);
-        if (cycleRequest == null) {
-            // in case multi threads at same time, the second one would get this.
-            return;
-        }
-
-        try {
-            if (spaClock == null) {
-                throw new IllegalArgumentException("spa has not reported time yet, cannot set filter cycle yet.");
-            }
-
-            byte[] setFilterCycleInfo = new byte[currentFilterCycleInfo.length + 2];
-            arraycopy(currentFilterCycleInfo, 0, setFilterCycleInfo, 1, currentFilterCycleInfo.length);
-            setFilterCycleInfo[0] = DELIMITER_BYTE;
-
-            if (cycleRequest.getPort() == 0) {
-                if (cycleRequest.getDurationMinutes() < 1) {
-                    setFilterCycleInfo[5] = (byte)0x00;
-                    setFilterCycleInfo[6] = (byte)0x00;
-                    setFilterCycleInfo[7] = (byte)0x00;
-                    setFilterCycleInfo[8] = (byte)0x00;
-                } else {
-                    setFilterCycleInfo[5] = (byte) (0xFF & spaClock.getHour());
-                    setFilterCycleInfo[6] = (byte) (0xFF & spaClock.getMinute());
-                    setFilterCycleInfo[7] = (byte) (0xFF & cycleRequest.getDurationMinutes() / 60);
-                    setFilterCycleInfo[8] = (byte) (0xFF & cycleRequest.getDurationMinutes() % 60);
-                }
-            } else if (cycleRequest.getPort() == 1) {
-                if (cycleRequest.getDurationMinutes() < 1) {
-                    setFilterCycleInfo[9] = (byte)0x00;
-                    setFilterCycleInfo[10] = (byte)0x00;
-                    setFilterCycleInfo[11] = (byte)0x00;
-                    setFilterCycleInfo[12] = (byte)0x00;
-                } else {
-                    int byte9 = spaClock.getHour();
-                    byte9 |= 0x80; // bit7 is on for enabling the second filter cycle
-                    setFilterCycleInfo[9] = (byte) (0xFF & byte9);
-                    setFilterCycleInfo[10] = (byte) (0xFF & spaClock.getMinute());
-                    setFilterCycleInfo[11] = (byte) (0xFF & cycleRequest.getDurationMinutes() / 60);
-                    setFilterCycleInfo[12] = (byte) (0xFF & cycleRequest.getDurationMinutes() % 60);
-                }
-            } else {
-                throw new IllegalArgumentException("invalid port number, only 0 or 1 supported for filter cycle");
-            }
-            setFilterCycleInfo[13] = HdlcCrc.generateFCS(setFilterCycleInfo);
-            setFilterCycleInfo[14] = DELIMITER_BYTE;
-            ByteBuffer bb = ByteBuffer.wrap(setFilterCycleInfo);
-
-            addToPending(new PendingRequest(bb.array(), "self", null));
-            LOGGER.info("sent filter cycle request {}", printHexBinary(bb.array()));
-        }
-        catch (Throwable ex) {
-            LOGGER.info("rs485 sending filter cycle request got exception " + ex.getMessage());
-            processor.sendAck(cycleRequest.getHardwareId(), cycleRequest.getOriginatorId(), AckResponseCode.ERROR, ex.getMessage());
         }
     }
 
