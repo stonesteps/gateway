@@ -118,6 +118,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         processMetaDataValue(gatewayComponent.getMetaValues(), "BWG-Agent-Version", registerDeviceMessage.getMetadataList());
         processMetaDataValue(gatewayComponent.getMetaValues(), "BWG-Agent-Build-Number", registerDeviceMessage.getMetadataList());
         processMetaDataValue(gatewayComponent.getMetaValues(), "BWG-Agent-SCM-Revision", registerDeviceMessage.getMetadataList());
+        processMetaDataValue(gatewayComponent.getMetaValues(), "BWG-Agent-RS485-Controller-Type", registerDeviceMessage.getMetadataList());
 
         Spa spa = (gatewayComponent.getSpaId() != null ? spaRepository.findOne(gatewayComponent.getSpaId()) : null);
 
@@ -157,7 +158,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
     private void processMetaDataValue(Map<String, String> componentMeta, String key, List<Metadata> metadata) {
         List<String> values = metadata
                 .stream()
-                .filter(metaEntry -> metaEntry.hasName() && metaEntry.getName().equals("BWG-Agent-Version") && metaEntry.hasValue())
+                .filter(metaEntry -> metaEntry.hasName() && metaEntry.hasValue())
                 .map(Metadata::getValue)
                 .collect(toList());
 

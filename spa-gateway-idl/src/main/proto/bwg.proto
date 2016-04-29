@@ -441,7 +441,7 @@ message Downlink {
             CIRCULATION_PUMP = 12;
             RESTART_AGENT = 13;
             REBOOT_GATEWAY = 14;
-            UPDATE_SPA_STATE_INTERVAL = 15;
+            UPDATE_AGENT_SETTINGS = 15;
         }
 
         enum SpaCommandAttribName {
@@ -451,6 +451,7 @@ message Downlink {
             FILTER_DURATION_15MINUTE_INTERVALS = 4;
             INTERVAL_SECONDS = 5;
             DURATION_MINUTES = 6;
+            RS485_CONTROLLER_TYPE=7;
         }
 
         message RequestMetadata {
