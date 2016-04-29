@@ -26,6 +26,59 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
     }
 
     /**
+     * assemble the target temperature message and put it on downlink queue
+     *
+     * @param newTempFahr
+     * @param address
+     * @throws RS485Exception
+     */
+    public void setTemperature(int newTempFahr, byte address, String originatorId, String hardwareId) throws RS485Exception {
+        try {
+            ByteBuffer bb = ByteBuffer.allocate(8);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte) 0x06); // length between flags
+            bb.put(address); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte) 0x20); // the set target temp packet type
+            bb.put((byte) (0xFF & newTempFahr));
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
+        }
+        catch (Throwable ex) {
+            LOGGER.info("rs485 set temp got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+    /**
+     * assemble the button code request message and put it on queue
+     *
+     * @param code
+     * @param address
+     * @throws RS485Exception
+     */
+    public void sendCode(int code, byte address, String originatorId, String hardwareId) throws RS485Exception {
+        try {
+            ByteBuffer bb = ByteBuffer.allocate(9);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte) 0x07); // length between flags
+            bb.put(address); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte) 0x11); // the send button code packet type
+            bb.put((byte) (0xFF & code));
+            bb.put((byte) 0xFF); // modifier is not specified
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
+        }
+        catch (Throwable ex) {
+            LOGGER.info("rs485 send button code got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+    /**
      * put request for filter cycle info on downlink queue
      *
      * @param port
@@ -174,42 +227,6 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
             LOGGER.info("sent device query response {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
             LOGGER.info("rs485 sending device query response got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
-     * sends a pending downlink message if one is queued
-     *
-     * @param address
-     * @throws RS485Exception
-     */
-    public synchronized void sendPendingDownlinkIfAvailable(byte address) throws RS485Exception {
-        try {
-            PendingRequest requestMessage = pendingDownlinks.poll();
-            if (requestMessage != null) {
-                ByteBuffer bb = ByteBuffer.wrap(requestMessage.getPayload());
-                try {
-                    pauseForBus();
-                    processor.getRS485UART().write(bb);
-                    if (requestMessage.getHardwareId() != null) {
-                        // if hardwareid is not present, this was a message initiated by the agent not the cloud, don't send an ack up to cloud in this case
-                        processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.OK, null);
-                    }
-                    LOGGER.info("sent queued downlink message, originator {}, as 485 poll response, payload {}, there are {} remaining", requestMessage.getOriginatorId(), printHexBinary(bb.array()), pendingDownlinks.size());
-                } catch (Exception ex) {
-                    if (requestMessage.getHardwareId() != null) {
-                        // if hardwareid is not present, this was a message initiated by the agent not the cloud, don't send an ack up to cloud in this case
-                        processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.ERROR, "485 communication problem");
-                    }
-                    LOGGER.info("failed sending downlink message, originator {}, as 485 poll response, payload {}", requestMessage.getOriginatorId(), printHexBinary(bb.array()));
-                    throw ex;
-                } finally {
-                    lastLoggedDownlinkPoll.set(System.currentTimeMillis());
-                }
-            }
-        } catch (Throwable ex) {
-            LOGGER.info("rs485 sending device downlinks for poll check, got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
     }
