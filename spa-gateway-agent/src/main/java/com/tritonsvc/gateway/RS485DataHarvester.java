@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -52,6 +53,9 @@ public abstract class RS485DataHarvester implements Runnable {
     private AtomicReference<SpaClock> spaClock = new AtomicReference<>();;
     private AtomicReference<byte[]> lastPanelUpdate = new AtomicReference<>(new byte[]{});
     private final ReentrantReadWriteLock spaStateLock = new ReentrantReadWriteLock();
+    private BlockingQueue executionQueue;
+    private boolean cancelled;
+
     private SpaState spaState = SpaState.newBuilder().build();
 
     /**
@@ -118,7 +122,7 @@ public abstract class RS485DataHarvester implements Runnable {
         ByteBuffer workingMessage = ByteBuffer.allocate(256);
         ByteBuffer readBytes = ByteBuffer.allocate(1);
 
-        while(processor.stillRunning()) {
+        while(!cancelled && processor.stillRunning()) {
             try {
                 readBytes.clear();
                 int read = processor.getRS485UART().read(readBytes);
@@ -363,6 +367,13 @@ public abstract class RS485DataHarvester implements Runnable {
                 getLatestSpaInfoLock().readLock().unlock();
             }
         }
+    }
+
+    /**
+     * stop running the harvester
+     */
+    public void cancel() {
+        cancelled = true;
     }
 
     private enum State {

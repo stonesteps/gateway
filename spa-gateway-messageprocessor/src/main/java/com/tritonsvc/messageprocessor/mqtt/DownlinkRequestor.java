@@ -165,7 +165,7 @@ public final class DownlinkRequestor {
         return sent;
     }
 
-    public boolean sendUpdateSpaSatteIntervalCommand(final SpaCommand command) {
+    public boolean sendUpdateAgentSettingsCommand(final SpaCommand command) {
         boolean sent = false;
 
         final Spa spa = spaRepository.findOne(command.getSpaId());
@@ -180,21 +180,16 @@ public final class DownlinkRequestor {
 
             final String intervalSeconds = command.getValues().get(Bwg.Downlink.Model.SpaCommandAttribName.INTERVAL_SECONDS.name());
             final String durationMinutes = command.getValues().get(Bwg.Downlink.Model.SpaCommandAttribName.DURATION_MINUTES.name());
-            if (intervalSeconds == null) {
-                log.error("Interval seconds is required");
-            } else if (intervalSeconds != null && !NumberUtils.isNumber(intervalSeconds)) {
+            if (intervalSeconds != null && !NumberUtils.isNumber(intervalSeconds)) {
                 log.error("Interval seconds passed with command is invalid {}", intervalSeconds);
-            } else if (durationMinutes == null) {
-                log.error("Duration minutes is required");
             } else if (durationMinutes != null && !NumberUtils.isNumber(durationMinutes)) {
                 log.error("Duration minutes passed with command is invalid {}", durationMinutes);
-            } else {
+            } else if ((intervalSeconds != null && durationMinutes == null) || (intervalSeconds == null && durationMinutes != null)) {
                 sent = sendDownlinkMessage(spa, command, requestType);
                 if (sent) {
                     if (spa.getCurrentState() == null) {
                         spa.setCurrentState(new SpaState());
                     }
-                    // FIXME save some state?
                 }
             }
         }

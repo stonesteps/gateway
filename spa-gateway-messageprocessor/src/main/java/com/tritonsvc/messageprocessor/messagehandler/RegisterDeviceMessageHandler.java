@@ -11,6 +11,7 @@ import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.DownlinkCommandType;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
+import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
@@ -22,6 +23,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import static com.google.common.collect.Maps.newHashMap;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Created by holow on 2/22/2016.
@@ -97,6 +103,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
             gatewayComponent.setComponentType(ComponentType.GATEWAY.name());
             gatewayComponent.setSerialNumber(serialNumber);
             gatewayComponent.setRegistrationDate(regTimestamp);
+            gatewayComponent.setMetaValues(newHashMap());
             dirtyGateway = true;
         } else {
             gatewayComponent = results.iterator().next();
@@ -107,6 +114,11 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
                 dirtyGateway = true;
             }
         }
+
+        processMetaDataValue(gatewayComponent.getMetaValues(), "BWG-Agent-Version", registerDeviceMessage.getMetadataList());
+        processMetaDataValue(gatewayComponent.getMetaValues(), "BWG-Agent-Build-Number", registerDeviceMessage.getMetadataList());
+        processMetaDataValue(gatewayComponent.getMetaValues(), "BWG-Agent-SCM-Revision", registerDeviceMessage.getMetadataList());
+        processMetaDataValue(gatewayComponent.getMetaValues(), "BWG-Agent-RS485-Controller-Type", registerDeviceMessage.getMetadataList());
 
         Spa spa = (gatewayComponent.getSpaId() != null ? spaRepository.findOne(gatewayComponent.getSpaId()) : null);
 
@@ -140,6 +152,20 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
             log.info("sent spa registration response {} {}", spa.get_id(), serialNumber);
         } catch (Exception e) {
             log.error("Error while sending downlink message", e);
+        }
+    }
+
+    private void processMetaDataValue(Map<String, String> componentMeta, String key, List<Metadata> metadata) {
+        List<String> values = metadata
+                .stream()
+                .filter(metaEntry -> metaEntry.hasName() && metaEntry.hasValue())
+                .map(Metadata::getValue)
+                .collect(toList());
+
+        if (values.size() > 0 ) {
+            componentMeta.put(key, values.get(0));
+        } else {
+            componentMeta.remove(key);
         }
     }
 
