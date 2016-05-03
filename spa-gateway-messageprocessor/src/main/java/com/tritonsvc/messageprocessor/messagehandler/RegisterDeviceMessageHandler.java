@@ -103,7 +103,6 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
             gatewayComponent.setComponentType(ComponentType.GATEWAY.name());
             gatewayComponent.setSerialNumber(serialNumber);
             gatewayComponent.setRegistrationDate(regTimestamp);
-            gatewayComponent.setMetaValues(newHashMap());
             dirtyGateway = true;
         } else {
             gatewayComponent = results.iterator().next();
