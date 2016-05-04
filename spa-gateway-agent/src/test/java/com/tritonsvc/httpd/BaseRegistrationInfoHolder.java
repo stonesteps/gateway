@@ -8,6 +8,7 @@ public class BaseRegistrationInfoHolder implements RegistrationInfoHolder {
     private String regKey;
     private String regUserId;
     private String spaId;
+    private String serialNumber;
 
     @Override
     public String getRegKey() {
@@ -24,6 +25,11 @@ public class BaseRegistrationInfoHolder implements RegistrationInfoHolder {
         return spaId;
     }
 
+    @Override
+    public String getSerialNumber() {
+        return serialNumber;
+    }
+
     public void setRegKey(String regKey) {
         this.regKey = regKey;
     }
@@ -34,5 +40,9 @@ public class BaseRegistrationInfoHolder implements RegistrationInfoHolder {
 
     public void setSpaId(String spaId) {
         this.spaId = spaId;
+    }
+
+    public void setSerialNumber(String serialNumber) {
+        this.serialNumber = serialNumber;
     }
 }
