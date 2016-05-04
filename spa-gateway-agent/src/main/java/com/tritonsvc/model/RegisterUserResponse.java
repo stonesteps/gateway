@@ -9,6 +9,7 @@ public class RegisterUserResponse {
     private String errorMessage;
     private String regKey;
     private String spaId;
+    private String serialNumber;
 
     public boolean isError() {
         return error;
@@ -40,5 +41,13 @@ public class RegisterUserResponse {
 
     public void setSpaId(String spaId) {
         this.spaId = spaId;
+    }
+
+    public String getSerialNumber() {
+        return serialNumber;
+    }
+
+    public void setSerialNumber(String serialNumber) {
+        this.serialNumber = serialNumber;
     }
 }

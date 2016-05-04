@@ -28,13 +28,14 @@ public class RegisterUserToSpaHandler implements HttpHandler {
         final String regKey = registrationInfoHolder != null ? registrationInfoHolder.getRegKey() : null;
         final String regUserId = registrationInfoHolder != null ? registrationInfoHolder.getRegUserId() : null;
         final String spaId = registrationInfoHolder != null ? registrationInfoHolder.getSpaId() : null;
+        final String serialNumber = registrationInfoHolder != null ? registrationInfoHolder.getSerialNumber() : null;
 
         if (regUserId != null) {
             error(httpExchange, "Spa already registered to User");
         } else if (spaId == null) {
             error(httpExchange, "Spa not registered to cloud");
         } else {
-            ok(httpExchange, regKey, spaId);
+            ok(httpExchange, regKey, spaId, serialNumber);
         }
     }
 
@@ -46,11 +47,12 @@ public class RegisterUserToSpaHandler implements HttpHandler {
         writeResponse(httpExchange, response);
     }
 
-    private void ok(final HttpExchange httpExchange, final String regKey, final String spaId) throws IOException {
+    private void ok(final HttpExchange httpExchange, final String regKey, final String spaId, final String serialNumber) throws IOException {
         final RegisterUserResponse response = new RegisterUserResponse();
         response.setError(false);
         response.setRegKey(regKey);
         response.setSpaId(spaId);
+        response.setSerialNumber(serialNumber);
 
         writeResponse(httpExchange, response);
     }
