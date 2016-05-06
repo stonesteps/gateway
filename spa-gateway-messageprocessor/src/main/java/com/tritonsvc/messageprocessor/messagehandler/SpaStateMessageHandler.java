@@ -1,7 +1,20 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
-import com.bwg.iot.model.*;
+import com.bwg.iot.model.BluetoothStatus;
 import com.bwg.iot.model.Component.ComponentType;
+import com.bwg.iot.model.ComponentState;
+import com.bwg.iot.model.DipSwitch;
+import com.bwg.iot.model.FiltrationMode;
+import com.bwg.iot.model.HeaterMode;
+import com.bwg.iot.model.PanelMode;
+import com.bwg.iot.model.ReminderCode;
+import com.bwg.iot.model.SetupParams;
+import com.bwg.iot.model.Spa;
+import com.bwg.iot.model.SpaRunState;
+import com.bwg.iot.model.SpaState;
+import com.bwg.iot.model.SwimSpaMode;
+import com.bwg.iot.model.SystemInfo;
+import com.bwg.iot.model.TempRange;
 import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.spa.communication.proto.Bwg;
@@ -20,6 +33,7 @@ import java.util.Date;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static java.util.stream.Collectors.toList;
 
 /**
  * process downlink acks from spa systems
@@ -74,7 +88,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             spaStateEntity.getSetupParams().setLastUpdateTimestamp(null);
         }
         if (spaState.hasSystemInfo()) {
-            spaStateEntity.setSystemInfo(buildSystemInfo(spaState.getSystemInfo()));
+            spaStateEntity.setSystemInfo(buildSystemInfo(spaState.getSystemInfo(), spaStateEntity.getSystemInfo()));
         } else if (spaStateEntity.getSystemInfo() != null) {
             spaStateEntity.getSystemInfo().setLastUpdateTimestamp(null);
         }
@@ -89,42 +103,67 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
     }
 
     private void updateOtherControllerParams(final SpaState spaStateEntity, final Bwg.Uplink.Model.Controller controller) {
-        spaStateEntity.setHeaterMode(controller.getHeaterMode());
+        spaStateEntity.setHeaterMode(HeaterMode.valueOf(controller.getHeaterMode().name()));
+        spaStateEntity.setRunMode(controller.getHeaterMode().equals(Constants.HeaterMode.REST) ? "Rest" : "Ready");
+        spaStateEntity.setControllerType(controller.getPackType());
         spaStateEntity.setHour(controller.getHour());
         spaStateEntity.setMinute(controller.getMinute());
-        spaStateEntity.setUiCode(controller.getUiCode());
-        spaStateEntity.setUiSubCode(controller.getUiSubCode());
-        spaStateEntity.setInvert(controller.getInvert());
-        spaStateEntity.setAllSegsOn(controller.getAllSegsOn());
-        spaStateEntity.setPanelLock(controller.getPanelLock());
-        spaStateEntity.setMilitary(controller.getMilitary());
         spaStateEntity.setCelsius(controller.getCelsius());
-        spaStateEntity.setTempRange(controller.hasTempRange() ? TempRange.valueOf(controller.getTempRange().toString()) : null);
-        spaStateEntity.setPrimingMode(controller.getPrimingMode());
-        spaStateEntity.setSoundAlarm(controller.getSoundAlarm());
-        spaStateEntity.setRepeat(controller.getRepeat());
-        spaStateEntity.setPanelMode(controller.hasPanelMode() ? PanelMode.valueOf(controller.getPanelMode().toString()) : null);
-        spaStateEntity.setSwimSpaMode(controller.hasSwimSpaMode() ? SwimSpaMode.valueOf(controller.getSwimSpaMode().toString()) : null);
-        spaStateEntity.setSwimSpaModeChanging(controller.getSwimSpaModeChanging());
-        spaStateEntity.setHeaterCooling(controller.getHeaterCooling());
-        spaStateEntity.setLatchingMessage(controller.getLatchingMessage());
         spaStateEntity.setDemoMode(controller.getDemoMode());
         spaStateEntity.setTimeNotSet(controller.getTimeNotSet());
-        spaStateEntity.setLightCycle(controller.getLightCycle());
-        spaStateEntity.setElapsedTimeDisplay(controller.getElapsedTimeDisplay());
-        spaStateEntity.setTvLiftState(controller.getTvLiftState());
         spaStateEntity.setSettingsLock(controller.getSettingsLock());
         spaStateEntity.setSpaOverheatDisabled(controller.getSpaOverheatDisabled());
-        spaStateEntity.setSpecialTimeouts(controller.getSpecialTimeouts());
-        spaStateEntity.setABDisplay(controller.getABDisplay());
-        spaStateEntity.setStirring(controller.getStirring());
-        spaStateEntity.setEcoMode(controller.getEcoMode());
-        spaStateEntity.setSoakMode(controller.getSoakMode());
-        spaStateEntity.setBluetoothStatus(controller.getBluetoothStatus());
-        spaStateEntity.setOverrangeEnabled(controller.getOverrangeEnabled());
-        spaStateEntity.setHeatExternallyDisabled(controller.getHeatExternallyDisabled());
-        spaStateEntity.setTestMode(controller.getTestMode());
-        spaStateEntity.setTempLock(controller.getTempLock());
+        spaStateEntity.setBluetoothStatus(BluetoothStatus.valueOf(controller.getBluetoothStatus().name()));
+
+        spaStateEntity.setUiCode(controller.hasUiCode() ? controller.getUiCode() : null);
+        spaStateEntity.setUiSubCode(controller.hasUiSubCode() ? controller.getUiSubCode() : null);
+        spaStateEntity.setInvert(controller.hasInvert() ? controller.getInvert() : null);
+        spaStateEntity.setAllSegsOn(controller.hasAllSegsOn() ? controller.getAllSegsOn() : null);
+        spaStateEntity.setPanelLock(controller.hasPanelLock() ? controller.getPanelLock() : null);
+        spaStateEntity.setMilitary(controller.hasMilitary() ? controller.getMilitary() : null);
+        spaStateEntity.setTempRange(controller.hasTempRange() ? TempRange.valueOf(controller.getTempRange().toString()) : null);
+        spaStateEntity.setPrimingMode(controller.hasPrimingMode() ? controller.getPrimingMode() : null);
+        spaStateEntity.setSoundAlarm(controller.hasSoundAlarm() ? controller.getSoundAlarm() : null);
+        spaStateEntity.setRepeat(controller.hasRepeat() ? controller.getRepeat() : null);
+        spaStateEntity.setPanelMode(controller.hasPanelMode() ? PanelMode.valueOf(controller.getPanelMode().toString()) : null);
+        spaStateEntity.setSwimSpaMode(controller.hasSwimSpaMode() ? SwimSpaMode.valueOf(controller.getSwimSpaMode().toString()) : null);
+        spaStateEntity.setSwimSpaModeChanging(controller.hasSwimSpaModeChanging() ? controller.getSwimSpaModeChanging() : null);
+        spaStateEntity.setHeaterCooling(controller.hasHeaterCooling() ? controller.getHeaterCooling() : null);
+        spaStateEntity.setLatchingMessage(controller.hasLatchingMessage() ? controller.getLatchingMessage() : null);
+        spaStateEntity.setLightCycle(controller.hasLightCycle() ? controller.getLightCycle() : null);
+        spaStateEntity.setElapsedTimeDisplay(controller.hasElapsedTimeDisplay() ? controller.getElapsedTimeDisplay() : null);
+        spaStateEntity.setTvLiftState(controller.hasTvLiftState() ? controller.getTvLiftState() : null);
+        spaStateEntity.setSpecialTimeouts(controller.hasSpecialTimeouts() ? controller.getSpecialTimeouts() : null);
+        spaStateEntity.setABDisplay(controller.hasABDisplay() ? controller.getABDisplay() : null);
+        spaStateEntity.setStirring(controller.hasStirring() ? controller.getStirring() : null);
+        spaStateEntity.setEcoMode(controller.hasEcoMode() ? controller.getEcoMode() : null);
+        spaStateEntity.setSoakMode(controller.hasSoakMode() ? controller.getSoakMode() : null);
+        spaStateEntity.setOverrangeEnabled(controller.hasOverrangeEnabled() ? controller.getOverrangeEnabled() : null);
+        spaStateEntity.setHeatExternallyDisabled(controller.hasHeatExternallyDisabled() ? controller.getHeatExternallyDisabled() : null);
+        spaStateEntity.setTestMode(controller.hasTestMode() ? controller.getTestMode() : null);
+        spaStateEntity.setTempLock(controller.hasTempLock() ? controller.getTempLock() : null);
+
+        spaStateEntity.setSecondaryFiltrationMode(controller.hasSecondaryFiltrationMode() ? FiltrationMode.valueOf(controller.getSecondaryFiltrationMode().name()) : null);
+        spaStateEntity.setSpaRunState(controller.hasSpaState() ? SpaRunState.valueOf(controller.getSpaState().name()) : null);
+        spaStateEntity.setAmbientTemp(controller.hasAmbientTemp() ? controller.getAmbientTemp() : null);
+        spaStateEntity.setDay(controller.hasDay() ? controller.getDay() : null);
+        spaStateEntity.setMonth(controller.hasMonth() ? controller.getMonth() : null);
+        spaStateEntity.setYear(controller.hasYear() ? controller.getYear() : null);
+        spaStateEntity.setReminderCode(controller.hasReminderCode() ? ReminderCode.valueOf(controller.getReminderCode().name()) : null);
+        spaStateEntity.setReminderDaysClearRay(controller.hasReminderDaysClearRay() ? controller.getReminderDaysClearRay() : null);
+        spaStateEntity.setReminderDaysWater(controller.hasReminderDaysWater() ? controller.getReminderDaysWater() : null);
+        spaStateEntity.setReminderDaysFilter1(controller.hasReminderDaysFilter1() ? controller.getReminderDaysFilter1() : null);
+        spaStateEntity.setReminderDaysFilter2(controller.hasReminderDaysFilter2() ? controller.getReminderDaysFilter2() : null);
+        spaStateEntity.setBlowout(controller.hasBlowout() ? controller.getBlowout() : null);
+        spaStateEntity.setWaterLevel1(controller.hasWaterLevel1() ? controller.getWaterLevel1() : null);
+        spaStateEntity.setWaterLevel2(controller.hasWaterLevel2() ? controller.getWaterLevel2() : null);
+        spaStateEntity.setFlowSwitchClosed(controller.hasFlowSwitchClosed() ? controller.getFlowSwitchClosed() : null);
+        spaStateEntity.setChangeUV(controller.hasChangeUV() ? controller.getChangeUV() : null);
+        spaStateEntity.setHiLimitTemp(controller.hasHiLimitTemp() ? controller.getHiLimitTemp() : null);
+        spaStateEntity.setRegistrationLockout(controller.hasRegistrationLockout() ? controller.getRegistrationLockout() : null);
+        spaStateEntity.setEngineeringMode(controller.hasEngineeringMode() ? controller.getEngineeringMode() : null);
+        spaStateEntity.setAccessLocked(controller.hasAccessLocked() ? controller.getAccessLocked() : null);
+        spaStateEntity.setMaintenanceLocked(controller.hasMaintenanceLocked() ? controller.getMaintenanceLocked() : null);
     }
 
     private SetupParams buildSetupParams(final Bwg.Uplink.Model.SetupParams setupParams) {
@@ -142,18 +181,20 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         return setupParamsEntity;
     }
 
-    private SystemInfo buildSystemInfo(final Bwg.Uplink.Model.SystemInfo systemInfo) {
-        final SystemInfo systemInfoEntity = new SystemInfo();
-
-        systemInfoEntity.setHeaterPower(systemInfo.getHeaterPower());
-        systemInfoEntity.setMfrSSID(systemInfo.getMfrSSID());
-        systemInfoEntity.setModelSSID(systemInfo.getModelSSID());
-        systemInfoEntity.setVersionSSID(systemInfo.getVersionSSID());
-        systemInfoEntity.setMinorVersion(systemInfo.getMinorVersion());
-        systemInfoEntity.setSwSignature(systemInfo.getSwSignature());
-        systemInfoEntity.setHeaterType(systemInfo.getHeaterType());
-        systemInfoEntity.setCurrentSetup(systemInfo.getCurrentSetup());
-
+    private SystemInfo buildSystemInfo(final Bwg.Uplink.Model.SystemInfo systemInfo, SystemInfo systemInfoEntity) {
+        if (systemInfo.hasHeaterPower()) systemInfoEntity.setHeaterPower(systemInfo.getHeaterPower());
+        if (systemInfo.hasMfrSSID()) systemInfoEntity.setMfrSSID(systemInfo.getMfrSSID());
+        if (systemInfo.hasModelSSID()) systemInfoEntity.setModelSSID(systemInfo.getModelSSID());
+        if (systemInfo.hasVersionSSID()) systemInfoEntity.setVersionSSID(systemInfo.getVersionSSID());
+        if (systemInfo.hasPackMinorVersion()) systemInfoEntity.setMinorVersion(systemInfo.getMinorVersion());
+        if (systemInfo.hasSwSignature()) systemInfoEntity.setSwSignature(systemInfo.getSwSignature());
+        if (systemInfo.hasHeaterType()) systemInfoEntity.setHeaterType(systemInfo.getHeaterType());
+        if (systemInfo.hasCurrentSetup()) systemInfoEntity.setCurrentSetup(systemInfo.getCurrentSetup());
+        if (systemInfo.hasPackMinorVersion()) systemInfoEntity.setPackMinorVersion(systemInfo.getPackMinorVersion());
+        if (systemInfo.hasPackMajorVersion()) systemInfoEntity.setPackMajorVersion(systemInfo.getPackMajorVersion());
+        if (systemInfo.hasSerialNumber()) systemInfoEntity.setSerialNumber((long) systemInfo.getSerialNumber());
+        systemInfoEntity.getDipSwitches().clear();
+        systemInfoEntity.getDipSwitches().addAll(systemInfo.getDipSwitchesList().stream().map(dip -> new DipSwitch(dip.getSlotNumber(), dip.getOn())).collect(toList()));
         systemInfoEntity.setLastUpdateTimestamp(new Date(systemInfo.getLastUpdateTimestamp()));
 
         return systemInfoEntity;
@@ -174,6 +215,12 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
 
         // ozone
         if (components.hasOzone()) { updateComponentState(spaId, spaStateEntity, Bwg.Uplink.Model.Constants.ComponentType.OZONE.toString(), components.getOzone().getCurrentState().toString(), toStringList(components.getOzone().getAvailableStatesList())); }
+
+        // uv
+        if (components.hasUv()) { updateComponentState(spaId, spaStateEntity, Bwg.Uplink.Model.Constants.ComponentType.UV.toString(), components.getUv().getCurrentState().toString(), toStringList(components.getUv().getAvailableStatesList())); }
+
+        // audio/visual
+        if (components.hasAudioVisual()) { updateComponentState(spaId, spaStateEntity, Bwg.Uplink.Model.Constants.ComponentType.AV.toString(), Integer.toString(components.getAudioVisual()), null); }
 
         // microsilk
         if (components.hasMicroSilk()) { updateComponentState(spaId, spaStateEntity, Bwg.Uplink.Model.Constants.ComponentType.MICROSILK.toString(), components.getMicroSilk().getCurrentState().toString(), toStringList(components.getMicroSilk().getAvailableStatesList())); }

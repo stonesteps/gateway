@@ -1,7 +1,9 @@
 package com.tritonsvc.gateway;
 
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BluetoothStatus;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -129,7 +131,8 @@ public class MockSpaStateHolder {
     }
 
     private void initControllerBuilder() {
-        controllerBuilder.setHeaterMode(0);
+        controllerBuilder.setPackType("NGSC");
+        controllerBuilder.setHeaterMode(HeaterMode.REST);
         controllerBuilder.setCurrentWaterTemp(0);
         controllerBuilder.setHour(0);
         controllerBuilder.setMinute(0);
@@ -166,7 +169,7 @@ public class MockSpaStateHolder {
         controllerBuilder.setStirring(false);
         controllerBuilder.setEcoMode(false);
         controllerBuilder.setSoakMode(false);
-        controllerBuilder.setBluetoothStatus(0);
+        controllerBuilder.setBluetoothStatus(BluetoothStatus.OFF);
         controllerBuilder.setOverrangeEnabled(false);
         controllerBuilder.setHeatExternallyDisabled(false);
         controllerBuilder.setTestMode(false);

@@ -5,6 +5,7 @@
 package com.tritonsvc.gateway;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
@@ -28,6 +29,9 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightCo
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
 import jdk.dio.DeviceManager;
@@ -66,7 +70,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     private static Map<String, String> DEFAULT_EMPTY_MAP = newHashMap();
-    final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
+    private final ReentrantReadWriteLock regLock = new ReentrantReadWriteLock();
     private Map<String, DeviceRegistration> registeredHwIds = newHashMap();
     private Properties configProps;
     private String gwSerialNumber;
@@ -77,7 +81,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private AtomicLong updateInterval = new AtomicLong(DEFAULT_UPDATE_INTERVAL);
-    private WebServer webServer = null;
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
     private Map<String, String> buildParams;
@@ -106,18 +109,16 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         // persistent key/value db
         this.gwSerialNumber = gwSerialNumber;
         this.configProps = configProps;
-        this.webServer = new WebServer(configProps, this, this);
+        new WebServer(configProps, this, this);
         this.es = executorService;
+        buildParams = getBuildProps();
 
         setupAgentSettings();
         setUpRS485();
         validateOidProperties();
         obtainSpaRegistration();
         setUpRS485Processors();
-
         executorService.execute(new WSNDataHarvester(this));
-        executorService.execute(getRS485DataHarvester());
-        buildParams = getBuildProps();
 
         LOGGER.info("finished startup.");
     }
@@ -195,7 +196,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         try {
             if (request.getRequestType().equals(RequestType.HEATER)) {
-                updateHeater(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, getRS485DataHarvester().requiresCelsius());
+                updateHeater(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, getRS485DataHarvester().usesCelsius());
             } else if (request.getRequestType().equals(RequestType.UPDATE_AGENT_SETTINGS)) {
                 updateAgentSettings(request.getMetadataList());
             } else {
@@ -220,10 +221,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                         updateFilter(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
                         break;
                     case OZONE:
-                        updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.OZONE, ButtonCode.kOzoneMetaButton);
+                        updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.OZONE, "kOzoneMetaButton");
                         break;
                     case MICROSILK:
-                        updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.MICROSILK, ButtonCode.kMicroSilkQuietMetaButton);
+                        updateReservedComponent(request.getMetadataList(), originatorId, hardwareId, ComponentType.MICROSILK, "kMicroSilkQuietMetaButton");
                         break;
                     case AUX:
                         updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kOption<port>MetaButton", ComponentType.AUX);
@@ -237,6 +238,27 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             sendAck(hardwareId, originatorId, AckResponseCode.ERROR, ex.getMessage());
             return;
         }
+    }
+
+    public synchronized void setUpRS485Processors() {
+        if (Objects.equals(getRS485ControllerType(), "JACUZZI")) {
+            setRS485MessagePublisher(new JacuzziMessagePublisher(this));
+            setRS485DataHarvester(new JacuzziDataHarvester(this, (JacuzziMessagePublisher) getRS485MessagePublisher()));
+            LOGGER.info("Configured RS485 connection for Jacuzzi Protocol");
+        } else {
+            setRS485MessagePublisher(new NGSCMessagePublisher(this));
+            setRS485DataHarvester(new NGSCDataHarvester(this, (NGSCMessagePublisher) getRS485MessagePublisher()));
+            LOGGER.info("Configured RS485 connection for BWG NGSC Protocol");
+        }
+        es.execute(getRS485DataHarvester());
+    }
+
+    public String getRS485ControllerType() {
+        return rs485ControllerType;
+    }
+
+    public void setRS485ControllerType(String type) {
+        this.rs485ControllerType = type;
     }
 
     private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId, boolean celsius) throws Exception {
@@ -257,8 +279,38 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                         (new BigDecimal((5.0 / 9.0) * (temperature - 32)).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue()))
                         .setScale(0, BigDecimal.ROUND_HALF_UP).intValue();
             }
-            getRS485DataHarvester().prepareForTemperatureChangeRequest(temperature);
-            getRS485MessagePublisher().setTemperature(temperature, registeredAddress, originatorId, hardwareId);
+
+            boolean locked = false;
+            TempRange tempRange = null;
+            int waterTemp = 0;
+            HeaterMode heaterMode = null;
+            int highHigh = 0;
+            int highLow = 0;
+            int lowHigh = 0;
+            int lowLow = 0;
+            try {
+                getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
+                locked = true;
+                if (getRS485DataHarvester().getLatestSpaInfo().hasController()) {
+                    tempRange = getRS485DataHarvester().getLatestSpaInfo().getController().getTempRange();
+                    waterTemp = getRS485DataHarvester().getLatestSpaInfo().getController().getCurrentWaterTemp();
+                    heaterMode = getRS485DataHarvester().getLatestSpaInfo().getController().getHeaterMode();
+                }
+                if (getRS485DataHarvester().getLatestSpaInfo().hasSetupParams()) {
+                    highHigh = getRS485DataHarvester().getLatestSpaInfo().getSetupParams().getHighRangeHigh();
+                    highLow = getRS485DataHarvester().getLatestSpaInfo().getSetupParams().getHighRangeLow();
+                    lowHigh = getRS485DataHarvester().getLatestSpaInfo().getSetupParams().getLowRangeHigh();
+                    lowLow = getRS485DataHarvester().getLatestSpaInfo().getSetupParams().getLowRangeLow();
+                }
+            } catch (Exception ex) {
+                LOGGER.error("error while processing data harvest", ex);
+            } finally {
+                if (locked) {
+                    getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
+                }
+            }
+
+            getRS485MessagePublisher().setTemperature(temperature, tempRange, waterTemp, heaterMode, registeredAddress, originatorId, hardwareId, highHigh, highLow, lowHigh, lowLow);
         } else {
             throw new RS485Exception("Update heater command did not have required metadata param: " + SpaCommandAttribName.DESIREDTEMP.name());
         }
@@ -291,26 +343,29 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             }
         }
 
-        if (rs485ControllerType != null) {
-            this.rs485ControllerType = rs485ControllerType;
-            if (getRS485DataHarvester() != null) {
-                getRS485DataHarvester().cancel();
+        if (!Strings.isNullOrEmpty(rs485ControllerType)) {
+            if (!Objects.equals(rs485ControllerType, getRS485ControllerType())) {
+                setRS485ControllerType(rs485ControllerType);
+                if (getRS485DataHarvester() != null) {
+                    getRS485DataHarvester().cancel();
+                }
+                setUpRS485Processors();
             }
-            setUpRS485Processors();
-            es.execute(getRS485DataHarvester());
+            saveCurrentProcessorTypeInAgentSettings();
+        } else if (rs485ControllerType != null) {
+            // this is empty string, means get rid of setting
+            if (getRS485ControllerType() != null) {
+                setRS485ControllerType(null);
+                if (getRS485DataHarvester() != null) {
+                    getRS485DataHarvester().cancel();
+                }
+                setUpRS485Processors();
+            }
+            clearProcessorTypeFromAgentSettings();
         }
     }
 
-    private synchronized void setUpRS485Processors() {
-        if (rs485ControllerType != null && rs485ControllerType.equalsIgnoreCase("JACUZZI")) {
-            //TODO use new jacuzzi class here
-        } else {
-            setRS485MessagePublisher(new RS485MessagePublisher(this));
-            setRS485DataHarvester(new RS485DataHarvester(this, getRS485MessagePublisher()));
-        }
-    }
-
-    private void updateReservedComponent(final List<RequestMetadata> metadataList, String originatorId, String hardwareId, ComponentType componentType, ButtonCode buttonCode) throws Exception {
+    private void updateReservedComponent(final List<RequestMetadata> metadataList, String originatorId, String hardwareId, ComponentType componentType, String buttonCodeValue) throws Exception {
         String desiredState = null;
         if (metadataList != null && metadataList.size() > 0) {
             for (final RequestMetadata metadata : metadataList) {
@@ -335,7 +390,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             return;
         }
 
-        getRS485MessagePublisher().sendButtonCode(buttonCode, getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
+        Codeable deviceCode = getRS485MessagePublisher().getCode(buttonCodeValue);
+        getRS485MessagePublisher().sendCode(deviceCode.getCode(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
     }
 
     private void updateFilter(List<RequestMetadata> metadataList, Byte registeredAddress, String originatorId, String hardwareId) throws Exception {
@@ -356,7 +412,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         if (port == null || durationMinutes == null) {
             throw new RS485Exception("Device command for " + ComponentType.FILTER.name() + " did not have required port and duration param");
         }
-        getRS485MessagePublisher().initiateFilterCycleRequest(port, durationMinutes, registeredAddress, originatorId, hardwareId);
+        getRS485MessagePublisher().sendFilterCycleRequest(port, durationMinutes, registeredAddress, originatorId, hardwareId, getRS485DataHarvester().getSpaClock());
     }
 
     private void updatePeripherlal(final List<RequestMetadata> metadataList, final byte registeredAddress,
@@ -364,7 +420,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                                    ComponentType componentType) throws Exception {
 
         RequiredParams params = collectRequiredParams(metadataList, componentType.name());
-        ButtonCode deviceButton = ButtonCode.valueOf(buttonCodeTemplate.replaceAll("<port>", Integer.toString(params.getPort())));
+        Codeable deviceButton = getRS485MessagePublisher().getCode(buttonCodeTemplate.replaceAll("<port>", Integer.toString(params.getPort())));
 
         ComponentInfo currentState = getRS485DataHarvester().getComponentState(componentType, params.getPort());
         if (currentState == null) {
@@ -398,13 +454,13 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         if (currentIndex < 0 || desiredIndex < 0) {
             LOGGER.warn("{} command request state {} or current state {} were not valid, ignoring, will send one button command", componentType.name(), params.getDesiredState(), currentState.getCurrentState());
-            getRS485MessagePublisher().sendButtonCode(deviceButton, registeredAddress, originatorId, hardwareId);
+            getRS485MessagePublisher().sendCode(deviceButton.getCode(), registeredAddress, originatorId, hardwareId);
             return;
         }
 
         // this sends multiple button commands to get to the desired state within available states for compnonent
         while (currentIndex != desiredIndex) {
-            getRS485MessagePublisher().sendButtonCode(deviceButton, registeredAddress, originatorId, hardwareId);
+            getRS485MessagePublisher().sendCode(deviceButton.getCode(), registeredAddress, originatorId, hardwareId);
             currentIndex = (currentIndex + 1) % availableStates.size();
         }
     }
@@ -444,13 +500,15 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         if (currentIndex < 0 || desiredIndex < 0) {
             LOGGER.warn("{} command request state {} or current state {} were not valid, ignoring, will send one button command", ComponentType.CIRCULATION_PUMP.name(), desiredState, currentState.getCurrentState());
-            getRS485MessagePublisher().sendButtonCode(ButtonCode.kPump0MetaButton, registeredAddress, originatorId, hardwareId);
+            Codeable deviceButton = getRS485MessagePublisher().getCode("kPump0MetaButton");
+            getRS485MessagePublisher().sendCode(deviceButton.getCode(), registeredAddress, originatorId, hardwareId);
             return;
         }
 
         // this sends multiple button commands to get to the desired state within available states for compnonent
         while (currentIndex != desiredIndex) {
-            getRS485MessagePublisher().sendButtonCode(ButtonCode.kPump0MetaButton, registeredAddress, originatorId, hardwareId);
+            Codeable deviceButton = getRS485MessagePublisher().getCode("kPump0MetaButton");
+            getRS485MessagePublisher().sendCode(deviceButton.getCode(), registeredAddress, originatorId, hardwareId);
             currentIndex = (currentIndex + 1) % availableStates.size();
         }
     }
@@ -484,13 +542,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 throw new RS485Exception("panel update message has not been received yet, cannot generate spa state yet.");
             }
 
-            if ((getRS485DataHarvester().getLatestSpaInfo().hasComponents() == false ||
-                    getRS485DataHarvester().getLatestSpaInfo().hasSystemInfo() == false ||
-                    getRS485DataHarvester().getLatestSpaInfo().hasSetupParams() == false ||
-                    getRS485DataHarvester().getLatestSpaInfo().getComponents().hasFilterCycle1() == false) &&
+            if (!getRS485DataHarvester().hasAllConfigState() &&
                     System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM) {
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), null);
-                LOGGER.info("do not have all DeviceConfig, SystemInfo, SetupParams, FilterCycle yet, sent panel request");
                 lastPanelRequestSent.set(System.currentTimeMillis());
             }
 
@@ -554,8 +608,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
      */
     public DeviceRegistration obtainSpaRegistration() {
         Map<String, String> metaParams = newHashMap(buildParams);
-        metaParams.put("BWG-Agent-RS485-Controller-Type", rs485ControllerType == null ? "NGSC" : rs485ControllerType);
-        return sendRegistration(null, gwSerialNumber, "gateway", DEFAULT_EMPTY_MAP, buildParams);
+        metaParams.put("BWG-Agent-RS485-Controller-Type", getRS485ControllerType() == null ? "NGSC" : getRS485ControllerType());
+        return sendRegistration(null, gwSerialNumber, "gateway", DEFAULT_EMPTY_MAP, metaParams);
     }
 
     /**
@@ -577,6 +631,47 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
      */
     public DeviceRegistration obtainMoteRegistration(String spaHardwareId, String macAddress) {
         return sendRegistration(spaHardwareId, gwSerialNumber, "mote", ImmutableMap.of("mac", macAddress), DEFAULT_EMPTY_MAP);
+    }
+
+    /**
+     * retrieve the last known state of the a light component
+     *
+     * @param port
+     * @return
+     * @throws Exception
+     */
+    public LightComponent.State getLatestLightState(int port) throws Exception {
+        boolean locked = false;
+        try {
+            getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
+            locked = true;
+            SpaState spaState = getRS485DataHarvester().getLatestSpaInfo();
+            if (spaState.hasController() && spaState.hasComponents()) {
+                switch (port) {
+                    case 1:
+                        if (spaState.getComponents().hasLight1()) {
+                            return spaState.getComponents().getLight1().getCurrentState();
+                        }
+                    case 2:
+                        if (spaState.getComponents().hasLight2()) {
+                            return spaState.getComponents().getLight2().getCurrentState();
+                        }
+                    case 3:
+                        if (spaState.getComponents().hasLight3()) {
+                            return spaState.getComponents().getLight3().getCurrentState();
+                        }
+                    case 4:
+                        if (spaState.getComponents().hasLight4()) {
+                            return spaState.getComponents().getLight4().getCurrentState();
+                        }
+                }
+            }
+            return null;
+        } finally {
+            if (locked) {
+                getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
+            }
+        }
     }
 
     @VisibleForTesting
@@ -784,20 +879,39 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         LOGGER.info("initialized rs 485 serial port {}", serialPort);
     }
 
+    private GenericSettings validateGenericSettings() {
+        GenericSettings genericSettings = getAgentSettings().getGenericSettings();
+        if (genericSettings == null) {
+            genericSettings = new GenericSettings();
+            getAgentSettings().setGenericSettings(genericSettings);
+        }
+        return genericSettings;
+    }
+
     private void saveCurrentUpdateIntervalInAgentSettings() {
         if (getAgentSettings() != null) {
-            GenericSettings genericSettings = getAgentSettings().getGenericSettings();
-            if (genericSettings == null) {
-                genericSettings = new GenericSettings();
-                getAgentSettings().setGenericSettings(genericSettings);
-            }
-            genericSettings.setUpdateInterval(getUpdateIntervalSeconds());
+            validateGenericSettings().setUpdateInterval(getUpdateIntervalSeconds());
         }
+        saveAgentSettings();
     }
 
     private void clearUpdateIntervalFromAgentSettings() {
-        if (getAgentSettings() != null && getAgentSettings().getGenericSettings() != null) {
-            getAgentSettings().getGenericSettings().setUpdateInterval(null);
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setUpdateInterval(null);
+        }
+        saveAgentSettings();
+    }
+
+    private void saveCurrentProcessorTypeInAgentSettings() {
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setRs485ControllerType(getRS485ControllerType());
+        }
+        saveAgentSettings();
+    }
+
+    private void clearProcessorTypeFromAgentSettings() {
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setUpdateInterval(null);
         }
         saveAgentSettings();
     }
@@ -809,9 +923,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             updateInterval.set(agentSettings.getGenericSettings().getUpdateInterval().longValue() * 1000L);
         }
 
-        if (agentSettings != null && agentSettings.getGenericSettings() != null && agentSettings.getGenericSettings().getRs485ControllerType() != null) {
-            // translate seconds to milliseconds
-            rs485ControllerType = agentSettings.getGenericSettings().getRs485ControllerType();
+        if (agentSettings != null && agentSettings.getGenericSettings() != null && !Strings.isNullOrEmpty(agentSettings.getGenericSettings().getRs485ControllerType())) {
+            setRS485ControllerType(agentSettings.getGenericSettings().getRs485ControllerType());
         }
     }
 

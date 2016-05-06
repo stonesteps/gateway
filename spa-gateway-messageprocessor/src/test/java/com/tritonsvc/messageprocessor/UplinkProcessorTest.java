@@ -12,6 +12,8 @@ import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BluetoothStatus;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.SwimSpaMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
@@ -116,11 +118,12 @@ public class UplinkProcessorTest {
         SpaState state = SpaState.newBuilder()
                 .setComponents(Components.newBuilder().setLastUpdateTimestamp(1L).setFilterCycle1(ToggleComponent.newBuilder().setCurrentState(ToggleComponent.State.ON).addAllAvailableStates(newArrayList(ToggleComponent.State.OFF, ToggleComponent.State.ON))))
                 .setController(Controller.newBuilder()
+                        .setPackType("NGSC")
                         .setErrorCode(0)
                         .setHour(0)
                         .setABDisplay(false)
                         .setAllSegsOn(false)
-                        .setBluetoothStatus(0)
+                        .setBluetoothStatus(BluetoothStatus.NOT_PRESENT)
                         .setCelsius(false)
                         .setCleanupCycle(false)
                         .setCurrentWaterTemp(5)
@@ -144,7 +147,7 @@ public class UplinkProcessorTest {
                         .setPanelMode(PanelMode.PANEL_MODE_NGSC)
                         .setPrimingMode(false)
                         .setRepeat(false)
-                        .setHeaterMode(0)
+                        .setHeaterMode(HeaterMode.REST)
                         .setSettingsLock(false)
                         .setSoakMode(false)
                         .setSoundAlarm(false)
