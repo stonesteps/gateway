@@ -98,6 +98,7 @@ public class WebServerTest extends WebServerTestBase {
         registrationInfoHolder.setSpaId("1");
         registrationInfoHolder.setRegKey("3");
         registrationInfoHolder.setRegUserId("2");
+        registrationInfoHolder.setSerialNumber("4");
 
         final URL url = new URL("https://localhost:8001/registerUserToSpa");
         HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
@@ -116,6 +117,7 @@ public class WebServerTest extends WebServerTestBase {
         registrationInfoHolder.setSpaId("1");
         registrationInfoHolder.setRegKey("3");
         registrationInfoHolder.setRegUserId(null);
+        registrationInfoHolder.setSerialNumber("4");
 
         final URL url = new URL("https://localhost:8001/registerUserToSpa");
         HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
@@ -129,5 +131,6 @@ public class WebServerTest extends WebServerTestBase {
         Assert.assertNull(registerUserResponse.getErrorMessage());
         Assert.assertEquals("1", registerUserResponse.getSpaId());
         Assert.assertEquals("3", registerUserResponse.getRegKey());
+        Assert.assertEquals("4", registerUserResponse.getSerialNumber());
     }
 }

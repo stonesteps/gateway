@@ -309,4 +309,9 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     public String getSpaId() {
         return registeredSpa.getHardwareId();
     }
+
+    @Override
+    public String getSerialNumber() {
+        return gwSerialNumber;
+    }
 }

@@ -11,4 +11,5 @@ public interface RegistrationInfoHolder {
 
     String getSpaId();
 
+    String getSerialNumber();
 }

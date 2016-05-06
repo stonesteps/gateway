@@ -753,6 +753,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         return getGatewayHardwareId();
     }
 
+    @Override
+    public String getSerialNumber() {
+        return this.gwSerialNumber;
+    }
+
     private String getGatewayMetaParam(final String paramName) {
         final DeviceRegistration gateway = getGatewayDeviceRegistration();
         final String value;
