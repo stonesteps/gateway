@@ -7,11 +7,10 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightCo
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelDisplayCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Controller;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SystemInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +21,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -53,7 +51,6 @@ public abstract class RS485DataHarvester implements Runnable {
     private AtomicReference<SpaClock> spaClock = new AtomicReference<>();;
     private AtomicReference<byte[]> lastPanelUpdate = new AtomicReference<>(new byte[]{});
     private final ReentrantReadWriteLock spaStateLock = new ReentrantReadWriteLock();
-    private BlockingQueue executionQueue;
     private boolean cancelled;
 
     private SpaState spaState = SpaState.newBuilder().build();
@@ -75,32 +72,50 @@ public abstract class RS485DataHarvester implements Runnable {
     /**
      * move data from panel status update messages into controller state
      *
+     * @param message
      * @return
      */
     public abstract Controller populateControllerStateFromPanelUpdate(byte[] message);
+
+    /**
+     * move data from spa message into system info state
+     *
+     * @param message
+     * @param builder
+     * @return
+     */
+    public abstract SystemInfo populateSystemInfoFromMessage(byte[] message, SystemInfo.Builder builder);
+
+    /**
+     * detect what components exist from spa message and populate components
+     *
+     * @param message
+     * @param compsBuilder
+     * @return
+     */
+    public abstract Components populateDeviceConfigsFromMessage(byte[] message, Components.Builder compsBuilder);
 
     /**
      * check if spa controller uses celisus
      *
      * @return
      */
-    public abstract Boolean requiresCelsius();
+    public abstract Boolean usesCelsius();
 
     /**
-     * check if fahrenheit temp is within the high range defined on controller
-     *
-     * @param tempFahr
+     * reports whether the harvester has received all necessary config state, if not
+     * this will invoke publisher.sendPanelRequest()
      * @return
      */
-    public abstract boolean withinHighRange(int tempFahr);
+    public abstract boolean hasAllConfigState();
 
     /**
-     * check if fahrenheit temp is within the low range defined on controller
+     * check that state is ready to process requests
      *
-     * @param tempFahr
+     * @param checkTemp
      * @return
      */
-    public abstract boolean withinLowRange(int tempFahr);
+    public abstract void verifyPanelCommandsAreReadyToExecute(boolean checkTemp) throws RS485Exception;
 
     /**
      * Constructor
@@ -292,51 +307,6 @@ public abstract class RS485DataHarvester implements Runnable {
     }
 
     /**
-     * changing temps is a bit laborious, it requires possible changing other states on the
-     * controller to support the new temp, this does that.
-     *
-     * @param tempFahr
-     * @throws Exception
-     */
-    public void prepareForTemperatureChangeRequest(int tempFahr) throws Exception {
-        boolean locked = false;
-        boolean sendTempRangeChange = false;
-        boolean sendModeChange = false;
-        try {
-            getLatestSpaInfoLock().readLock().lockInterruptibly();
-            locked = true;
-            // if the target temp is outside current range, toggle the range, or send as is if it's out of either
-            if (spaState.getController().getTempRange().equals(TempRange.HIGH)) {
-                if (!withinHighRange(tempFahr) && withinLowRange(tempFahr)) {
-                    sendTempRangeChange = true;
-                }
-            }
-            if (spaState.getController().getTempRange().equals(TempRange.LOW)) {
-                if (!withinLowRange(tempFahr) && withinHighRange(tempFahr)) {
-                    sendTempRangeChange = true;
-                }
-            }
-
-            // if the desired temp is above current and the spa was in rest mode, time to light it up
-            if (tempFahr > spaState.getController().getCurrentWaterTemp() &&
-                    spaState.getController().getHeaterMode() == (HeaterMode.REST.getNumber())) {
-                sendModeChange = true;
-            }
-        } finally {
-            if (locked) {
-                getLatestSpaInfoLock().readLock().unlock();
-            }
-        }
-
-        if (sendTempRangeChange) {
-            rs485MessagePublisher.sendCode(NGSCButtonCode.kTempRangeMetaButton, getRegisteredAddress(), "self", null);
-        }
-        if (sendModeChange) {
-            rs485MessagePublisher.sendCode(NGSCButtonCode.kHeatModeMetaButton, getRegisteredAddress(), "self", null);
-        }
-    }
-
-    /**
      * verifies that the state of controller is populated, allows request commands to be
      * processed correctly, i.e. some command builders refer to state bits
      *
@@ -350,18 +320,7 @@ public abstract class RS485DataHarvester implements Runnable {
             getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
             SpaState spaState = getLatestSpaInfo();
-            if (!spaState.hasController() ||
-                    !spaState.hasComponents() ||
-                    !spaState.hasSetupParams()) {
-                throw new RS485Exception("Spa state has not been populated, cannot process requests yet");
-            }
-            if (spaState.getController().getUiCode() == PanelDisplayCode.DEMO.getNumber() ||
-                    spaState.getController().getUiCode() == PanelDisplayCode.STANDBY.getNumber() ||
-                    spaState.getController().getPrimingMode() ||
-                    spaState.getController().getPanelLock() ||
-                    (checkTemp && spaState.getController().getTempLock())){
-                throw new RS485Exception("Spa is locked out, no requests are allowed.");
-            }
+            verifyPanelCommandsAreReadyToExecute(checkTemp);
         } finally {
             if (locked) {
                 getLatestSpaInfoLock().readLock().unlock();
@@ -374,6 +333,27 @@ public abstract class RS485DataHarvester implements Runnable {
      */
     public void cancel() {
         cancelled = true;
+    }
+
+    private void startProcessMessage(byte[] message) {
+        int packetType = message[3];
+        if (!HdlcCrc.isValidFCS(message)) {
+            LOGGER.debug("Invalid rs485 data message, failed FCS check {}", printHexBinary(message));
+            return;
+        }
+
+        if (packetType == 0x16 && processor.getRS485ControllerType() == null ) {
+            switchToJacuzzi();
+            return;
+        }
+
+        processMessage(message);
+    }
+
+    private void switchToJacuzzi() {
+        cancel();
+        processor.setRS485ControllerType("JACUZZI");
+        processor.setUpRS485Processors();
     }
 
     private enum State {
@@ -429,7 +409,7 @@ public abstract class RS485DataHarvester implements Runnable {
                             workingMessage.position(0);
                             workingMessage.get(message);
                             try {
-                                processMessage(message);
+                                startProcessMessage(message);
                             } catch (Throwable th) {
                                 LOGGER.error("had problem processing rs 485 message ", th);
                             }
@@ -537,48 +517,77 @@ public abstract class RS485DataHarvester implements Runnable {
         }
     }
 
-    protected void processFilterCycleInfoMessage(byte[] message) {
-        boolean wLocked = false;
+    protected void processDeviceConfigsMessage(byte[] message) {
+        boolean rLocked = false;
         Components.Builder compsBuilder = Components.newBuilder();
+        try {
+            getLatestSpaInfoLock().readLock().lockInterruptibly();
+            rLocked = true;
+            if (getLatestSpaInfo().hasComponents()) {
+                compsBuilder.mergeFrom(getLatestSpaInfo().getComponents());
+            }
+        } catch (Exception ex) {
+            throw Throwables.propagate(ex);
+        } finally {
+            if (rLocked) {
+                getLatestSpaInfoLock().readLock().unlock();
+            }
+        }
+
+        Components components = populateDeviceConfigsFromMessage(message, compsBuilder);
+
+        boolean wLocked = false;
         try {
             getLatestSpaInfoLock().writeLock().lockInterruptibly();
             wLocked = true;
-            if (spaState.hasComponents()) {
-                compsBuilder.mergeFrom(spaState.getComponents());
-            }
-
-            // filter cycle 1 always there
-            ToggleComponent.Builder builder = ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates());
-            if (compsBuilder.hasFilterCycle1()) {
-                builder.setCurrentState(compsBuilder.getFilterCycle1().getCurrentState());
-            }
-            compsBuilder.setFilterCycle1(builder);
-
-            if ( (0x80 & message[8]) > 0) {
-                builder = ToggleComponent.newBuilder().addAllAvailableStates(getAvailableToggleStates());
-                if (compsBuilder.hasFilterCycle2()) {
-                    builder.setCurrentState(compsBuilder.getFilterCycle2().getCurrentState());
-                }
-                compsBuilder.setFilterCycle2(builder);
-
-            } else {
-                compsBuilder.clearFilterCycle2();
-            }
-            compsBuilder.setLastUpdateTimestamp(new Date().getTime());
-            SpaState.Builder stateBuilder = SpaState.newBuilder(spaState);
-            stateBuilder.setComponents(compsBuilder.build());
-            stateBuilder.setLastUpdateTimestamp(new Date().getTime());
-            spaState = stateBuilder.build();
+            SpaState.Builder builder = SpaState.newBuilder(getLatestSpaInfo());
+            builder.setComponents(components);
+            builder.setLastUpdateTimestamp(components.getLastUpdateTimestamp());
+            setLatestSpaInfo(builder.build());
         } catch (Exception ex) {
-            LOGGER.error("problem while updated filter state", ex);
+            throw Throwables.propagate(ex);
         } finally {
             if (wLocked) {
                 getLatestSpaInfoLock().writeLock().unlock();
             }
         }
+        LOGGER.info("processed device config message");
+    }
 
-        LOGGER.info("processed filter cycle info message");
-        rs485MessagePublisher.sendFilterCycleRequestIfPending(message, spaClock.get());
+    protected void processSystemInfoMessage(byte[] message) {
+        boolean rLocked = false;
+        SystemInfo.Builder infoBuilder = SystemInfo.newBuilder();
+        try {
+            getLatestSpaInfoLock().readLock().lockInterruptibly();
+            rLocked = true;
+            if (getLatestSpaInfo().hasSystemInfo()) {
+                infoBuilder.mergeFrom(getLatestSpaInfo().getSystemInfo());
+            }
+        } catch (Exception ex) {
+            throw Throwables.propagate(ex);
+        } finally {
+            if (rLocked) {
+                getLatestSpaInfoLock().readLock().unlock();
+            }
+        }
+
+        SystemInfo systemInfo = populateSystemInfoFromMessage(message, infoBuilder);
+        boolean wLocked = false;
+        try {
+            getLatestSpaInfoLock().writeLock().lockInterruptibly();
+            wLocked = true;
+            SpaState.Builder builder = SpaState.newBuilder(getLatestSpaInfo());
+            builder.setSystemInfo(systemInfo);
+            builder.setLastUpdateTimestamp(systemInfo.getLastUpdateTimestamp());
+            setLatestSpaInfo(builder.build());
+        } catch (Exception ex) {
+            throw Throwables.propagate(ex);
+        } finally {
+            if (wLocked) {
+                getLatestSpaInfoLock().writeLock().unlock();
+            }
+        }
+        LOGGER.info("processed system info message");
     }
 
     protected void processPanelUpdateMessage(byte[] message) {
@@ -621,7 +630,7 @@ public abstract class RS485DataHarvester implements Runnable {
     }
 
     protected final int bwgTempToFahrenheit(int bwgTemp) {
-        if (!requiresCelsius()) {
+        if (!usesCelsius()) {
             return bwgTemp;
         }
         double celsius = new BigDecimal(bwgTemp / 2.0 ).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();
@@ -661,7 +670,7 @@ public abstract class RS485DataHarvester implements Runnable {
         return newArrayList(BlowerComponent.State.OFF, BlowerComponent.State.HIGH);
     }
 
-    private List<ToggleComponent.State> getAvailableToggleStates() {
+    protected List<ToggleComponent.State> getAvailableToggleStates() {
         return newArrayList(ToggleComponent.State.OFF, ToggleComponent.State.ON);
     }
   }

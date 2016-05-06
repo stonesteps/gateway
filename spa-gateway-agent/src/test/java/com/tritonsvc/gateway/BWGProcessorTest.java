@@ -48,10 +48,11 @@ public class BWGProcessorTest {
     public void itSubmitsCircPumpRequest() throws Exception {
         ComponentInfo info = new ComponentInfo("OFF", newArrayList(PumpComponent.State.OFF,PumpComponent.State.LOW,PumpComponent.State.HIGH));
         when(rs485DataHarvester.getComponentState(eq(ComponentType.CIRCULATION_PUMP), eq(0))).thenReturn(info);
+        when(rs485MessagePublisher.getCode(eq("kPump0MetaButton"))).thenReturn(NGSCButtonCode.kPump0MetaButton);
         Request request = Request.newBuilder().setRequestType(RequestType.CIRCULATION_PUMP).addMetadata(RequestMetadata.newBuilder().setName(SpaCommandAttribName.DESIREDSTATE).setValue("HIGH")).build();
 
         processor.handleDownlinkCommand(request, "hardwareId", "originatorId");
 
-        verify(rs485MessagePublisher, times(2)).sendCode(eq(NGSCButtonCode.kPump0MetaButton), eq((byte)2), eq("originatorId"), eq("hardwareId"));
+        verify(rs485MessagePublisher, times(2)).sendCode(eq(NGSCButtonCode.kPump0MetaButton.getCode()), eq((byte)2), eq("originatorId"), eq("hardwareId"));
     }
 }

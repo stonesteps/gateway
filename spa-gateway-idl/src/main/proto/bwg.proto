@@ -163,6 +163,8 @@ message Uplink {
             required fixed64 lastUpdateTimestamp = 27;
             optional ToggleComponent filterCycle1 = 29;
             optional ToggleComponent filterCycle2 = 30;
+            optional ToggleComponent uv = 31;
+            optional uint32 audioVisual = 32;
 
             message ToggleComponent {
                 optional State currentState = 1;
@@ -208,54 +210,79 @@ message Uplink {
 
         // this is the state of spa as obtained from the PanelUpdate message
         message Controller {
-            // HeaterMode enum applies here, this is called Run Mode in ICD, but it's really the heater
-            required uint32 heaterMode = 1;
-            // this is always in Fahrenheit
-            required uint32 currentWaterTemp = 2;
+
+            // common to all and required
+            required fixed64 lastUpdateTimestamp = 5;
             required uint32 hour = 3;
             required uint32 minute = 4;
-            required fixed64 lastUpdateTimestamp = 5;
             required uint32 errorCode = 6;
-            // PanelDisplayCode enum applies here
-            required uint32 uiCode = 7;
-            required uint32 uiSubCode = 8;
-            required bool invert = 9;
-            required bool allSegsOn = 10;
-            required bool panelLock = 11;
-            required bool military = 14;
-            required bool celsius = 15;
-            required Constants.TempRange tempRange =16;
-            required bool primingMode =17;
-            required bool soundAlarm = 18;
-            required bool repeat = 19;
-            required Constants.PanelMode panelMode = 21;
-            required Constants.SwimSpaMode swimSpaMode = 22;
-            // MessageSeverity enum applies here
-            required uint32 messageSeverity = 23;
-            required bool swimSpaModeChanging = 24;
-            required bool heaterCooling = 25;
-            required bool latchingMessage = 26;
-            required bool demoMode = 27;
-            required bool cleanupCycle = 28;
-            required bool timeNotSet = 29;
-            required bool lightCycle = 30;
             // this is always in Fahrenheit
+            required uint32 currentWaterTemp = 2;
             required uint32 targetWaterTemperature = 31;
-            required bool elapsedTimeDisplay = 32;
-            required uint32 tvLiftState = 33;
+            required bool celsius = 15;
+            required bool cleanupCycle = 28;
+            required bool demoMode = 27;
             required bool settingsLock = 34;
+            required bool timeNotSet = 29;
             required bool spaOverheatDisabled = 35;
-            required bool specialTimeouts = 36;
-            required bool ABDisplay = 37;
-            required bool stirring = 38;
-            required bool ecoMode = 39;
-            required bool soakMode = 40;
+            // HeaterMode enum applies here, this is called Run Mode in ICD, but it's really the heater
+            required Constants.HeaterMode heaterMode = 1;
             // BluetoothStatus enum applies here
-            required uint32 bluetoothStatus = 41;
-            required bool overrangeEnabled = 42;
-            required bool heatExternallyDisabled = 43;
-            required bool testMode = 44;
-            required bool tempLock = 45;
+            required Constants.BluetoothStatus bluetoothStatus = 41;
+
+            // NGSC
+            optional uint32 uiCode = 7;
+            optional uint32 uiSubCode = 8;
+            optional bool invert = 9;
+            optional bool allSegsOn = 10;
+            optional bool panelLock = 11;
+            optional bool military = 14;
+            optional Constants.TempRange tempRange =16;
+            optional bool primingMode =17;
+            optional bool soundAlarm = 18;
+            optional bool repeat = 19;
+            optional Constants.PanelMode panelMode = 21;
+            optional Constants.SwimSpaMode swimSpaMode = 22;
+            // MessageSeverity enum applies here
+            optional uint32 messageSeverity = 23;
+            optional bool swimSpaModeChanging = 24;
+            optional bool heaterCooling = 25;
+            optional bool latchingMessage = 26;
+            optional bool lightCycle = 30;
+            optional bool elapsedTimeDisplay = 32;
+            optional uint32 tvLiftState = 33;
+            optional bool specialTimeouts = 36;
+            optional bool ABDisplay = 37;
+            optional bool stirring = 38;
+            optional bool ecoMode = 39;
+            optional bool soakMode = 40;
+            optional bool overrangeEnabled = 42;
+            optional bool heatExternallyDisabled = 43;
+            optional bool testMode = 44;
+            optional bool tempLock = 45;
+
+            //Jacuzzi
+            optional Constants.Filtration.FiltrationMode secondaryFiltrationMode = 46;
+            optional Constants.SpaState spaState = 47;
+            optional uint32 ambientTemp = 48;
+            optional uint32 day = 49;
+            optional uint32 month = 50;
+            optional uint32 year = 51;
+            optional Constants.ReminderCode reminderCode = 52;
+            optional uint32 reminderDaysClearRay = 53;
+            optional uint32 reminderDaysWater = 54;
+            optional uint32 reminderDaysFilter1 = 55;
+            optional uint32 reminderDaysFilter2 = 56;
+            optional bool blowout = 57;
+            optional bool waterLevel1 = 58;
+            optional bool waterLevel2 = 59;
+            optional bool flowSwitchClosed = 60;
+            optional bool changeUV = 61;
+            optional uint32 hiLimitTemp = 62;
+            optional bool registrationLockout = 64;
+            optional bool engineeringMode = 65;
+            optional bool accessLocked = 66;
+            optional bool maintenanceLocked = 67;
         }
 
         // This is the parameters that spa has been programmed with
@@ -272,18 +299,59 @@ message Uplink {
         // This is the 'About' for spa, has sw versions, etc
         message SystemInfo {
             // HeaterPower enum applies here
-            required int32 heaterPower = 1;
-            required uint32 mfrSSID = 2;
-            required uint32 modelSSID = 3;
-            required uint32 versionSSID = 4;
-            required uint32 minorVersion = 5;
-            required uint32 swSignature = 6;
-            required uint32 heaterType = 7;
-            required uint32 currentSetup = 8;
+            optional uint32 versionSSID = 4;
+            optional uint32 minorVersion = 5;
             required fixed64 lastUpdateTimestamp = 9;
+            optional int32 heaterPower = 1;
+            optional uint32 mfrSSID = 2;
+            optional uint32 modelSSID = 3;
+            optional uint32 swSignature = 6;
+            optional uint32 heaterType = 7;
+            optional uint32 currentSetup = 8;
+            optional uint32 packMinorVersion = 10;
+            optional uint32 packMajorVersion = 11;
+            optional uint32 serialNumber = 12;
+            repeated DipSwitch dipSwitches = 13;
+        }
+
+        message DipSwitch {
+            required uint32 slotNumber = 1;
+            required bool on = 2;
         }
 
         message Constants {
+            message Filtration {
+                enum FiltrationMode {
+                    AWAY = 0;
+                    LIGHT = 1;
+                    HEAVY = 2;
+                }
+            }
+            enum SpaState {
+                INIT = 0;
+                POWER_UP = 1;
+                NORMAL = 2;
+                FLOW = 3;
+                FROZEN = 4;
+                COOL = 5;
+                ICE_JETS = 6;
+                ICE_HEAT = 7;
+                SUMMER = 8;
+                HOT = 9;
+                SOUTHWEST = 10;
+                CIRCULATE = 11;
+                OVERHEAT = 12;
+                WATCHDOG = 13;
+                WATCHDOG_PROTECT = 14;
+                CONFIG_ERROR = 15;
+            }
+
+            enum ReminderCode {
+                FILTER1 = 1;
+                WATER_REFRESH = 2;
+                CLEARRAY = 3;
+                FILTER2 = 21;
+            }
 
             enum HeaterPower {
                 VOLT_120 = 0;
@@ -313,6 +381,9 @@ message Uplink {
             enum HeaterMode {
                 REST = 1;
                 READY = 2;
+                AUTO = 0x10; // these originate from jacuzzi - 0x10
+                ECONOMY = 0x11;
+                DAY = 0x12;
             }
 
             enum EventType {
@@ -361,6 +432,7 @@ message Uplink {
                 AV = 9;
                 CIRCULATION_PUMP = 10;
                 FILTER = 11;
+                UV = 12;
             }
         }
 

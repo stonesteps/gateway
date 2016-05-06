@@ -2,6 +2,8 @@ package com.tritonsvc.gateway;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,66 +38,74 @@ public abstract class RS485MessagePublisher {
         this.processor = processor;
     }
 
-    public abstract void initiateFilterCycleRequest(int port, int durationMinutes, byte address, String originatorId, String hardwareId) throws RS485Exception;
+    /**
+     * send filter cycle request
+     *
+     * @param port
+     * @param durationMinutes
+     * @param address
+     * @param originatorId
+     * @param hardwareId
+     * @param spaClock
+     * @throws RS485Exception
+     */
+    public abstract void sendFilterCycleRequest(int port, int durationMinutes, byte address, String originatorId, String hardwareId, SpaClock spaClock) throws RS485Exception;
 
+    /**
+     * send panel request
+     *
+     * @param address
+     * @param faultLogEntryNumber
+     * @throws RS485Exception
+     */
     public abstract void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception;
 
-    public abstract void sendFilterCycleRequestIfPending(byte[] currentFilterCycleInfo, SpaClock spaClock);
-
+    /**
+     * get the message codes
+     *
+     * @param value
+     * @return
+     */
     public abstract Codeable getCode(final String value);
 
     /**
-     * assemble the target temperature message and put it on downlink queue
-     *
-     * @param newTempFahr
-     * @param address
-     * @throws RS485Exception
-     */
-    public void setTemperature(int newTempFahr, byte address, String originatorId, String hardwareId) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(8);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x06); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x20); // the set target temp packet type
-            bb.put((byte) (0xFF & newTempFahr));
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
-        }
-        catch (Throwable ex) {
-            LOGGER.info("rs485 set temp got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
-     * assemble the button code request message and put it on queue
+     * send a message code to spa
      *
      * @param code
      * @param address
+     * @param originatorId
+     * @param hardwareId
      * @throws RS485Exception
      */
-    public void sendCode(int code, byte address, String originatorId, String hardwareId) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(9);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x07); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x11); // the send button code packet type
-            bb.put((byte) (0xFF & code));
-            bb.put((byte) 0xFF); // modifier is not specified
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
-        }
-        catch (Throwable ex) {
-            LOGGER.info("rs485 send button code got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
+    public abstract void sendCode(int code, byte address, String originatorId, String hardwareId) throws RS485Exception;
+
+    /**
+     * assemble and send the temperature change request
+     *
+     * @param newTempFahr
+     * @param currentTempRange
+     * @param currentWaterTempFahr
+     * @param currentHeaterMode
+     * @param address
+     * @param originatorId
+     * @param hardwareId
+     * @param HighHigh
+     * @param HighLow
+     * @param LowHigh
+     * @param LowLow
+     * @throws RS485Exception
+     */
+    public abstract void setTemperature(int newTempFahr,
+                                        TempRange currentTempRange,
+                                        int currentWaterTempFahr,
+                                        HeaterMode currentHeaterMode,
+                                        byte address,
+                                        String originatorId,
+                                        String hardwareId,
+                                        int HighHigh,
+                                        int HighLow,
+                                        int LowHigh,
+                                        int LowLow) throws RS485Exception;
 
     /**
      * send the unassigned device response
@@ -167,7 +177,7 @@ public abstract class RS485MessagePublisher {
             bb.put((byte) 0x08); // length between flags
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x05); // the unassigned device reponse packet type
+            bb.put((byte) 0x05); // the device query reponse packet type
             bb.put((byte) 0x01); // major
             bb.put((byte) 0x00); // minor
             bb.put((byte) 0x00); // build

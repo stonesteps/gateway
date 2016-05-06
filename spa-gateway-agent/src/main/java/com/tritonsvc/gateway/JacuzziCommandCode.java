@@ -1,28 +1,28 @@
 package com.tritonsvc.gateway;
 
 /**
- * Created by holow on 4/28/2016.
+ * this is from the Jacuzzi ICD, Appendix B, most of these are not used, any that are
+ * will be prefixed with 'k'
  */
 public enum JacuzziCommandCode implements Codeable {
 
     NONE                (0),
-
     UP                  (1),
     DOWN                (2),
     TEMPERATURE         (3),
     OVERRANGE_UP        (34),
 
-    JETS1               (4),
-    JETS2               (5),
-    JETS3               (6),
-    BLOWER              (12),
-    ACTIVATE_PUMPS      (13),
-    HIGH_FLOW_ON_DEMAND (14),
-    UV_ON_DEMAND        (15),
-    LIGHT1              (17),
-    LIGHT2              (18),
-    LIGHT3              (19),
-    LIGHT4              (20),
+    kJets1MetaButton               (4),
+    kJets2MetaButton               (5),
+    kJets3MetaButton               (6),
+    kBlower1MetaButton             (12),
+    ACTIVATE_PUMPS                 (13),
+    HIGH_FLOW_ON_DEMAND            (14),
+    UV_ON_DEMAND                   (15),
+    kLight1MetaButton              (17),
+    kLight2MetaButton              (18),
+    kLight3MetaButton              (19),
+    kLight4MetaButton              (20),
 
     TEMP_FORMAT_C       (40),
     TEMP_FORMAT_F       (41),

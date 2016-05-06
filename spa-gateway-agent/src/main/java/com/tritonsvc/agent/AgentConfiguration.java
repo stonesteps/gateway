@@ -35,7 +35,4 @@ public interface AgentConfiguration {
 
 	/** Optional Property for serial port that rs485 is located **/
 	public static final String RS485_LINUX_SERIAL_PORT_BAUD = "rs485.port.baudrate";
-
-	/** Optional Property for name of parser to use on rs485, default is 'NGSC', could also be 'JACUZZI' **/
-	public static final String RS485_PARSER_NAME = "rs485.parser.classname";
 }

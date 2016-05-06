@@ -11,10 +11,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RS485MessagePublisherTest {
+public class NGSCMessagePublisherTest {
 
     private BWGProcessor processor;
-    private RS485MessagePublisher publisher;
+    private NGSCMessagePublisher publisher;
     private UART uart;
 
     @Before
@@ -28,9 +28,7 @@ public class RS485MessagePublisherTest {
     @Test
     public void itSubmitsFilterCycle() throws Exception {
         SpaClock clock = new SpaClock(1,2);
-        byte[] currentFilterCycles = new byte[]{0,0,0,0,0,0,0,0,0,0,0,0,0};
-        publisher.initiateFilterCycleRequest(0, 10, (byte)5, "originator", "hardware");
-        publisher.sendFilterCycleRequestIfPending(currentFilterCycles, clock);
+        publisher.sendFilterCycleRequest(0, 10, (byte)5, "originator", "hardware", clock);
         publisher.sendPendingDownlinkIfAvailable((byte)5);
 
         verify(uart).write(any());
