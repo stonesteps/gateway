@@ -180,6 +180,10 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
     }
 
     private SystemInfo buildSystemInfo(final Bwg.Uplink.Model.SystemInfo systemInfo, SystemInfo systemInfoEntity) {
+        if (systemInfoEntity == null) {
+            systemInfoEntity = new SystemInfo();
+        }
+
         if (systemInfo.hasHeaterPower()) systemInfoEntity.setHeaterPower(systemInfo.getHeaterPower());
         if (systemInfo.hasMfrSSID()) systemInfoEntity.setMfrSSID(systemInfo.getMfrSSID());
         if (systemInfo.hasModelSSID()) systemInfoEntity.setModelSSID(systemInfo.getModelSSID());
