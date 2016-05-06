@@ -1,11 +1,9 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
-import com.bwg.iot.model.BluetoothStatus;
 import com.bwg.iot.model.Component.ComponentType;
 import com.bwg.iot.model.ComponentState;
 import com.bwg.iot.model.DipSwitch;
 import com.bwg.iot.model.FiltrationMode;
-import com.bwg.iot.model.HeaterMode;
 import com.bwg.iot.model.PanelMode;
 import com.bwg.iot.model.ReminderCode;
 import com.bwg.iot.model.SetupParams;
@@ -103,7 +101,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
     }
 
     private void updateOtherControllerParams(final SpaState spaStateEntity, final Bwg.Uplink.Model.Controller controller) {
-        spaStateEntity.setHeaterMode(HeaterMode.valueOf(controller.getHeaterMode().name()));
+        spaStateEntity.setHeaterMode(controller.getHeaterMode().name());
         spaStateEntity.setRunMode(controller.getHeaterMode().equals(Constants.HeaterMode.REST) ? "Rest" : "Ready");
         spaStateEntity.setControllerType(controller.getPackType());
         spaStateEntity.setHour(controller.getHour());
@@ -113,7 +111,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         spaStateEntity.setTimeNotSet(controller.getTimeNotSet());
         spaStateEntity.setSettingsLock(controller.getSettingsLock());
         spaStateEntity.setSpaOverheatDisabled(controller.getSpaOverheatDisabled());
-        spaStateEntity.setBluetoothStatus(BluetoothStatus.valueOf(controller.getBluetoothStatus().name()));
+        spaStateEntity.setBluetoothStatus(controller.getBluetoothStatus().name());
 
         spaStateEntity.setUiCode(controller.hasUiCode() ? controller.getUiCode() : null);
         spaStateEntity.setUiSubCode(controller.hasUiSubCode() ? controller.getUiSubCode() : null);

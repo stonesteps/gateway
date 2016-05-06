@@ -229,7 +229,7 @@ message Uplink {
             required Constants.HeaterMode heaterMode = 1;
             // BluetoothStatus enum applies here
             required Constants.BluetoothStatus bluetoothStatus = 41;
-            required string packType = 68;
+            optional string packType = 68;
 
             // NGSC
             optional uint32 uiCode = 7;
