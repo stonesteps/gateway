@@ -124,6 +124,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
         }
 
         Controller.Builder builder =  Controller.newBuilder()
+                .setPackType("JACUZZI")
                 .setLastUpdateTimestamp(new Date().getTime())
                 .setHour(0xFF & message[4])
                 .setMinute(0xFF & message[5])

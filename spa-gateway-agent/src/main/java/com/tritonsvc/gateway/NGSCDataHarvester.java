@@ -174,6 +174,7 @@ public class NGSCDataHarvester extends RS485DataHarvester {
     @Override
     public Controller populateControllerStateFromPanelUpdate(byte[] message) {
         return Controller.newBuilder()
+                .setPackType("NGSC")
                 .setErrorCode(0xFF & message[10])
                 .setHour(0xFF & message[7])
                 .setABDisplay((0x01 & message[25]) > 0)

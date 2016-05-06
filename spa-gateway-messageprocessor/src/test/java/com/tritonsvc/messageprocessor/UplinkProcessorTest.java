@@ -118,6 +118,7 @@ public class UplinkProcessorTest {
         SpaState state = SpaState.newBuilder()
                 .setComponents(Components.newBuilder().setLastUpdateTimestamp(1L).setFilterCycle1(ToggleComponent.newBuilder().setCurrentState(ToggleComponent.State.ON).addAllAvailableStates(newArrayList(ToggleComponent.State.OFF, ToggleComponent.State.ON))))
                 .setController(Controller.newBuilder()
+                        .setPackType("NGSC")
                         .setErrorCode(0)
                         .setHour(0)
                         .setABDisplay(false)

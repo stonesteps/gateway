@@ -131,6 +131,7 @@ public class MockSpaStateHolder {
     }
 
     private void initControllerBuilder() {
+        controllerBuilder.setPackType("NGSC");
         controllerBuilder.setHeaterMode(HeaterMode.REST);
         controllerBuilder.setCurrentWaterTemp(0);
         controllerBuilder.setHour(0);

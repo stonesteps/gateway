@@ -105,6 +105,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
     private void updateOtherControllerParams(final SpaState spaStateEntity, final Bwg.Uplink.Model.Controller controller) {
         spaStateEntity.setHeaterMode(HeaterMode.valueOf(controller.getHeaterMode().name()));
         spaStateEntity.setRunMode(controller.getHeaterMode().equals(Constants.HeaterMode.REST) ? "Rest" : "Ready");
+        spaStateEntity.setControllerType(controller.getPackType());
         spaStateEntity.setHour(controller.getHour());
         spaStateEntity.setMinute(controller.getMinute());
         spaStateEntity.setCelsius(controller.getCelsius());
