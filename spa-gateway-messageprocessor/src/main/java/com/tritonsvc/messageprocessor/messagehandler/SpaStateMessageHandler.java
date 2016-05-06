@@ -1,6 +1,5 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
-import com.bwg.iot.model.BluetoothStatus;
 import com.bwg.iot.model.Component.ComponentType;
 import com.bwg.iot.model.ComponentState;
 import com.bwg.iot.model.DipSwitch;
@@ -112,7 +111,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         spaStateEntity.setTimeNotSet(controller.getTimeNotSet());
         spaStateEntity.setSettingsLock(controller.getSettingsLock());
         spaStateEntity.setSpaOverheatDisabled(controller.getSpaOverheatDisabled());
-        spaStateEntity.setBluetoothStatus(BluetoothStatus.valueOf(controller.getBluetoothStatus().name()));
+        spaStateEntity.setBluetoothStatus(controller.getBluetoothStatus().name());
 
         spaStateEntity.setUiCode(controller.hasUiCode() ? controller.getUiCode() : null);
         spaStateEntity.setUiSubCode(controller.hasUiSubCode() ? controller.getUiSubCode() : null);
