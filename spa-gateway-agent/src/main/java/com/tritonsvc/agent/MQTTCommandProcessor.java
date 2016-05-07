@@ -20,16 +20,20 @@ import javax.naming.ldap.LdapName;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
+import java.util.Enumeration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.jar.Manifest;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Concrete class for handling downlink and sending uplink on MQTT
@@ -49,6 +53,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
     private X509Certificate publicCert;
     private PrivateKey privateKey;
     private AgentSettings agentSettings;
+    private Map<String, String> buildParams = newHashMap();
 
     protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId);
 
@@ -68,6 +73,11 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
      * Constructor
      */
     public MQTTCommandProcessor() {
+        loadBuildProps();
+        LOGGER.info("agent build version {}", getBuildParams().get("BWG-Agent-Version"));
+        LOGGER.info("agent build number {}", getBuildParams().get("BWG-Agent-Build-Number"));
+        LOGGER.info("agent scm revision {}", getBuildParams().get("BWG-Agent-SCM-Revision"));
+
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
@@ -148,6 +158,10 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     public String getDataPath() {
         return this.dataPath;
+    }
+
+    public Map<String, String> getBuildParams() {
+        return buildParams;
     }
 
     @Override
@@ -328,5 +342,22 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
     protected synchronized void saveAgentSettings() {
         final File networkSettingFile = new File(dataPath, AGENT_SETTINGS_PROPERTIES_FILENAME);
         AgentSettingsPersister.save(networkSettingFile, this.agentSettings);
+    }
+
+    private void loadBuildProps() {
+        try {
+            Enumeration<URL> resources = getClass().getClassLoader().getResources("META-INF/MANIFEST.MF");
+            while (resources.hasMoreElements()) {
+                Manifest manifest = new Manifest(resources.nextElement().openStream());
+                if (manifest.getMainAttributes().getValue("BWG-Version") != null ) {
+                    buildParams.put("BWG-Agent-Version", manifest.getMainAttributes().getValue("BWG-Version"));
+                    buildParams.put("BWG-Agent-Build-Number", manifest.getMainAttributes().getValue("BWG-Build-Number"));
+                    buildParams.put("BWG-Agent-SCM-Revision", manifest.getMainAttributes().getValue("BWG-SCM-Revision"));
+                    break;
+                }
+            }
+        } catch (Exception ex) {
+            LOGGER.info("unable to obtain build info from jar");
+        }
     }
 }

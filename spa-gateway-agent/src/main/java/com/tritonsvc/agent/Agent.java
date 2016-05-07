@@ -27,6 +27,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.net.URL;
 import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -34,11 +35,15 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.jar.Manifest;
 
+import static com.google.common.collect.Maps.newHashMap;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -190,12 +195,6 @@ public class Agent {
 
         subConnection = mqttSub.blockingConnection();
         pubConnection = mqttPub.blockingConnection();
-        try {
-            subConnection.connect();
-            pubConnection.connect();
-        } catch (Exception e) {
-            throw Throwables.propagate(e);
-        }
 
 		// Create outbound message processor.
 		outbound = new MQTTOutbound(pubConnection, outboundTopic);
@@ -365,9 +364,12 @@ public class Agent {
                                String originator,
                                UplinkCommandType uplinkCommandType,
                                AbstractMessageLite msg)  {
-
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			try {
+                if (!connection.isConnected()) {
+                    connection.connect();
+                }
+
                 Builder builder = Header.newBuilder()
                         .setCommand(CommandType.UPLINK)
                         .setSentTimestamp(System.currentTimeMillis());
@@ -430,6 +432,9 @@ public class Agent {
 
             while (running) {
                 try {
+                    if (!connection.isConnected()) {
+                        connection.connect();
+                    }
                     connection.subscribe(topics);
                     LOGGER.info("Started MQTT inbound processing thread.");
                 } catch (Exception e) {
