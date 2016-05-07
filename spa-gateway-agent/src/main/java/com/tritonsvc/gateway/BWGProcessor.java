@@ -63,7 +63,7 @@ import static com.google.common.collect.Maps.newHashMap;
 public class BWGProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
-    private static final long MAX_NEW_REG_WAIT_TIME = 120000;
+    private static final long MAX_NEW_REG_WAIT_TIME = 30000;
     private static final long MAX_REG_LIFETIME = 240000;
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static final long DEFAULT_UPDATE_INTERVAL = 0; //continuous
@@ -83,7 +83,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private AtomicLong updateInterval = new AtomicLong(DEFAULT_UPDATE_INTERVAL);
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
-    private Map<String, String> buildParams;
     private String rs485ControllerType = null;
 
     @Override
@@ -111,8 +110,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.configProps = configProps;
         new WebServer(configProps, this, this);
         this.es = executorService;
-        buildParams = getBuildProps();
-
         setupAgentSettings();
         setUpRS485();
         validateOidProperties();
@@ -607,7 +604,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
      * @return
      */
     public DeviceRegistration obtainSpaRegistration() {
-        Map<String, String> metaParams = newHashMap(buildParams);
+        Map<String, String> metaParams = newHashMap(getBuildParams());
         metaParams.put("BWG-Agent-RS485-Controller-Type", getRS485ControllerType() == null ? "NGSC" : getRS485ControllerType());
         return sendRegistration(null, gwSerialNumber, "gateway", DEFAULT_EMPTY_MAP, metaParams);
     }
@@ -926,25 +923,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         if (agentSettings != null && agentSettings.getGenericSettings() != null && !Strings.isNullOrEmpty(agentSettings.getGenericSettings().getRs485ControllerType())) {
             setRS485ControllerType(agentSettings.getGenericSettings().getRs485ControllerType());
         }
-    }
-
-    private Map<String, String> getBuildProps() {
-        Map<String, String> params = newHashMap();
-        try {
-            Enumeration<URL> resources = getClass().getClassLoader().getResources("META-INF/MANIFEST.MF");
-            while (resources.hasMoreElements()) {
-                Manifest manifest = new Manifest(resources.nextElement().openStream());
-                if (manifest.getMainAttributes().getValue("BWG-Version") != null ) {
-                    params.put("BWG-Agent-Version", manifest.getMainAttributes().getValue("BWG-Version"));
-                    params.put("BWG-Agent-Build-Number", manifest.getMainAttributes().getValue("BWG-Build-Number"));
-                    params.put("BWG-Agent-SCM-Revision", manifest.getMainAttributes().getValue("BWG-SCM-Revision"));
-                    break;
-                }
-            }
-        } catch (Exception ex) {
-            LOGGER.info("unable to obtain build info from jar");
-        }
-        return params;
     }
 
     public int getUpdateIntervalSeconds() {
