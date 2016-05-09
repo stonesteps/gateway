@@ -111,7 +111,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         new WebServer(configProps, this, this);
         this.es = executorService;
         setupAgentSettings();
-        setUpRS485();
         validateOidProperties();
         obtainSpaRegistration();
         setUpRS485Processors();
@@ -755,6 +754,28 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         return this.gwSerialNumber;
     }
 
+    public void setUpRS485() {
+        String serialPort = configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT, "/dev/ttys0");
+        int baudRate = Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD, "")) != null ?
+                Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD)) : 115200;
+
+        UARTConfig config = new UARTConfig.Builder()
+                .setControllerName(serialPort)
+                .setBaudRate(baudRate)
+                .setDataBits(UARTConfig.DATABITS_8)
+                .setParity(UARTConfig.PARITY_NONE)
+                .setStopBits(UARTConfig.STOPBITS_1)
+                .setFlowControlMode(UARTConfig.FLOWCONTROL_NONE)
+                .build();
+        try {
+            setRS485(DeviceManager.open(config));
+        } catch (Throwable ex) {
+            throw Throwables.propagate(ex);
+        }
+
+        LOGGER.info("initialized rs 485 serial port {}", serialPort);
+    }
+
     private String getGatewayMetaParam(final String paramName) {
         final DeviceRegistration gateway = getGatewayDeviceRegistration();
         final String value;
@@ -852,28 +873,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             }
         }
         return false;
-    }
-
-    private void setUpRS485() {
-        String serialPort = configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT, "/dev/ttys0");
-        int baudRate = Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD, "")) != null ?
-                Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD)) : 115200;
-
-        UARTConfig config = new UARTConfig.Builder()
-                .setControllerName(serialPort)
-                .setBaudRate(baudRate)
-                .setDataBits(UARTConfig.DATABITS_8)
-                .setParity(UARTConfig.PARITY_NONE)
-                .setStopBits(UARTConfig.STOPBITS_1)
-                .setFlowControlMode(UARTConfig.FLOWCONTROL_NONE)
-                .build();
-        try {
-            setRS485(DeviceManager.open(config));
-        } catch (Throwable ex) {
-            throw Throwables.propagate(ex);
-        }
-
-        LOGGER.info("initialized rs 485 serial port {}", serialPort);
     }
 
     private GenericSettings validateGenericSettings() {

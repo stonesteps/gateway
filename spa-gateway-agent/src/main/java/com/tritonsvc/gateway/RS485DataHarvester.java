@@ -129,26 +129,28 @@ public abstract class RS485DataHarvester implements Runnable {
 
     @Override
     public void run() {
-        try {
-            processor.getRS485UART().setReceiveTimeout(5000);
-        } catch (IOException ex) {
-            LOGGER.error("unable to set read timeout on rs485 uart", ex);
-        }
         ByteBuffer workingMessage = ByteBuffer.allocate(256);
         ByteBuffer readBytes = ByteBuffer.allocate(1);
 
         while(!cancelled && processor.stillRunning()) {
             try {
-                readBytes.clear();
-                int read = processor.getRS485UART().read(readBytes);
-                parseHDLCMessages(workingMessage, readBytes);
+                if (processor.getRS485UART() == null) {
+                    processor.setUpRS485();
+                }
+                processor.getRS485UART().setReceiveTimeout(5000);
 
-                if (LOGGER.isDebugEnabled()) {
-                    if (read > 0) {
-                        byte[] data = workingMessage.array();
-                        LOGGER.debug("Received raw rs485 data {}", printHexBinary(data));
-                    } else {
-                        LOGGER.debug("Received no rs485 data during read operation");
+                while (!cancelled && processor.stillRunning()) {
+                    readBytes.clear();
+                    int read = processor.getRS485UART().read(readBytes);
+                    parseHDLCMessages(workingMessage, readBytes);
+
+                    if (LOGGER.isDebugEnabled()) {
+                        if (read > 0) {
+                            byte[] data = workingMessage.array();
+                            LOGGER.debug("Received raw rs485 data {}", printHexBinary(data));
+                        } else {
+                            LOGGER.debug("Received no rs485 data during read operation");
+                        }
                     }
                 }
             }
@@ -157,7 +159,7 @@ public abstract class RS485DataHarvester implements Runnable {
                 workingMessage.clear();
                 state = State.searchForBeginning;
                 hdlcFrameLength = 0;
-                try {Thread.sleep(1000);} catch (InterruptedException ex2){}
+                try {Thread.sleep(10000);} catch (InterruptedException ex2){}
             }
         }
     }
