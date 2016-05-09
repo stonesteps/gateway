@@ -21,8 +21,10 @@ cd "$BASEDIR"
 LOGS="$BASEDIR/logs"
 LOG_FILE="$LOGS/start.log"
 OWNER="$(ls -ld $BASEDIR/$JAR_NAME | awk '{print $3}')"
+JAVA_EXEC=java
 
 [ -d "$LOGS" ] || su $OWNER -c "mkdir $LOGS"
+[ -d "$BASEDIR/java" ] && JAVA_EXEC="./java/bin/java"
 
 SERVICE_NAME="BWG Agent"
 PARAMS="-Djava.library.path=./lib -Djava.security.policy=./dio.policy"
@@ -35,7 +37,7 @@ start() {
     echo "Starting $SERVICE_NAME ..."
     PID=`pid_of_jvm`
     if [ "x$PID" = "x" ]; then
-        su $OWNER -c "nohup java $PARAMS -jar $JAR_NAME 2>> $LOG_FILE >> $LOG_FILE &"
+        su $OWNER -c "nohup $JAVA_EXEC $PARAMS -jar $JAR_NAME 2>> $LOG_FILE >> $LOG_FILE &"
         echo "$SERVICE_NAME started ..."
     else
         echo "$SERVICE_NAME is already running ..."
