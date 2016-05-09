@@ -15,6 +15,7 @@ import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.model.AgentSettings;
 import com.tritonsvc.model.GenericSettings;
+import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
@@ -77,10 +78,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private OidProperties oidProperties = new OidProperties();
     private RS485DataHarvester rs485DataHarvester;
     private RS485MessagePublisher rs485MessagePublisher;
+    private FaultLogManager faultLogManager;
     private UART rs485Uart;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private AtomicLong updateInterval = new AtomicLong(DEFAULT_UPDATE_INTERVAL);
+
+    private AtomicLong lastFaultLogsSent = new AtomicLong(0);
+
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
     private String rs485ControllerType = null;
@@ -238,13 +243,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     public synchronized void setUpRS485Processors() {
+        this.faultLogManager = new FaultLogManager(getConfigProps());
         if (Objects.equals(getRS485ControllerType(), "JACUZZI")) {
             setRS485MessagePublisher(new JacuzziMessagePublisher(this));
-            setRS485DataHarvester(new JacuzziDataHarvester(this, (JacuzziMessagePublisher) getRS485MessagePublisher()));
+            setRS485DataHarvester(new JacuzziDataHarvester(this, (JacuzziMessagePublisher) getRS485MessagePublisher(),faultLogManager));
             LOGGER.info("Configured RS485 connection for Jacuzzi Protocol");
         } else {
             setRS485MessagePublisher(new NGSCMessagePublisher(this));
-            setRS485DataHarvester(new NGSCDataHarvester(this, (NGSCMessagePublisher) getRS485MessagePublisher()));
+            setRS485DataHarvester(new NGSCDataHarvester(this, (NGSCMessagePublisher) getRS485MessagePublisher(), faultLogManager));
             LOGGER.info("Configured RS485 connection for BWG NGSC Protocol");
         }
         es.execute(getRS485DataHarvester());
@@ -541,7 +547,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
             if (!getRS485DataHarvester().hasAllConfigState() &&
                     System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM) {
-                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), null);
+                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
                 lastPanelRequestSent.set(System.currentTimeMillis());
             }
 
@@ -552,6 +558,20 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, getRS485DataHarvester().getLatestSpaInfo());
                 lastSpaDetailsSent.set(getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp());
                 LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
+            }
+
+            // fault logs - check FaultLogsManager for default fetch interval
+            if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || faultLogManager.getFetchNext() > -1) {
+                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), true,
+                        faultLogManager.getFetchNext() > -1 ? Short.valueOf((short) faultLogManager.getFetchNext()): null);
+
+                // send when all logs fetched from device
+                if (faultLogManager.getFetchNext() == -1) {
+                    final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogEntryList();
+                    if (faultLogs != null) {
+                        getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.FAULT_LOGS, faultLogs);
+                    }
+                }
             }
         } catch (Exception ex) {
             LOGGER.error("error while processing data harvest", ex);

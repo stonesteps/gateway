@@ -55,10 +55,11 @@ public abstract class RS485MessagePublisher {
      * send panel request
      *
      * @param address
+     * @param faultLogs
      * @param faultLogEntryNumber
      * @throws RS485Exception
      */
-    public abstract void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception;
+    public abstract void sendPanelRequest(byte address, boolean faultLogs, Short faultLogEntryNumber) throws RS485Exception;
 
     /**
      * get the message codes

@@ -19,13 +19,11 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SystemInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Calendar;
 import java.util.Date;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static javax.xml.bind.DatatypeConverter.printHexBinary;
 
 /**
  * Implementation of serial comms for BWG NGSC Protocol
@@ -39,9 +37,11 @@ public class NGSCDataHarvester extends RS485DataHarvester {
      * Constructor
      *
      * @param processor
+     * @param rs485MessagePublisher
+     * @param faultLogManager
      */
-    public NGSCDataHarvester(BWGProcessor processor, NGSCMessagePublisher rs485MessagePublisher) {
-        super(processor, rs485MessagePublisher);
+    public NGSCDataHarvester(BWGProcessor processor, NGSCMessagePublisher rs485MessagePublisher, FaultLogManager faultLogManager) {
+        super(processor, rs485MessagePublisher, faultLogManager);
         this.rs485MessagePublisher = rs485MessagePublisher;
     }
 
@@ -67,6 +67,8 @@ public class NGSCDataHarvester extends RS485DataHarvester {
             processSystemInfoMessage(message);
         } else if (packetType == 0x25) {
             processSetupParamsMessage(message);
+        } else if (packetType == 0x28) {
+            processFaultLogMessage(message);
         } else if (packetType == 0x2E) {
             processDeviceConfigsMessage(message);
         }
@@ -532,6 +534,39 @@ public class NGSCDataHarvester extends RS485DataHarvester {
 
         compsBuilder.setLastUpdateTimestamp(new Date().getTime());
         return compsBuilder.build();
+    }
+
+    private void processFaultLogMessage(byte[] message) {
+        int number = message[5];
+        int code = message[6];
+
+        int daysAgo = message[7];
+        int hour = message[8]; // 0-23
+        int minute = message[9]; // 0-59
+        long timestamp = buildTimestamp(daysAgo, hour, minute);
+
+        boolean celcius = (0x08 & message[10] >> 3) == 1;
+        int targetTemp = message[11];
+        int sensorATemp = message[12];
+        int sensorBTemp = message[13];
+
+        final FaultLogEntry entry = new FaultLogEntry(number, code, timestamp, targetTemp, sensorATemp, sensorBTemp, celcius);
+        getFaultLogManager().addFaultLogEntry(entry);
+    }
+
+    private long buildTimestamp(final int daysAgo, final int hour, final int minute) {
+        final Calendar c = Calendar.getInstance();
+        c.add(Calendar.DAY_OF_YEAR, -daysAgo);
+        c.set(Calendar.HOUR_OF_DAY, hour);
+        c.set(Calendar.MINUTE, minute);
+        c.set(Calendar.SECOND, 0);
+        c.set(Calendar.MILLISECOND, 0);
+        return c.getTimeInMillis();
+    }
+
+    public static void main(String... args) {
+        byte message = (byte) 0b11111111;
+        System.out.print((0x08 & message) >> 3);
     }
 }
 

@@ -456,7 +456,8 @@ message Uplink {
             required uint32 targetTemp = 3;
             required uint32 sensorATemp = 4;
             required uint32 sensorBTemp = 5;
-        }
+            required bool celcius = 6;
+       }
     }
 }
 

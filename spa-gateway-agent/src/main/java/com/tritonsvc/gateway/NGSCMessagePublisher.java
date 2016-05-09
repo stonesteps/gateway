@@ -81,12 +81,13 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
     }
 
     @Override
-    public void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception {
+    public void sendPanelRequest(byte address, boolean faultLogs, Short faultLogEntryNumber) throws RS485Exception {
         try {
-
             int request = 0x07;
-            if (faultLogEntryNumber != null) {
-                request |= 0x20;
+            if (faultLogs) {
+                request = 0x20; // just fault logs
+            } else if (faultLogEntryNumber != null) {
+                request |= 0x20; // also fault logs
             }
 
             ByteBuffer bb = ByteBuffer.allocate(10);
@@ -96,7 +97,7 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
             bb.put((byte) 0x22); // the panel request packet type
             bb.put((byte) (0xFF & request)); // requested messages
-            bb.put((byte) (faultLogEntryNumber != null ? (0xFF & faultLogEntryNumber) : 0x00)); // fault log entry number
+            bb.put((byte) (faultLogEntryNumber != null ? (0xFF & faultLogEntryNumber) : 0xFF)); // fault log entry number
             bb.put((byte) 0x01); // get device config
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
