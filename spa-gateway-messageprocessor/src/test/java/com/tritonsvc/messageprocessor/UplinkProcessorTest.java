@@ -1,11 +1,11 @@
 package com.tritonsvc.messageprocessor;
 
-import com.bwg.iot.model.Component;
+import com.bwg.iot.model.*;
 import com.bwg.iot.model.Component.ComponentType;
-import com.bwg.iot.model.ComponentState;
-import com.bwg.iot.model.Spa;
-import com.bwg.iot.model.SpaCommand;
+import com.tritonsvc.gateway.FaultLogEntry;
+import com.tritonsvc.gateway.FaultLogManager;
 import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
+import com.tritonsvc.messageprocessor.mongo.repository.FaultLogRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
@@ -31,9 +31,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
+import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
@@ -60,6 +58,9 @@ public class UplinkProcessorTest {
 
     @Autowired
     private MessageProcessorConfiguration messageProcessorConfiguration;
+
+    @Autowired
+    private FaultLogRepository faultLogRepository;
 
     @After
     @Before
@@ -208,5 +209,33 @@ public class UplinkProcessorTest {
         final SpaCommand processedCommand = spaCommandRepository.findByOriginatorIdAndSpaId("1", "1");
         assertNotNull(processedCommand);
         assertEquals("OK", processedCommand.getAckResponseCode());
+    }
+
+    @Test
+    public void handleFaultLogs() throws Exception {
+        faultLogRepository.deleteAll();
+
+        // send register message
+        Spa spa = new Spa();
+        spa.set_id("spaId");
+        spaRepository.save(spa);
+
+        FaultLogManager faultLogManager = new FaultLogManager(new Properties());
+        faultLogManager.addFaultLogEntry(new FaultLogEntry(0, 1, new Date().getTime(), 100, 101, 102, false));
+
+        final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
+        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), BwgHelper.buildUplinkMessage("1", "spaId", UplinkCommandType.FAULT_LOGS, faultLogs));
+
+        // wait for message to be delivered and processed
+        Thread.sleep(1000);
+
+        final List<FaultLog> logs = faultLogRepository.findAll();
+        assertNotNull(logs);
+        assertEquals(1, logs.size());
+        assertEquals("spaId", logs.get(0).getSpaId());
+        assertEquals(1, logs.get(0).getCode());
+        assertEquals(100, logs.get(0).getTargetTemp());
+        assertEquals(101, logs.get(0).getSensorATemp());
+        assertEquals(102, logs.get(0).getSensorBTemp());
     }
 }

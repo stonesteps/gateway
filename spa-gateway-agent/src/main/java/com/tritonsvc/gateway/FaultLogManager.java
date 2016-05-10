@@ -19,15 +19,18 @@ public class FaultLogManager {
     public FaultLogManager(final Properties configProps) {
         // init default interval
 
+        Long fetchIntervalLong = null;
         final String faultLogsFetchIntervalStr = configProps.getProperty("faultLogs.fetchInterval");
-        Long fetchIntervalLong = Longs.tryParse(faultLogsFetchIntervalStr);
+        if (faultLogsFetchIntervalStr != null) {
+            fetchIntervalLong = Longs.tryParse(faultLogsFetchIntervalStr);
+        }
         if (fetchIntervalLong != null) {
             fetchInterval = fetchIntervalLong.longValue();
         } else {
             fetchInterval = DEFAULT_INTERVAL;
         }
-
     }
+
 
     public long getFetchInterval() {
         return fetchInterval;
@@ -68,7 +71,7 @@ public class FaultLogManager {
         return new StringBuilder(entry.getNumber()).append('x').append(entry.getCode()).append('x').append(entry.getTimestamp()).toString();
     }
 
-    public synchronized Bwg.Uplink.Model.FaultLogs getUnsentFaultLogEntryList() {
+    public synchronized Bwg.Uplink.Model.FaultLogs getUnsentFaultLogs() {
         final List<FaultLogEntry> entries = new ArrayList<>(cache.size());
         for (final FaultLogEntry entry : cache.values()) {
             if (!entry.isSentToUplik()) {
@@ -78,9 +81,9 @@ public class FaultLogManager {
         }
 
         if (entries.size() > 0) {
-            final Bwg.Uplink.Model.FaultLogs.Builder builder =  Bwg.Uplink.Model.FaultLogs.newBuilder();
+            final Bwg.Uplink.Model.FaultLogs.Builder builder = Bwg.Uplink.Model.FaultLogs.newBuilder();
 
-            for (final FaultLogEntry entry: entries) {
+            for (final FaultLogEntry entry : entries) {
                 final Bwg.Uplink.Model.FaultLog.Builder flBuilder = Bwg.Uplink.Model.FaultLog.newBuilder();
                 flBuilder.setOccurenceDate(entry.getTimestamp());
                 flBuilder.setFaultCode(entry.getCode());

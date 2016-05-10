@@ -42,8 +42,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.net.URL;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +52,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.jar.Manifest;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -561,13 +558,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             }
 
             // fault logs - check FaultLogsManager for default fetch interval
+            // issue fetch logs command untill there are logs to collect from device
             if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || faultLogManager.getFetchNext() > -1) {
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), true,
                         faultLogManager.getFetchNext() > -1 ? Short.valueOf((short) faultLogManager.getFetchNext()): null);
 
                 // send when all logs fetched from device
                 if (faultLogManager.getFetchNext() == -1) {
-                    final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogEntryList();
+                    final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
                     if (faultLogs != null) {
                         getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.FAULT_LOGS, faultLogs);
                     }
