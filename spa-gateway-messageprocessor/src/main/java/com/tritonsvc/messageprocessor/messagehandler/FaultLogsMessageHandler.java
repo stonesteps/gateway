@@ -60,8 +60,12 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                 final int code = faultLog.getFaultCode();
                 log.debug("Processing fault log with code {} for spa {}", code, spaId);
 
-                final FaultLog faultLogEntity = createFaultLogEntity(spaId, controllerType, code, spa, faultLog);
-                faultLogRepository.save(faultLogEntity);
+                // check if db contains already entry like this
+                FaultLog faultLogEntity = faultLogRepository.findFirstBySpaIdAndCodeAndTimestamp(spaId, code, new Date(faultLog.getOccurenceDate()));
+                if (faultLogEntity == null) {
+                    faultLogEntity = createFaultLogEntity(spaId, controllerType, code, spa, faultLog);
+                    faultLogRepository.save(faultLogEntity);
+                }
             }
         }
     }
@@ -88,6 +92,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         faultLogEntity.setTargetTemp(faultLog.getTargetTemp());
         faultLogEntity.setSensorATemp(faultLog.getSensorATemp());
         faultLogEntity.setSensorBTemp(faultLog.getSensorBTemp());
+        faultLogEntity.setCelcius(faultLog.getCelcius());
 
         return faultLogEntity;
     }

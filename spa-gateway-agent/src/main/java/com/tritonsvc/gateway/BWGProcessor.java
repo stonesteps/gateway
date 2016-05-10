@@ -560,6 +560,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             // fault logs - check FaultLogsManager for default fetch interval
             // issue fetch logs command untill there are logs to collect from device
             if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || faultLogManager.getFetchNext() > -1) {
+
+                // get latest fetch log entry or entry with number held by fault log manager
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), true,
                         faultLogManager.getFetchNext() > -1 ? Short.valueOf((short) faultLogManager.getFetchNext()): null);
 
@@ -570,6 +572,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                         getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.FAULT_LOGS, faultLogs);
                     }
                 }
+                lastFaultLogsSent.set(System.currentTimeMillis());
             }
         } catch (Exception ex) {
             LOGGER.error("error while processing data harvest", ex);
@@ -710,6 +713,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     @VisibleForTesting
     void setRS485(UART uart) {
         this.rs485Uart = uart;
+    }
+
+    @VisibleForTesting
+    void setFaultLogManager(FaultLogManager faultLogManager) {
+        this.faultLogManager = faultLogManager;
     }
 
     private void validateOidProperties() {
