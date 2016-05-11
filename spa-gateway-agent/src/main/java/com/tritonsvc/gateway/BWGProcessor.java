@@ -557,21 +557,23 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
             }
 
+            // send when logs fetched from device become available
+            if (faultLogManager.hasUnsentFaultLogs()) {
+                final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
+                if (faultLogs != null) {
+                    getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.FAULT_LOGS, faultLogs);
+                }
+            }
+
             // fault logs - check FaultLogsManager for default fetch interval
             // issue fetch logs command untill there are logs to collect from device
-            if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || faultLogManager.getFetchNext() > -1) {
+            final int nextLogNumberToFetch = faultLogManager.generateFetchNext();
+            if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || nextLogNumberToFetch > -1) {
 
                 // get latest fetch log entry or entry with number held by fault log manager
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), true,
-                        faultLogManager.getFetchNext() > -1 ? Short.valueOf((short) faultLogManager.getFetchNext()): null);
+                        nextLogNumberToFetch > -1 ? Short.valueOf((short) nextLogNumberToFetch): null);
 
-                // send when all logs fetched from device
-                if (faultLogManager.getFetchNext() == -1) {
-                    final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
-                    if (faultLogs != null) {
-                        getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.FAULT_LOGS, faultLogs);
-                    }
-                }
                 lastFaultLogsSent.set(System.currentTimeMillis());
             }
         } catch (Exception ex) {
