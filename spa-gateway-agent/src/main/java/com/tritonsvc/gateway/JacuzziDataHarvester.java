@@ -402,6 +402,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
 
         final FaultLogEntry entry = new FaultLogEntry(number, code, timestamp, targetTemp, sensorATemp, sensorBTemp, celcius);
         getFaultLogManager().addFaultLogEntry(entry);
+        LOGGER.info("received fault log, code = {}, number = {}", code, number);
     }
 
     private long buildTimestamp(final int year, final int month, final int day, final int hour, final int minute) {

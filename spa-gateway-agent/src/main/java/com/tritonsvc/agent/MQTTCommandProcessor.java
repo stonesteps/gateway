@@ -27,8 +27,10 @@ import java.util.Enumeration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.Manifest;
 
@@ -49,7 +51,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
     private String dataPath;
     private GatewayEventDispatcher eventDispatcher;
     private int controllerUpdateInterval = 3;
-    private final ScheduledExecutorService scheduledExecutorService = new ScheduledThreadPoolExecutor(3);
+    private final ScheduledExecutorService scheduledExecutorService = new ScheduledThreadPoolExecutor(4);
     private X509Certificate publicCert;
     private PrivateKey privateKey;
     private AgentSettings agentSettings;
@@ -313,8 +315,8 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
         scheduledExecutorService.scheduleWithFixedDelay((Runnable) () -> {
             try {
                 processDataHarvestIteration();
-            } catch (Exception ex) {
-                LOGGER.error("unable to obtain controller device info", ex);
+            } catch (Throwable ex) {
+                LOGGER.error("unable to process data harvest iteration", ex);
             }
         }, controllerUpdateInterval, controllerUpdateInterval, TimeUnit.SECONDS);
     }

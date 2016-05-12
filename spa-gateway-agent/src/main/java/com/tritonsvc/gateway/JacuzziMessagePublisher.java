@@ -89,8 +89,6 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
             int request = 0x30; // get lights, sys config
             if (faultLogs) {
                 request = 0x40; // get just fault logs
-            } else if (faultLogEntryNumber != null) {
-                request |= 0x40; // get also fault logs
             }
 
             ByteBuffer bb = ByteBuffer.allocate(10);

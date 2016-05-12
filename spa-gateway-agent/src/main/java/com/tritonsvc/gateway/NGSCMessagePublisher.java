@@ -86,8 +86,6 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
             int request = 0x07;
             if (faultLogs) {
                 request = 0x20; // just fault logs
-            } else if (faultLogEntryNumber != null) {
-                request |= 0x20; // also fault logs
             }
 
             ByteBuffer bb = ByteBuffer.allocate(10);

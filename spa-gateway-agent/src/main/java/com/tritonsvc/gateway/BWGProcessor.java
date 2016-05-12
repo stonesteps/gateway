@@ -557,10 +557,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
             }
 
+            getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
+            locked = false;
+
             // send when logs fetched from device become available
             if (faultLogManager.hasUnsentFaultLogs()) {
                 final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
                 if (faultLogs != null) {
+                    LOGGER.info("sent {} fault logs to cloud", faultLogs.getFaultLogsCount());
                     getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.FAULT_LOGS, faultLogs);
                 }
             }
@@ -569,10 +573,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             // issue fetch logs command untill there are logs to collect from device
             final int nextLogNumberToFetch = faultLogManager.generateFetchNext();
             if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || nextLogNumberToFetch > -1) {
-
                 // get latest fetch log entry or entry with number held by fault log manager
-                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), true,
-                        nextLogNumberToFetch > -1 ? Short.valueOf((short) nextLogNumberToFetch): null);
+                Short logNumber = nextLogNumberToFetch > -1 ? Short.valueOf((short) nextLogNumberToFetch): null;
+                LOGGER.info("sending request for fault log number {}", logNumber != null ? logNumber.toString() : 255);
+
+                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), true, logNumber);
 
                 lastFaultLogsSent.set(System.currentTimeMillis());
             }

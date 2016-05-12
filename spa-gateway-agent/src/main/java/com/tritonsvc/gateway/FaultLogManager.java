@@ -10,7 +10,7 @@ import java.util.*;
  */
 public class FaultLogManager {
 
-    private static final long DEFAULT_INTERVAL = 600000; // 10 minutes
+    private static final long DEFAULT_INTERVAL = 60000; // 1 minute
     private static final int CACHE_SIZE = 256;
     private final long fetchInterval;
     private final Map<String, FaultLogEntry> cache = new LinkedHashMap<>();
@@ -37,7 +37,7 @@ public class FaultLogManager {
         return fetchInterval;
     }
 
-    public int generateFetchNext() {
+    public synchronized int generateFetchNext() {
         int tmp = fetchNext;
         fetchNext = -1;
         return tmp;
@@ -64,16 +64,16 @@ public class FaultLogManager {
      * looks for biggest number that hasn't been fetched from device.
      */
     private void findFetchNext() {
-        outer:
-        while (true) {
-            if (fetchNext < 0) break;
+        outer: while (true) {
             for (final FaultLogEntry entry : cache.values()) {
                 if (entry.getNumber() == fetchNext) {
                     fetchNext--;
-                    break;
+                    continue outer;
                 }
             }
-            continue outer;
+            // the number was not found in cache, leave it at that state, it will be requested
+            // next time via generateFetchNext().
+            break;
         }
     }
 
