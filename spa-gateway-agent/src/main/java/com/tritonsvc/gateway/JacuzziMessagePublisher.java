@@ -83,12 +83,12 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
         }
     }
 
-    public void sendPanelRequest(byte address, Short faultLogEntryNumber) throws RS485Exception {
+    public void sendPanelRequest(byte address, boolean faultLogs, Short faultLogEntryNumber) throws RS485Exception {
         // Jacuzzi information request in ICD
         try {
             int request = 0x30; // get lights, sys config
-            if (faultLogEntryNumber != null) {
-                request |= 0x40;
+            if (faultLogs) {
+                request = 0x40; // get just fault logs
             }
 
             ByteBuffer bb = ByteBuffer.allocate(10);
@@ -98,7 +98,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
             bb.put((byte) 0x19); // the panel request packet type
             bb.put((byte) (0xFF & request)); // requested messages
-            bb.put((byte) (faultLogEntryNumber != null ? (0xFF & faultLogEntryNumber) : 0x00)); // fault log entry number
+            bb.put((byte) (faultLogEntryNumber != null ? (0xFF & faultLogEntryNumber) : 0xFF)); // fault log entry number
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);

@@ -58,6 +58,7 @@ message Uplink {
 		SPA_STATE = 3;
         EVENT = 4;
         MEASUREMENT = 5;
+        FAULT_LOGS = 6;
 	}
 
     message UplinkHeader {
@@ -443,6 +444,20 @@ message Uplink {
             optional fixed64 eventTimestamp = 2;
             repeated Metadata metadata = 3;
         }
+
+        // Fault Logs
+        message FaultLogs {
+            repeated FaultLog faultLogs = 1;
+        }
+
+        message FaultLog {
+            required fixed64 occurenceDate = 1;
+            required uint32 faultCode = 2;
+            required uint32 targetTemp = 3;
+            required uint32 sensorATemp = 4;
+            required uint32 sensorBTemp = 5;
+            required bool celcius = 6;
+       }
     }
 }
 

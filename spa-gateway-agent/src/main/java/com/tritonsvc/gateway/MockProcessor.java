@@ -26,6 +26,7 @@ import static com.google.common.collect.Maps.newHashMap;
  */
 public class MockProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
+    private static final long FAULT_LOG_SEND_INTERVAL = 3600000; // 1 hour in milliseconds
     private static Logger LOGGER = LoggerFactory.getLogger(MockProcessor.class);
     private DeviceRegistration registeredSpa = new DeviceRegistration();
     private DeviceRegistration registeredController = new DeviceRegistration();
@@ -35,6 +36,10 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     private MockSpaStateHolder spaStateHolder = null;
     private WebServer webServer = null;
+
+    // enabled by default
+    private boolean sendRandomFaultLogs = true;
+    private long lastFaultLogSendTime = 0L;
 
     @Override
     public void handleShutdown() {
@@ -89,6 +94,11 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         final String moteId = props.getProperty("mock.moteId");
         if (moteId != null) {
             registeredMote.setHardwareId(moteId);
+        }
+
+        final String sendRandomFaultLogsStr = props.getProperty("mock.sendRandomFaultLogs");
+        if (sendRandomFaultLogsStr != null) {
+            sendRandomFaultLogs = "true".equalsIgnoreCase(sendRandomFaultLogsStr);
         }
     }
 
@@ -292,7 +302,33 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         LOGGER.info("Sending spa info");
         sendSpaState(registeredSpa.getHardwareId(), spaStateHolder.buildSpaState());
 
+        sendFaultLogs();
+
         LOGGER.info("Sent harvest periodic reports");
+    }
+
+    private void sendFaultLogs() {
+        if (!sendRandomFaultLogs) return;
+
+        if (System.currentTimeMillis() > lastFaultLogSendTime + FAULT_LOG_SEND_INTERVAL) {
+            final Bwg.Uplink.Model.FaultLogs randomFaultLogs = buildRandomFaultLogs();
+            getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, Bwg.Uplink.UplinkCommandType.FAULT_LOGS, randomFaultLogs);
+            lastFaultLogSendTime = System.currentTimeMillis();
+        }
+    }
+
+    private Bwg.Uplink.Model.FaultLogs buildRandomFaultLogs() {
+        final FaultLogManager faultLogManager = new FaultLogManager(new Properties());
+
+        final Random rnd = new Random();
+
+        int randomCode = rnd.nextInt(25);
+        int targetTemp = rnd.nextInt(100) + 20;
+        int tempA = rnd.nextInt(100) + 20;
+        int tempB = rnd.nextInt(100) + 20;
+
+        faultLogManager.addFaultLogEntry(new FaultLogEntry(0, randomCode, System.currentTimeMillis(), targetTemp, tempA, tempB, false));
+        return faultLogManager.getUnsentFaultLogs();
     }
 
     @Override

@@ -15,6 +15,7 @@ import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.model.AgentSettings;
 import com.tritonsvc.model.GenericSettings;
+import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
@@ -41,8 +42,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.net.URL;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +52,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.jar.Manifest;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -77,10 +75,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private OidProperties oidProperties = new OidProperties();
     private RS485DataHarvester rs485DataHarvester;
     private RS485MessagePublisher rs485MessagePublisher;
+    private FaultLogManager faultLogManager;
     private UART rs485Uart;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private AtomicLong updateInterval = new AtomicLong(DEFAULT_UPDATE_INTERVAL);
+
+    private AtomicLong lastFaultLogsSent = new AtomicLong(0);
+
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
     private String rs485ControllerType = null;
@@ -237,13 +239,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     public synchronized void setUpRS485Processors() {
+        this.faultLogManager = new FaultLogManager(getConfigProps());
         if (Objects.equals(getRS485ControllerType(), "JACUZZI")) {
             setRS485MessagePublisher(new JacuzziMessagePublisher(this));
-            setRS485DataHarvester(new JacuzziDataHarvester(this, (JacuzziMessagePublisher) getRS485MessagePublisher()));
+            setRS485DataHarvester(new JacuzziDataHarvester(this, (JacuzziMessagePublisher) getRS485MessagePublisher(),faultLogManager));
             LOGGER.info("Configured RS485 connection for Jacuzzi Protocol");
         } else {
             setRS485MessagePublisher(new NGSCMessagePublisher(this));
-            setRS485DataHarvester(new NGSCDataHarvester(this, (NGSCMessagePublisher) getRS485MessagePublisher()));
+            setRS485DataHarvester(new NGSCDataHarvester(this, (NGSCMessagePublisher) getRS485MessagePublisher(), faultLogManager));
             LOGGER.info("Configured RS485 connection for BWG NGSC Protocol");
         }
         es.execute(getRS485DataHarvester());
@@ -540,7 +543,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
             if (!getRS485DataHarvester().hasAllConfigState() &&
                     System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM) {
-                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), null);
+                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
                 lastPanelRequestSent.set(System.currentTimeMillis());
             }
 
@@ -551,6 +554,31 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, getRS485DataHarvester().getLatestSpaInfo());
                 lastSpaDetailsSent.set(getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp());
                 LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
+            }
+
+            getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
+            locked = false;
+
+            // send when logs fetched from device become available
+            if (faultLogManager.hasUnsentFaultLogs()) {
+                final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
+                if (faultLogs != null) {
+                    LOGGER.info("sent {} fault logs to cloud", faultLogs.getFaultLogsCount());
+                    getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.FAULT_LOGS, faultLogs);
+                }
+            }
+
+            // fault logs - check FaultLogsManager for default fetch interval
+            // issue fetch logs command untill there are logs to collect from device
+            final int nextLogNumberToFetch = faultLogManager.generateFetchNext();
+            if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || nextLogNumberToFetch > -1) {
+                // get latest fetch log entry or entry with number held by fault log manager
+                Short logNumber = nextLogNumberToFetch > -1 ? Short.valueOf((short) nextLogNumberToFetch): null;
+                LOGGER.info("sending request for fault log number {}", logNumber != null ? logNumber.toString() : 255);
+
+                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), true, logNumber);
+
+                lastFaultLogsSent.set(System.currentTimeMillis());
             }
         } catch (Exception ex) {
             LOGGER.error("error while processing data harvest", ex);
@@ -691,6 +719,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     @VisibleForTesting
     void setRS485(UART uart) {
         this.rs485Uart = uart;
+    }
+
+    @VisibleForTesting
+    void setFaultLogManager(FaultLogManager faultLogManager) {
+        this.faultLogManager = faultLogManager;
     }
 
     private void validateOidProperties() {

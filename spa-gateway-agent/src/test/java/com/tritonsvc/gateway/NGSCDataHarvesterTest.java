@@ -12,15 +12,13 @@ import java.util.concurrent.TimeUnit;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class NGSCDataHarvesterTest {
 
     private BWGProcessor processor;
     private NGSCMessagePublisher publisher;
+    private FaultLogManager manager;
     private UART uart;
     private NGSCDataHarvester harvester;
     private int read;
@@ -31,9 +29,10 @@ public class NGSCDataHarvesterTest {
         processor = mock(BWGProcessor.class);
         uart = mock(UART.class);
         publisher = mock(NGSCMessagePublisher.class);
+        manager = mock(FaultLogManager.class);
         when(processor.getRS485UART()).thenReturn(uart);
         when(processor.stillRunning()).thenReturn(true);
-        harvester = new NGSCDataHarvester(processor, publisher);
+        harvester = new NGSCDataHarvester(processor, publisher, manager);
         read = 0;
         cdl = new CountDownLatch(1);
     }
@@ -41,7 +40,7 @@ public class NGSCDataHarvesterTest {
     @Test
     public void itAcquiresAddressOnBus() throws Exception {
 
-        byte [] addressUnassigned = new byte[]{(byte) 0x7E, (byte) 0x05, (byte) 0xFE, (byte) 0xBF, (byte) 0x00};
+        byte[] addressUnassigned = new byte[]{(byte) 0x7E, (byte) 0x05, (byte) 0xFE, (byte) 0xBF, (byte) 0x00};
         doAnswer(invocation -> {
             if (read < 7) {
                 ByteBuffer bb = (ByteBuffer) invocation.getArguments()[0];
@@ -71,7 +70,7 @@ public class NGSCDataHarvesterTest {
 
     @Test
     public void itSwitchesToJacuzzi() throws Exception {
-        byte [] addressUnassigned = new byte[]{(byte) 0x7E, (byte) 0x05, (byte) 0xFE, (byte) 0xBF, (byte) 0x16};
+        byte[] addressUnassigned = new byte[]{(byte) 0x7E, (byte) 0x05, (byte) 0xFE, (byte) 0xBF, (byte) 0x16};
         doAnswer(invocation -> {
             if (read < 7) {
                 ByteBuffer bb = (ByteBuffer) invocation.getArguments()[0];

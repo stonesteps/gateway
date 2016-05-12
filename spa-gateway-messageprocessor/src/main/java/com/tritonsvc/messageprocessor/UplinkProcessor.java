@@ -7,18 +7,17 @@ import com.tritonsvc.messageprocessor.mqtt.MessageListener;
 import com.tritonsvc.messageprocessor.mqtt.MqttSubscribeService;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.FaultLogs;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
@@ -63,14 +62,15 @@ public class UplinkProcessor implements MessageListener {
             if (uplinkHeader.getCommand() == Bwg.Uplink.UplinkCommandType.REGISTRATION) {
                 final RegisterDevice registerDevice = RegisterDevice.parseDelimitedFrom(stream);
                 handleMessage(RegisterDevice.class, header, uplinkHeader, registerDevice);
-            }
-            if (uplinkHeader.getCommand() == UplinkCommandType.ACKNOWLEDGEMENT) {
+            } else if (uplinkHeader.getCommand() == UplinkCommandType.ACKNOWLEDGEMENT) {
                 final DownlinkAcknowledge ack = DownlinkAcknowledge.parseDelimitedFrom(stream);
                 handleMessage(DownlinkAcknowledge.class, header, uplinkHeader, ack);
-            }
-            if (uplinkHeader.getCommand() == UplinkCommandType.SPA_STATE) {
+            } else if (uplinkHeader.getCommand() == UplinkCommandType.SPA_STATE) {
                 final SpaState state = SpaState.parseDelimitedFrom(stream);
                 handleMessage(SpaState.class, header, uplinkHeader, state);
+            } else if (uplinkHeader.getCommand() == UplinkCommandType.FAULT_LOGS) {
+                final FaultLogs faultLogs = FaultLogs.parseDelimitedFrom(stream);
+                handleMessage(FaultLogs.class, header, uplinkHeader, faultLogs);
             }
 
         } catch (Exception e) {

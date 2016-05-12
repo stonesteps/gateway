@@ -1,24 +1,19 @@
 package com.tritonsvc.gateway;
 
 import com.google.common.base.Throwables;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent.State;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BluetoothStatus;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelDisplayCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Controller;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DipSwitch;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SystemInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -37,9 +32,11 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
      * Constructor
      *
      * @param processor
+     * @param rs485MessagePublisher
+     * @param faultLogManager
      */
-    public JacuzziDataHarvester(BWGProcessor processor, JacuzziMessagePublisher rs485MessagePublisher) {
-        super(processor, rs485MessagePublisher);
+    public JacuzziDataHarvester(BWGProcessor processor, JacuzziMessagePublisher rs485MessagePublisher, FaultLogManager faultLogManager) {
+        super(processor, rs485MessagePublisher, faultLogManager);
         this.rs485MessagePublisher = rs485MessagePublisher;
         this.processor = processor;
     }
@@ -65,6 +62,8 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
             }
         } else if (packetType == 0x23) {
             processLightStatusMessage(message);
+        } else if (packetType == 0x25) {
+            processFaultLogMessage(message);
         } else if (packetType == 0x1D) {
             processDeviceConfigsMessage(message);
             processSystemInfoMessage(message);
@@ -123,7 +122,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
             btStatus = BluetoothStatus.AMPLIFIER_COMMS_LOST;
         }
 
-        Controller.Builder builder =  Controller.newBuilder()
+        Controller.Builder builder = Controller.newBuilder()
                 .setPackType("JACUZZI")
                 .setLastUpdateTimestamp(new Date().getTime())
                 .setHour(0xFF & message[4])
@@ -240,7 +239,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
         }
 
         value = (0x03 & message[10]);
-        if ( value > 0) {
+        if (value > 0) {
             compsBuilder.setCirculationPump(PumpComponent.newBuilder(compsBuilder.getCirculationPump()).clearAvailableStates().addAllAvailableStates(getAvailablePumpStates(value)));
         } else {
             compsBuilder.clearCirculationPump();
@@ -283,7 +282,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
             serialNumber |= (0xFF & message[6]) << 8;
             serialNumber |= (0xFF & message[7]);
 
-            builder.setSerialNumber((int)(0xFFFFFFFF & serialNumber))
+            builder.setSerialNumber((int) (0xFFFFFFFF & serialNumber))
                     .setVersionSSID(0xFF & message[8])
                     .setMinorVersion(0xFF & message[9])
                     .setLastUpdateTimestamp(new Date().getTime())
@@ -319,7 +318,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
                 !getLatestSpaInfo().hasComponents()) {
             throw new RS485Exception("Spa state has not been populated, cannot process requests yet");
         }
-        if (getLatestSpaInfo().getController().getAccessLocked()){
+        if (getLatestSpaInfo().getController().getAccessLocked()) {
             throw new RS485Exception("Spa is locked out, no requests are allowed.");
         }
     }
@@ -383,6 +382,39 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
         } else {
             return State.OFF;
         }
+    }
+
+    private void processFaultLogMessage(byte[] message) {
+        int number = message[5];
+        int code = message[6];
+        int hour = message[7]; // 0-23
+        int minute = message[8]; // 0-59
+        int day = message[9]; // 1-31
+        int month = message[10]; // 1-12
+        int year = message[11]; // 0-2000, 1-2001, ...
+        long timestamp = buildTimestamp(year, month, day, hour, minute);
+
+        int targetTemp = message[12];
+        int sensorATemp = message[13]; // water
+        int sensorBTemp = message[15]; // ambient
+
+        boolean celcius = (0x10 & message[18] >> 4) == 1;
+
+        final FaultLogEntry entry = new FaultLogEntry(number, code, timestamp, targetTemp, sensorATemp, sensorBTemp, celcius);
+        getFaultLogManager().addFaultLogEntry(entry);
+        LOGGER.info("received fault log, code = {}, number = {}", code, number);
+    }
+
+    private long buildTimestamp(final int year, final int month, final int day, final int hour, final int minute) {
+        final Calendar c = Calendar.getInstance();
+        c.add(Calendar.YEAR, year + 2000);
+        c.add(Calendar.MONTH, month - 1);
+        c.add(Calendar.DAY_OF_MONTH, day);
+        c.set(Calendar.HOUR_OF_DAY, hour);
+        c.set(Calendar.MINUTE, minute);
+        c.set(Calendar.SECOND, 0);
+        c.set(Calendar.MILLISECOND, 0);
+        return c.getTimeInMillis();
     }
 }
 

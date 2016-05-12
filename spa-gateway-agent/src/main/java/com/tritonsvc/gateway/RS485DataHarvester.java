@@ -36,6 +36,8 @@ public abstract class RS485DataHarvester implements Runnable {
     public static final int MAX_485_REG_WAIT = 10000;
     private static Logger LOGGER = LoggerFactory.getLogger(RS485DataHarvester.class);
     private BWGProcessor processor;
+    private FaultLogManager faultLogManager;
+
     static byte delimiter = (byte)0x7e; // this is the HDLC delimeter flag
     static int HDLC_FRAME_LENGTH_MASK = 0x7F;
     static int HDLC_ALL_STATIONS_ADDRESS = 0xFF;
@@ -122,9 +124,10 @@ public abstract class RS485DataHarvester implements Runnable {
      *
      * @param processor
      */
-    public RS485DataHarvester(BWGProcessor processor, RS485MessagePublisher rs485MessagePublisher) {
+    public RS485DataHarvester(BWGProcessor processor, RS485MessagePublisher rs485MessagePublisher, FaultLogManager faultLogManager) {
         this.processor = processor;
         this.rs485MessagePublisher = rs485MessagePublisher;
+        this.faultLogManager = faultLogManager;
     }
 
     @Override
@@ -674,5 +677,9 @@ public abstract class RS485DataHarvester implements Runnable {
 
     protected List<ToggleComponent.State> getAvailableToggleStates() {
         return newArrayList(ToggleComponent.State.OFF, ToggleComponent.State.ON);
+    }
+
+    protected FaultLogManager getFaultLogManager() {
+        return this.faultLogManager;
     }
   }
