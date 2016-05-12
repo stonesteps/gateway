@@ -22,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Mqtt service class. Responsible for sending and receiving messages from mqtt.
@@ -51,6 +52,11 @@ public class MqttSubscribeService {
     private FutureConnection connection;
 
     private Future<Void> currentSubscription;
+    private Future<Void> watchdog;
+
+    private String currentTopic;
+    private MessageListener currentListener;
+    private AtomicLong lastCheckin;
 
     @PreDestroy
     public void cleanup() {
@@ -61,13 +67,24 @@ public class MqttSubscribeService {
         if (currentSubscription != null) {
             currentSubscription.cancel(true);
         }
+
+        if (watchdog != null) {
+            watchdog.cancel(true);
+        }
+
         disconnect();
     }
 
     public void subscribe(final String topic, final MessageListener listener) throws Exception {
         log.info("subscribing listener to topic {}", topic);
-        final Subscription subscription = new Subscription(topic, listener);
+
+        currentTopic = topic;
+        currentListener = listener;
+        lastCheckin = new AtomicLong(System.currentTimeMillis());
+
+        final Subscription subscription = new Subscription(currentTopic, currentListener);
         currentSubscription = es.submit(subscription);
+        watchdog = es.submit(new Watchdog());
     }
 
     @VisibleForTesting
@@ -139,6 +156,7 @@ public class MqttSubscribeService {
 
                 try {
                     while (!Thread.currentThread().isInterrupted()) {
+                        lastCheckin.set(System.currentTimeMillis());
                         log.info("waiting for message...");
                         final Message message = connection.receive().await(2, TimeUnit.MINUTES);
                         if (message != null) {
@@ -156,7 +174,27 @@ public class MqttSubscribeService {
                     log.info("no uplink messages received in 2 minutes, will recreate subscription ...");
                 } catch (final Throwable e) {
                     log.error("exception processing message, will recreate subscription ...", e);
-                    try {Thread.sleep(10000);} catch (InterruptedException ie){};
+                    try {Thread.sleep(10000);} catch (InterruptedException ie){}
+                }
+            }
+            return null;
+        }
+    }
+
+    private final class Watchdog implements Callable<Void> {
+
+        @Override
+        public Void call() throws Exception {
+            while (!Thread.currentThread().isInterrupted()) {
+                // check periodically if current subscription thread is not hung
+                Thread.sleep(150000); // 2:30 mins
+                if (System.currentTimeMillis() - lastCheckin.get() > 145000) {
+                    log.error("No subscriber activity for over 2 mins, recreating subscriber thread");
+                    // terminate subscription
+                    currentSubscription.cancel(true);
+                    currentSubscription = es.submit(new Subscription(currentTopic, currentListener));
+                } else {
+                    log.info("Subscriber thread is active, taking no action");
                 }
             }
             return null;
