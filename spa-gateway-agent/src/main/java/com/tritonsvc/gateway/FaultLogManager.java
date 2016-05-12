@@ -78,7 +78,7 @@ public class FaultLogManager {
     }
 
     private String buildEntryKey(final FaultLogEntry entry) {
-        return new StringBuilder(entry.getNumber()).append('x').append(entry.getCode()).append('x').append(entry.getTimestamp()).toString();
+        return new StringBuilder().append(entry.getNumber()).append('x').append(entry.getCode()).append('x').append(entry.getTimestamp()).toString();
     }
 
     public synchronized boolean hasUnsentFaultLogs() {
