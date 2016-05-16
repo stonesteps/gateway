@@ -32,6 +32,10 @@ public class MqttSubscribeService {
 
     private static final Logger log = LoggerFactory.getLogger(MqttSubscribeService.class);
 
+    private static final int BASE_TIME_MILLISECONDS = 120000;
+    private static final int WATCHDOG_SLEEP_MILLISECONDS = BASE_TIME_MILLISECONDS + 30000;
+    private static final int WATCHDOG_THRESHOLD_MILLISECONDS = BASE_TIME_MILLISECONDS + 15000;
+
     @Autowired
     private MessageProcessorConfiguration messageProcessorConfiguration;
 
@@ -158,7 +162,7 @@ public class MqttSubscribeService {
                     while (!Thread.currentThread().isInterrupted()) {
                         lastCheckin.set(System.currentTimeMillis());
                         log.info("waiting for message...");
-                        final Message message = connection.receive().await(2, TimeUnit.MINUTES);
+                        final Message message = connection.receive().await(BASE_TIME_MILLISECONDS, TimeUnit.MILLISECONDS);
                         if (message != null) {
                             message.ack();
                             log.info("got message, processing");
@@ -187,9 +191,9 @@ public class MqttSubscribeService {
         public Void call() throws Exception {
             while (!Thread.currentThread().isInterrupted()) {
                 // check periodically if current subscription thread is not hung
-                Thread.sleep(150000); // 2:30 mins
-                if (System.currentTimeMillis() - lastCheckin.get() > 145000) {
-                    log.error("No subscriber activity for over 2 mins, recreating subscriber thread");
+                Thread.sleep(WATCHDOG_SLEEP_MILLISECONDS);
+                if (System.currentTimeMillis() - lastCheckin.get() > WATCHDOG_THRESHOLD_MILLISECONDS) {
+                    log.error("No subscriber activity for over {} milliseconds, recreating subscriber thread", WATCHDOG_THRESHOLD_MILLISECONDS);
                     // terminate subscription
                     currentSubscription.cancel(true);
                     currentSubscription = es.submit(new Subscription(currentTopic, currentListener));
