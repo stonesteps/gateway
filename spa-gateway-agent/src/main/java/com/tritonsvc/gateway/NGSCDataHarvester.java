@@ -546,9 +546,9 @@ public class NGSCDataHarvester extends RS485DataHarvester {
         long timestamp = buildTimestamp(daysAgo, hour, minute);
 
         boolean celcius = (0x08 & message[10] >> 3) == 1;
-        int targetTemp = message[11];
-        int sensorATemp = message[12];
-        int sensorBTemp = message[13];
+        int targetTemp = toFahrenheit(celcius, message[11]);
+        int sensorATemp = toFahrenheit(celcius, message[12]);
+        int sensorBTemp = toFahrenheit(celcius, message[13]);
 
         final FaultLogEntry entry = new FaultLogEntry(number, code, timestamp, targetTemp, sensorATemp, sensorBTemp, celcius);
         getFaultLogManager().addFaultLogEntry(entry);
