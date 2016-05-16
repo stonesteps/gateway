@@ -144,7 +144,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
                 .setEngineeringMode((message[17] & 0x10) > 0)
                 .setAccessLocked((message[19] & 0x02) > 0)
                 .setMaintenanceLocked((message[19] & 0x01) > 0)
-                .setAmbientTemp(bwgTempToFahrenheit(0xFF & message[12]))
+                .setAmbientTemp(0xFF & message[12])
                 .setDay(0x1F & message[6])
                 .setMonth(0xFF & message[7])
                 .setYear(2000 + (0xFF & message[8]))
