@@ -12,6 +12,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMo
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -128,10 +129,10 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
                 .setHour(0xFF & message[4])
                 .setMinute(0xFF & message[5])
                 .setErrorCode(0xFF & message[10])
-                .setCurrentWaterTemp(bwgTempToFahrenheit((0xFF & message[11])))
-                .setTargetWaterTemperature(bwgTempToFahrenheit((0xFF & message[12])))
+                .setCurrentWaterTemp(checkJacuzziTempReading((0xFF & message[11])))
+                .setTargetWaterTemperature(checkJacuzziTempReading((0xFF & message[13])))
                 .setCelsius(isCelsius.get())
-                .setCleanupCycle((0x08 & message[23]) > 0)
+                .setCleanupCycle((0x40 & message[15]) > 0)
                 .setDemoMode((0x08 & message[17]) > 0)
                 .setSettingsLock((0x04 & message[19]) > 0)
                 .setTimeNotSet((0x04 & message[17]) > 0)
@@ -143,7 +144,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
                 .setEngineeringMode((message[17] & 0x10) > 0)
                 .setAccessLocked((message[19] & 0x02) > 0)
                 .setMaintenanceLocked((message[19] & 0x01) > 0)
-                .setAmbientTemp(0xFF & message[12])
+                .setAmbientTemp(bwgTempToFahrenheit(0xFF & message[12]))
                 .setDay(0x1F & message[6])
                 .setMonth(0xFF & message[7])
                 .setYear(2000 + (0xFF & message[8]))
@@ -156,7 +157,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
                 .setWaterLevel1((message[16] & 0x08) > 0)
                 .setFlowSwitchClosed((message[16] & 0x01) > 0)
                 .setChangeUV((message[17] & 0x80) > 0)
-                .setHiLimitTemp(0xFF & message[20]);
+                .setHiLimitTemp(checkJacuzziTempReading(0xFF & message[20]));
 
         if (Constants.ReminderCode.valueOf((0xFF & message[32])) != null) {
             builder.setReminderCode(Constants.ReminderCode.valueOf((0xFF & message[32])));
@@ -321,6 +322,14 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
         if (getLatestSpaInfo().getController().getAccessLocked()) {
             throw new RS485Exception("Spa is locked out, no requests are allowed.");
         }
+    }
+
+    private final int checkJacuzziTempReading(int bwgTemp) {
+        if (bwgTemp > 249) {
+            // jacuzzi internal error code for anything above 250
+            return 0;
+        }
+        return bwgTempToFahrenheit(bwgTemp);
     }
 
     private void processLightStatusMessage(byte[] message) {
