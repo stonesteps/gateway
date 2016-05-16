@@ -68,8 +68,8 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             spa.setCurrentState(spaStateEntity);
         }
 
-        spaStateEntity.setDesiredTemp(Integer.toString(spaState.getController().getTargetWaterTemperature()));
-        spaStateEntity.setCurrentTemp(Integer.toString(spaState.getController().getCurrentWaterTemp()));
+        spaStateEntity.setDesiredTemp(spaState.getController().hasTargetWaterTemperature() ? Integer.toString(spaState.getController().getTargetWaterTemperature()) : null);
+        spaStateEntity.setCurrentTemp(spaState.getController().hasCurrentWaterTemp() ? Integer.toString(spaState.getController().getCurrentWaterTemp()) : null);
         spaStateEntity.setCleanupCycle(spaState.getController().getCleanupCycle());
         spaStateEntity.setErrorCode(spaState.getController().getErrorCode());
         spaStateEntity.setMessageSeverity(spaState.getController().getMessageSeverity());

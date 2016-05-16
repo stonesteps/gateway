@@ -218,8 +218,8 @@ message Uplink {
             required uint32 minute = 4;
             required uint32 errorCode = 6;
             // this is always in Fahrenheit
-            required uint32 currentWaterTemp = 2;
-            required uint32 targetWaterTemperature = 31;
+            optional uint32 currentWaterTemp = 2;
+            optional uint32 targetWaterTemperature = 31;
             required bool celsius = 15;
             required bool cleanupCycle = 28;
             required bool demoMode = 27;
