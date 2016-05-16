@@ -635,11 +635,15 @@ public abstract class RS485DataHarvester implements Runnable {
     }
 
     protected final int bwgTempToFahrenheit(int bwgTemp) {
-        if (!usesCelsius()) {
-            return bwgTemp;
+        return toFahrenheit(usesCelsius(), bwgTemp);
+    }
+
+    protected final int toFahrenheit(boolean celsius, int rawTemp) {
+        if (! celsius) {
+            return rawTemp;
         }
-        double celsius = new BigDecimal(bwgTemp / 2.0 ).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();
-        return new BigDecimal((9.0/5.0)*celsius + 32).setScale(0, BigDecimal.ROUND_HALF_UP).intValue();
+        double tempCelsius = new BigDecimal(rawTemp / 2.0 ).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();
+        return new BigDecimal((9.0/5.0)*tempCelsius + 32).setScale(0, BigDecimal.ROUND_HALF_UP).intValue();
     }
 
     protected final List<PumpComponent.State> getAvailablePumpStates(int available) {

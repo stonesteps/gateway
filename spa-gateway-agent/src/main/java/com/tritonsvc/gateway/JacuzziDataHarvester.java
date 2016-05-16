@@ -402,12 +402,11 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
         int month = message[10]; // 1-12
         int year = message[11]; // 0-2000, 1-2001, ...
         long timestamp = buildTimestamp(year, month, day, hour, minute);
-
-        int targetTemp = message[12];
-        int sensorATemp = message[13]; // water
-        int sensorBTemp = message[15]; // ambient
-
         boolean celcius = (0x10 & message[18] >> 4) == 1;
+
+        int targetTemp = toFahrenheit(celcius, message[12]);
+        int sensorATemp = toFahrenheit(celcius, message[13]); // water
+        int sensorBTemp = toFahrenheit(celcius, message[15]); // ambient
 
         final FaultLogEntry entry = new FaultLogEntry(number, code, timestamp, targetTemp, sensorATemp, sensorBTemp, celcius);
         getFaultLogManager().addFaultLogEntry(entry);
