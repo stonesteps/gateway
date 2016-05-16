@@ -129,8 +129,6 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
                 .setHour(0xFF & message[4])
                 .setMinute(0xFF & message[5])
                 .setErrorCode(0xFF & message[10])
-                .setCurrentWaterTemp(checkJacuzziTempReading((0xFF & message[11])))
-                .setTargetWaterTemperature(checkJacuzziTempReading((0xFF & message[13])))
                 .setCelsius(isCelsius.get())
                 .setCleanupCycle((0x40 & message[15]) > 0)
                 .setDemoMode((0x08 & message[17]) > 0)
@@ -156,8 +154,19 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
                 .setWaterLevel2((message[16] & 0x10) > 0)
                 .setWaterLevel1((message[16] & 0x08) > 0)
                 .setFlowSwitchClosed((message[16] & 0x01) > 0)
-                .setChangeUV((message[17] & 0x80) > 0)
-                .setHiLimitTemp(checkJacuzziTempReading(0xFF & message[20]));
+                .setChangeUV((message[17] & 0x80) > 0);
+
+        if (validJacuzziTempReading(0xFF & message[20])) {
+            builder.setHiLimitTemp(bwgTempToFahrenheit(0xFF & message[20]));
+        }
+
+        if (validJacuzziTempReading(0xFF & message[11])) {
+            builder.setCurrentWaterTemp(bwgTempToFahrenheit(0xFF & message[11]));
+        }
+
+        if (validJacuzziTempReading(0xFF & message[13])) {
+            builder.setTargetWaterTemperature(bwgTempToFahrenheit(0xFF & message[13]));
+        }
 
         if (Constants.ReminderCode.valueOf((0xFF & message[32])) != null) {
             builder.setReminderCode(Constants.ReminderCode.valueOf((0xFF & message[32])));
@@ -324,12 +333,12 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
         }
     }
 
-    private final int checkJacuzziTempReading(int bwgTemp) {
+    private final boolean validJacuzziTempReading(int bwgTemp) {
         if (bwgTemp > 249) {
             // jacuzzi internal error code for anything above 250
-            return 0;
+            return false;
         }
-        return bwgTempToFahrenheit(bwgTemp);
+        return true;
     }
 
     private void processLightStatusMessage(byte[] message) {
