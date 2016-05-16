@@ -416,9 +416,10 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
 
     private long buildTimestamp(final int year, final int month, final int day, final int hour, final int minute) {
         final Calendar c = Calendar.getInstance();
-        c.add(Calendar.YEAR, year + 2000);
-        c.add(Calendar.MONTH, month - 1);
-        c.add(Calendar.DAY_OF_MONTH, day);
+        c.clear();
+        c.set(Calendar.YEAR, year + 2000);
+        c.set(Calendar.MONTH, month - 1);
+        c.set(Calendar.DAY_OF_MONTH, day);
         c.set(Calendar.HOUR_OF_DAY, hour);
         c.set(Calendar.MINUTE, minute);
         c.set(Calendar.SECOND, 0);
