@@ -58,13 +58,16 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             for (final Bwg.Uplink.Model.FaultLog faultLog : faultLogs.getFaultLogsList()) {
 
                 final int code = faultLog.getFaultCode();
-                log.debug("Processing fault log with code {} for spa {}", code, spaId);
+                Date occurDate = new Date(faultLog.getOccurenceDate());
 
                 // check if db contains already entry like this
-                FaultLog faultLogEntity = faultLogRepository.findFirstBySpaIdAndCodeAndTimestamp(spaId, code, new Date(faultLog.getOccurenceDate()));
+                FaultLog faultLogEntity = faultLogRepository.findFirstBySpaIdAndCodeAndTimestamp(spaId, code, occurDate);
                 if (faultLogEntity == null) {
                     faultLogEntity = createFaultLogEntity(spaId, controllerType, code, spa, faultLog);
                     faultLogRepository.save(faultLogEntity);
+                    log.info("Saved new fault log with code {} for spa {} and occur date {}", code, spaId, occurDate);
+                } else {
+                    log.info("Skipped fault log with code {} for spa {} and occur date {}, was a duplicate", code, spaId, occurDate);
                 }
             }
         }
