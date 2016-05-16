@@ -22,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Mqtt service class. Responsible for sending and receiving messages from mqtt.
@@ -30,6 +31,10 @@ import java.util.concurrent.TimeoutException;
 public class MqttSubscribeService {
 
     private static final Logger log = LoggerFactory.getLogger(MqttSubscribeService.class);
+
+    private static final int BASE_TIME_MILLISECONDS = 120000;
+    private static final int WATCHDOG_SLEEP_MILLISECONDS = BASE_TIME_MILLISECONDS + 30000;
+    private static final int WATCHDOG_THRESHOLD_MILLISECONDS = BASE_TIME_MILLISECONDS + 15000;
 
     @Autowired
     private MessageProcessorConfiguration messageProcessorConfiguration;
@@ -51,6 +56,11 @@ public class MqttSubscribeService {
     private FutureConnection connection;
 
     private Future<Void> currentSubscription;
+    private Future<Void> watchdog;
+
+    private String currentTopic;
+    private MessageListener currentListener;
+    private AtomicLong lastCheckin;
 
     @PreDestroy
     public void cleanup() {
@@ -61,13 +71,24 @@ public class MqttSubscribeService {
         if (currentSubscription != null) {
             currentSubscription.cancel(true);
         }
+
+        if (watchdog != null) {
+            watchdog.cancel(true);
+        }
+
         disconnect();
     }
 
     public void subscribe(final String topic, final MessageListener listener) throws Exception {
         log.info("subscribing listener to topic {}", topic);
-        final Subscription subscription = new Subscription(topic, listener);
+
+        currentTopic = topic;
+        currentListener = listener;
+        lastCheckin = new AtomicLong(System.currentTimeMillis());
+
+        final Subscription subscription = new Subscription(currentTopic, currentListener);
         currentSubscription = es.submit(subscription);
+        watchdog = es.submit(new Watchdog());
     }
 
     @VisibleForTesting
@@ -139,8 +160,9 @@ public class MqttSubscribeService {
 
                 try {
                     while (!Thread.currentThread().isInterrupted()) {
+                        lastCheckin.set(System.currentTimeMillis());
                         log.info("waiting for message...");
-                        final Message message = connection.receive().await(2, TimeUnit.MINUTES);
+                        final Message message = connection.receive().await(BASE_TIME_MILLISECONDS, TimeUnit.MILLISECONDS);
                         if (message != null) {
                             message.ack();
                             log.info("got message, processing");
@@ -156,7 +178,27 @@ public class MqttSubscribeService {
                     log.info("no uplink messages received in 2 minutes, will recreate subscription ...");
                 } catch (final Throwable e) {
                     log.error("exception processing message, will recreate subscription ...", e);
-                    try {Thread.sleep(10000);} catch (InterruptedException ie){};
+                    try {Thread.sleep(10000);} catch (InterruptedException ie){}
+                }
+            }
+            return null;
+        }
+    }
+
+    private final class Watchdog implements Callable<Void> {
+
+        @Override
+        public Void call() throws Exception {
+            while (!Thread.currentThread().isInterrupted()) {
+                // check periodically if current subscription thread is not hung
+                Thread.sleep(WATCHDOG_SLEEP_MILLISECONDS);
+                if (System.currentTimeMillis() - lastCheckin.get() > WATCHDOG_THRESHOLD_MILLISECONDS) {
+                    log.error("No subscriber activity for over {} milliseconds, recreating subscriber thread", WATCHDOG_THRESHOLD_MILLISECONDS);
+                    // terminate subscription
+                    currentSubscription.cancel(true);
+                    currentSubscription = es.submit(new Subscription(currentTopic, currentListener));
+                } else {
+                    log.info("Subscriber thread is active, taking no action");
                 }
             }
             return null;
