@@ -178,7 +178,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
                 }
             }
 
-            ByteBuffer bb = ByteBuffer.allocate(10);
+            ByteBuffer bb = ByteBuffer.allocate(15);
             bb.put(DELIMITER_BYTE); // start flag
             bb.put((byte) 0x0D); // length between flags
             bb.put(address); // device address
