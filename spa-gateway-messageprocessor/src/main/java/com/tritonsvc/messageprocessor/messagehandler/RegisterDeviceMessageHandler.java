@@ -136,11 +136,8 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         // generate new registration key with each registration call
         spa.setRegKey(generateRandomString(16));
         spaRepository.save(spa);
-
-        if (dirtyGateway) {
-            gatewayComponent.setSpaId(spa.get_id());
-            componentRepository.save(gatewayComponent);
-        }
+        gatewayComponent.setSpaId(spa.get_id());
+        componentRepository.save(gatewayComponent);
 
         try {
             final SpaRegistrationResponse registrationResponse = BwgHelper.buildSpaRegistrationResponse(
