@@ -156,15 +156,15 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
                 .setFlowSwitchClosed((message[16] & 0x01) > 0)
                 .setChangeUV((message[17] & 0x80) > 0);
 
-        if (validJacuzziTempReading(0xFF & message[20])) {
+        if (validTempReading(0xFF & message[20])) {
             builder.setHiLimitTemp(bwgTempToFahrenheit(0xFF & message[20]));
         }
 
-        if (validJacuzziTempReading(0xFF & message[11])) {
+        if (validTempReading(0xFF & message[11])) {
             builder.setCurrentWaterTemp(bwgTempToFahrenheit(0xFF & message[11]));
         }
 
-        if (validJacuzziTempReading(0xFF & message[13])) {
+        if (validTempReading(0xFF & message[13])) {
             builder.setTargetWaterTemperature(bwgTempToFahrenheit(0xFF & message[13]));
         }
 
@@ -331,14 +331,6 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
         if (getLatestSpaInfo().getController().getAccessLocked()) {
             throw new RS485Exception("Spa is locked out, no requests are allowed.");
         }
-    }
-
-    private final boolean validJacuzziTempReading(int bwgTemp) {
-        if (bwgTemp > 249) {
-            // jacuzzi internal error code for anything above 250
-            return false;
-        }
-        return true;
     }
 
     private void processLightStatusMessage(byte[] message) {
