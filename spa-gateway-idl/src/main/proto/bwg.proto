@@ -451,46 +451,28 @@ message Uplink {
         }
 
         message WifiStat {
-            /**
-            these are obtained from linux 'iwconfig wlan0' command
-            the output of command defined in detail at http://linux.die.net/man/8/iwconfig
-
-            ** when connected **
-            Mode:Managed  Frequency:2.412 GHz  Access Point: 00:24:17:44:35:28
-            Bit Rate=48 Mb/s   Tx-Power=19 dBm
-            Retry limit:231   RTS thr:off   Fragment thr:off
-            Power Management:off
-            Link Quality=46/70  Signal level=-64 dBm
-            Rx invalid nwid:0  Rx invalid crypt:0  Rx invalid frag:0
-            Tx excessive retries:170  Invalid misc:134   Missed beacon:0
-
-            ** when disconnected **
-            wlan0     IEEE 802.11abgn  ESSID:off/any
-            Mode:Managed  Access Point: Not-Associated   Tx-Power=20 dBm
-            Retry  long limit:7   RTS thr:off   Fragment thr:off
-            Power Management:on
-            */
             required fixed64 recordedDate = 1;
-            required bool   apConnected = 2;
-            optional WifiData data = 3;
+            required bool   apConnected = 2; // most important, true means Wifi is currently connected to intended ap
+            optional double txPowerDbm = 3;
+            optional string apMacAddress = 4;
+            optional string mode = 5;
+            optional string retryConfig = 6;
+            optional string rtsConfig = 7;
+            optional string fragConfig = 8;
+            optional string powerMgmtConfig = 9;
+            optional string SSID = 10;
+            optional WifiConnectionDiagnostics connectedDiag = 11; // this is only present if apConnected  = true
 
-            message WifiData {
-                optional string mode = 2;
-                optional double frequencyGhz = 3;
-                optional string apMacAddress = 5;
-                optional uint64 dataRateBitsSecond = 6;
-                optional double txPowerDbm = 7;
-                optional double linkQualityPercentage = 8;
-                optional uint32 signalLevelUnits = 9; //usually it's dBm, but no gaurantee
-                required string retryConfig = 10; // a string phrase
-                required string rtsConfig = 11;
-                required string fragConfig = 12;
-                required string powerMgmtConfig = 13;
-                required uint64 rxOtherAPPacketCount = 14;
-                required uint64 rxInvalidCryptPacketCount = 15;
-                required uint64 rxInvalidFragPacketCount = 16;
-                required uint64 txExcessiveRetries = 17;
-                required uint64 lostBeaconCount = 18;
+            message WifiConnectionDiagnostics {
+                optional double frequencyGhz = 1;
+                optional uint64 dataRateBitsSecond = 2;
+                optional double linkQualityPercentage = 3;
+                optional uint32 signalLevelUnits = 4; //usually it's dBm, but no gaurantee
+                required uint64 rxOtherAPPacketCount = 5;
+                required uint64 rxInvalidCryptPacketCount = 6;
+                required uint64 rxInvalidFragPacketCount = 7;
+                required uint64 txExcessiveRetries = 8;
+                required uint64 lostBeaconCount = 9;
             }
         }
     }
