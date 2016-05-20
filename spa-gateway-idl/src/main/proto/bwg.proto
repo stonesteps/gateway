@@ -57,7 +57,6 @@ message Uplink {
 		ACKNOWLEDGEMENT = 2;
 		SPA_STATE = 3;
         EVENT = 4;
-        MEASUREMENT = 5;
         FAULT_LOGS = 6;
         WIFI_STATS = 7;
 	}
@@ -84,27 +83,6 @@ message Uplink {
         message DownlinkAcknowledge {
             required AckResponseCode code = 1;
             optional string description = 2;
-        }
-
-        // Report device alert.
-        message Notification {
-            required string alertType = 1;
-            required string alertMessage = 2;
-            optional fixed64 eventDate = 3;
-            repeated Metadata metadata = 4;
-        }
-
-        // A single measurement.
-        message Measurement {
-            required string measurementId = 1;
-            required double measurementValue = 2;
-        }
-
-        // Event message for device measurements.
-        message DeviceMeasurements {
-            repeated Measurement measurement = 1;
-            optional fixed64 eventDate = 2;
-            repeated Metadata metadata = 3;
         }
 
         // check for existence, some of these child components may be absent initially, Controller at a minimum
@@ -390,8 +368,9 @@ message Uplink {
             }
 
             enum EventType {
-                NOTIFY = 1;
+                REPORT = 1;
                 ALERT = 2;
+                MEASUREMENT = 3;
             }
 
             enum TempRange {
@@ -439,11 +418,17 @@ message Uplink {
             }
         }
 
-        // A non-scheduled event
         message Event {
             required Constants.EventType eventType = 1;
-            optional fixed64 eventTimestamp = 2;
+            required fixed64 eventOccuredTimestamp = 2;
             repeated Metadata metadata = 3;
+            repeated Metadata oidData = 4;
+            optional string description = 5;
+            required fixed64 eventReceivedTimestamp = 6;
+        }
+
+        message Events {
+            repeated Event events = 1;
         }
 
         // Fault Logs

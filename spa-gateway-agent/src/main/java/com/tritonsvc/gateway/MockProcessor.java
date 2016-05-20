@@ -11,6 +11,9 @@ import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
+import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -223,11 +227,6 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         }
     }
 
-    @Override
-    public void sendMeasurements(String hardwareId, String originator, Map<String, Double> measurements, long measurementTimestampMillis, Map<String, String> meta) {
-        super.sendMeasurements(hardwareId, originator, measurements, measurementTimestampMillis, meta);
-    }
-
     private void updatePeripherlal(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId, Bwg.Uplink.Model.Constants.ComponentType componentType) {
         final String desiredState = BwgHelper.getRequestMetadataValue(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name(), metadataList);
         final String portStr = BwgHelper.getRequestMetadataValue(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name(), metadataList);
@@ -296,7 +295,19 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         meta.put("heat_delta", Double.toString(Math.abs(pre - post)));
         meta.put("comment", "controller temp probes");
 
-        sendMeasurements(registeredMote.getHardwareId(), null, measurement, new Date().getTime(), meta);
+        List<Event> events = newArrayList();
+        Event.Builder eb = Event.newBuilder();
+        eb.setEventOccuredTimestamp(new Date().getTime());
+        eb.setEventReceivedTimestamp(new Date().getTime());
+        eb.setEventType(EventType.MEASUREMENT);
+        eb.setDescription("this is a fake measurement");
+        for (Map.Entry<String, String> entry : meta.entrySet()) {
+            eb.addMetadata(Metadata.newBuilder().setName(entry.getKey()).setValue(entry.getValue()).build());
+        }
+
+        events.add(eb.build());
+
+        sendEvents(registeredMote.getHardwareId(), events);
 
         // send spa info
         LOGGER.info("Sending spa info");
