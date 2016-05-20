@@ -468,11 +468,11 @@ message Uplink {
                 optional uint64 dataRateBitsSecond = 2;
                 optional double linkQualityPercentage = 3;
                 optional uint32 signalLevelUnits = 4; //usually it's dBm, but no gaurantee
-                required uint64 rxOtherAPPacketCount = 5;
-                required uint64 rxInvalidCryptPacketCount = 6;
-                required uint64 rxInvalidFragPacketCount = 7;
-                required uint64 txExcessiveRetries = 8;
-                required uint64 lostBeaconCount = 9;
+                optional uint64 rxOtherAPPacketCount = 5;
+                optional uint64 rxInvalidCryptPacketCount = 6;
+                optional uint64 rxInvalidFragPacketCount = 7;
+                optional uint64 txExcessiveRetries = 8;
+                optional uint64 lostBeaconCount = 9;
             }
         }
     }
