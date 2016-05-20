@@ -638,6 +638,14 @@ public abstract class RS485DataHarvester implements Runnable {
         return toFahrenheit(usesCelsius(), bwgTemp);
     }
 
+    protected final boolean validTempReading(int bwgTemp) {
+        if (bwgTemp > 249) {
+            // internal error code for anything above 250
+            return false;
+        }
+        return true;
+    }
+
     protected final int toFahrenheit(boolean celsius, int rawTemp) {
         if (! celsius) {
             return rawTemp;
