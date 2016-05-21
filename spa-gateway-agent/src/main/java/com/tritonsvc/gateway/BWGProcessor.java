@@ -33,8 +33,10 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.Componen
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStat;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
+import com.tritonsvc.wifi.ParserIwconfig;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
 import jdk.dio.uart.UARTConfig;
@@ -42,6 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,12 +83,13 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private AtomicLong updateInterval = new AtomicLong(DEFAULT_UPDATE_INTERVAL);
-
     private AtomicLong lastFaultLogsSent = new AtomicLong(0);
-
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
     private String rs485ControllerType = null;
+    private String wifiDevice = null;
+    private WifiStat lastWifiStat = null;
+    private ParserIwconfig lwconfigParser = new ParserIwconfig();
 
     @Override
     public void handleShutdown() {
@@ -110,6 +114,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         // persistent key/value db
         this.gwSerialNumber = gwSerialNumber;
         this.configProps = configProps;
+        this.wifiDevice = configProps.getProperty(AgentConfiguration.WIFI_DEVICE_NAME, "wlan0");
         new WebServer(configProps, this, this);
         this.es = executorService;
         setupAgentSettings();
@@ -558,28 +563,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
             locked = false;
-
-            // send when logs fetched from device become available
-            if (faultLogManager.hasUnsentFaultLogs()) {
-                final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
-                if (faultLogs != null) {
-                    LOGGER.info("sent {} fault logs to cloud", faultLogs.getFaultLogsCount());
-                    getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.FAULT_LOGS, faultLogs);
-                }
-            }
-
-            // fault logs - check FaultLogsManager for default fetch interval
-            // issue fetch logs command untill there are logs to collect from device
-            final int nextLogNumberToFetch = faultLogManager.generateFetchNext();
-            if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || nextLogNumberToFetch > -1) {
-                // get latest fetch log entry or entry with number held by fault log manager
-                Short logNumber = nextLogNumberToFetch > -1 ? Short.valueOf((short) nextLogNumberToFetch): null;
-                LOGGER.info("sending request for fault log number {}", logNumber != null ? logNumber.toString() : 255);
-
-                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), true, logNumber);
-
-                lastFaultLogsSent.set(System.currentTimeMillis());
-            }
+            processFaultLogs(registeredSpa.getHardwareId());
+            //processWifiDiag(registeredSpa.getHardwareId());
         } catch (Exception ex) {
             LOGGER.error("error while processing data harvest", ex);
         } finally {
@@ -701,6 +686,70 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     @VisibleForTesting
     void setRS485MessagePublisher(RS485MessagePublisher rs485MessagePublisher) {
         this.rs485MessagePublisher = rs485MessagePublisher;
+    }
+
+    private void processFaultLogs (String hardwareId) {
+        // send when logs fetched from device become available
+        if (faultLogManager.hasUnsentFaultLogs()) {
+            final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
+            if (faultLogs != null) {
+                LOGGER.info("sent {} fault logs to cloud", faultLogs.getFaultLogsCount());
+                getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.FAULT_LOGS, faultLogs);
+            }
+        }
+
+        // fault logs - check FaultLogsManager for default fetch interval
+        // issue fetch logs command untill there are logs to collect from device
+        final int nextLogNumberToFetch = faultLogManager.generateFetchNext();
+        if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || nextLogNumberToFetch > -1) {
+            // get latest fetch log entry or entry with number held by fault log manager
+            Short logNumber = nextLogNumberToFetch > -1 ? Short.valueOf((short) nextLogNumberToFetch): null;
+            LOGGER.info("sending request for fault log number {}", logNumber != null ? logNumber.toString() : 255);
+
+            try {
+                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), true, logNumber);
+            } catch (RS485Exception ex) {
+                LOGGER.error("unable to send request for fault log", ex);
+            }
+            lastFaultLogsSent.set(System.currentTimeMillis());
+        }
+    }
+
+    private void processWifiDiag (String hardwareId) {
+
+        boolean wLocked = false;
+        try {
+            WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice);
+
+            // set connection currentWifiStat.connectionHealth
+
+
+
+            if (lastWifiStat == null || !Objects.equals(currentWifiStat.getWifiConnectionHealth(), lastWifiStat.getWifiConnectionHealth())) {
+                getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
+                wLocked = true;
+                SpaState.Builder stateBuilder = SpaState.newBuilder(getRS485DataHarvester().getLatestSpaInfo());
+                stateBuilder.setWifiState(currentWifiStat.getWifiConnectionHealth());
+                stateBuilder.setLastUpdateTimestamp(new Date().getTime() + 1);
+                getRS485DataHarvester().setLatestSpaInfo(stateBuilder.build());
+                getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
+                wLocked = false;
+
+                // new event for wifi health changed.
+                //sendEvents();
+            }
+
+        } catch (Exception ex) {
+            LOGGER.error("problem while updated filter state", ex);
+        } finally {
+            if (wLocked) {
+                getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
+            }
+        }
+
+
+
+
     }
 
     private RS485MessagePublisher getRS485MessagePublisher() {

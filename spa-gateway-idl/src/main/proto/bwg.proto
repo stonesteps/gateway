@@ -97,6 +97,7 @@ message Uplink {
             optional Components components = 4;
             optional fixed64 lastUpdateTimestamp = 5;
             optional uint32 updateInterval = 6;
+            optional Constants.WifiConnectionHealth wifiState = 7;
         }
 
         // this is the state of each known component attached to controller
@@ -416,6 +417,13 @@ message Uplink {
                 FILTER = 11;
                 UV = 12;
             }
+            enum WifiConnectionHealth {
+                DISCONNECTED = 0;
+                WEAK = 1;
+                AVG = 2;
+                STRONG = 3;
+                UNKONW = 4;
+            }
         }
 
         message Event {
@@ -452,7 +460,8 @@ message Uplink {
 
         message WifiStat {
             required fixed64 recordedDate = 1;
-            required bool   apConnected = 2; // most important, true means Wifi is currently connected to intended ap
+            required bool   apConnected = 2;
+            required Constants.WifiConnectionHealth wifiConnectionHealth = 12;
             optional double txPowerDbm = 3;
             optional string apMacAddress = 4;
             optional string mode = 5;
