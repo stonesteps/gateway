@@ -136,11 +136,8 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         // generate new registration key with each registration call
         spa.setRegKey(generateRandomString(16));
         spaRepository.save(spa);
-
-        if (dirtyGateway) {
-            gatewayComponent.setSpaId(spa.get_id());
-            componentRepository.save(gatewayComponent);
-        }
+        gatewayComponent.setSpaId(spa.get_id());
+        componentRepository.save(gatewayComponent);
 
         try {
             final SpaRegistrationResponse registrationResponse = BwgHelper.buildSpaRegistrationResponse(
@@ -157,7 +154,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
     private void processMetaDataValue(Map<String, String> componentMeta, String key, List<Metadata> metadata) {
         List<String> values = metadata
                 .stream()
-                .filter(metaEntry -> metaEntry.hasName() && metaEntry.hasValue())
+                .filter(metaEntry -> metaEntry.hasName() && metaEntry.getName().equals(key) && metaEntry.hasValue())
                 .map(Metadata::getValue)
                 .collect(toList());
 

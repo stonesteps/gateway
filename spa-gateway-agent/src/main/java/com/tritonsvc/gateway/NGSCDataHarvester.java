@@ -175,7 +175,7 @@ public class NGSCDataHarvester extends RS485DataHarvester {
 
     @Override
     public Controller populateControllerStateFromPanelUpdate(byte[] message) {
-        return Controller.newBuilder()
+        Controller.Builder builder =  Controller.newBuilder()
                 .setPackType("NGSC")
                 .setErrorCode(0xFF & message[10])
                 .setHour(0xFF & message[7])
@@ -184,7 +184,6 @@ public class NGSCDataHarvester extends RS485DataHarvester {
                 .setBluetoothStatus(BluetoothStatus.valueOf((0xF0 & message[27]) >> 4) != null ? BluetoothStatus.valueOf((0xF0 & message[27]) >> 4) : BluetoothStatus.NOT_PRESENT)
                 .setCelsius(isCelsius.get())
                 .setCleanupCycle((0x08 & message[23]) > 0)
-                .setCurrentWaterTemp(bwgTempToFahrenheit((0xFF & message[6])))
                 .setDemoMode((0x10 & message[23]) > 0)
                 .setEcoMode((0x04 & message[26]) > 0)
                 .setElapsedTimeDisplay((0x80 & message[25]) > 0)
@@ -214,12 +213,19 @@ public class NGSCDataHarvester extends RS485DataHarvester {
                 .setStirring((0x08 & message[26]) > 0)
                 .setSwimSpaMode(SwimSpaMode.valueOf((0x30 & message[22]) >> 4))
                 .setSwimSpaModeChanging((0x08 & message[23]) > 0)
-                .setTargetWaterTemperature(bwgTempToFahrenheit((0xFF & message[24])))
                 .setTempRange(TempRange.valueOf((0x04 & message[14]) >> 2))
                 .setTestMode((0x04 & message[23]) > 0)
                 .setTimeNotSet((0x02 & message[23]) > 0)
-                .setTvLiftState((0x70 & message[25]) >> 4)
-                .build();
+                .setTvLiftState((0x70 & message[25]) >> 4);
+
+        if (validTempReading(0xFF & message[6])) {
+            builder.setCurrentWaterTemp(bwgTempToFahrenheit((0xFF & message[6])));
+        }
+        if (validTempReading(0xFF & message[24])) {
+            builder.setTargetWaterTemperature(bwgTempToFahrenheit((0xFF & message[24])));
+        }
+
+        return builder.build();
     }
 
     @Override
