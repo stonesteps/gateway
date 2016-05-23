@@ -781,9 +781,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                         .addMetadata(Metadata.newBuilder().setName("newWifiStatus").setValue(currentWifiStat.getWifiConnectionHealth().name()))
                         .build();
                 sendEvents(hardwareId, newArrayList(event));
-                sendWifiStats(hardwareId, newArrayList(currentWifiStat));
-                lastWifiStatsSent.set(new Date().getTime());
-                lastWifiStatSent = currentWifiStat;
             }
 
             if (wifiStatUpdateInterval.get() < 1) {

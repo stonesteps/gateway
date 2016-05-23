@@ -460,11 +460,13 @@ message Uplink {
 
         message WifiStat {
             required fixed64 recordedDate = 1;
+            optional fixed64 elapsedDeltaMilliseconds = 20;
             required Constants.WifiConnectionHealth wifiConnectionHealth = 12;
             optional double txPowerDbm = 3;
             optional string apMacAddress = 4;
             optional string mode = 5;
-            optional string retryConfig = 6;
+            optional string retryLimitPhraseConfig = 6;
+            optional string retryLimitValueConfig = 13;
             optional string rtsConfig = 7;
             optional string fragConfig = 8;
             optional string powerMgmtConfig = 9;
@@ -473,22 +475,26 @@ message Uplink {
 
             message WifiConnectionDiagnostics {
                 optional string frequency = 1;
-                optional string dataRate = 2;
+                optional string rawDataRate = 2;
+                optional uint64 dataRate = 18;
+                optional int64 deltaDataRate = 19;
                 optional uint64 linkQualityPercentage = 3; //0 - 100
-                optional int32 deltaLinkQualityPercentage = 11;
+                optional int64 deltaLinkQualityPercentage = 11;
                 optional string linkQualityRaw = 10;
                 optional uint64 signalLevelUnits = 4; //usually it's dBm, but no gaurantee
-                optional int32 deltaSignalLevelUnits = 12;
+                optional int64 deltaSignalLevelUnits = 12;
                 optional uint64 rxOtherAPPacketCount = 5;
-                optional int32 deltaRxOtherAPPacketCount = 13;
+                optional int64 deltaRxOtherAPPacketCount = 13;
                 optional uint64 rxInvalidCryptPacketCount = 6;
-                optional int32 deltaRxInvalidCryptPacketCount = 14;
+                optional int64 deltaRxInvalidCryptPacketCount = 14;
                 optional uint64 rxInvalidFragPacketCount = 7;
-                optional int32 deltaRxInvalidFragPacketCount = 15;
+                optional int64 deltaRxInvalidFragPacketCount = 15;
                 optional uint64 txExcessiveRetries = 8;
-                optional int32 deltaTxExcessiveRetries = 16;
+                optional int64 deltaTxExcessiveRetries = 16;
                 optional uint64 lostBeaconCount = 9;
-                optional int32 deltaLostBeaconCount = 17;
+                optional int64 deltaLostBeaconCount = 17;
+                optional uint64 noiseLevel = 20;
+                optional int64 deltaNoiseLevel = 21;
             }
         }
     }

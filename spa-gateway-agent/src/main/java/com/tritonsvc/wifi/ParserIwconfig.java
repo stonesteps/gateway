@@ -1,19 +1,30 @@
 package com.tritonsvc.wifi;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Doubles;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.WifiConnectionHealth;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStat;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStat.WifiConnectionDiagnostics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ParserIwconfig {
+    private static Logger LOGGER = LoggerFactory.getLogger(WifiStat.class);
+    private static Pattern numericGrab = Pattern.compile("(-?[0-9]+)");
+    private static Pattern paramGrab = Pattern.compile("[:,=](.*)");
+    private static Pattern retryGrab = Pattern.compile("(retry.*?)[:,=](.*?)\\s");
+    private static Pattern apGrab = Pattern.compile("access point[:,=]\\s*(.+?)(?=\\s|$)");
 
     /**
      these are obtained from linux 'iwconfig wlan0' command
@@ -40,24 +51,26 @@ public class ParserIwconfig {
         String line;
         WifiStat.Builder wifiStatBuilder = WifiStat.newBuilder();
         WifiConnectionDiagnostics.Builder dataBuilder = WifiConnectionDiagnostics.newBuilder();
-        Process proc = Runtime.getRuntime().exec("sudo iwconfig " + interfaceName);
+        Process proc = executeUnixCommand(interfaceName);
         wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.UNKONWN);
-        wifiStatBuilder.setConnectedDiag(dataBuilder);
         wifiStatBuilder.setRecordedDate(new Date().getTime());
-        Pattern numericGrab = Pattern.compile("(-?[0-9]+)");
-        Pattern paramGrab = Pattern.compile("[:,=](.*)");
+        if (previousWifiStat != null) {
+            wifiStatBuilder.setElapsedDeltaMilliseconds(wifiStatBuilder.getRecordedDate() - previousWifiStat.getRecordedDate());
+        }
+
 
         try (BufferedReader iwconfigInput = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
             while ((line = iwconfigInput.readLine()) != null) {
 
                 line = line.toLowerCase();
+                LOGGER.debug("retrieved wifi stat: {}", line);
 
                 ///// BASE STATION MAC /////
-                int macIndex = line.indexOf("access point");
-                String bsMAC = processMatch(paramGrab, line.substring(macIndex));
-                if (bsMAC != null) {
-                    if (!bsMAC.equalsIgnoreCase("not-associated")) {
-                        wifiStatBuilder.setApMacAddress(bsMAC);
+
+                Matcher apMatcher = apGrab.matcher(line);
+                if (apMatcher.find()) {
+                    if (!apMatcher.group(1).equals("not-associated")) {
+                        wifiStatBuilder.setApMacAddress(apMatcher.group(1));
                         wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.AVG);
                     } else {
                         wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.DISCONNECTED);
@@ -66,9 +79,11 @@ public class ParserIwconfig {
 
                 ///// BASE STATION ESSID /////
                 int essidIndex = line.indexOf("essid");
-                String essid = processMatch(paramGrab, line.substring(essidIndex));
-                if (essid != null) {
-                    wifiStatBuilder.setSSID(essid);
+                if (essidIndex != -1) {
+                    String essid = processMatch(paramGrab, line.substring(essidIndex));
+                    if (essid != null) {
+                        wifiStatBuilder.setSSID(essid);
+                    }
                 }
 
                 ///// ACCESS POINT MODE /////
@@ -82,6 +97,7 @@ public class ParserIwconfig {
                 }
 
                 ///// FREQ /////
+                int macIndex = line.indexOf("access point");
                 if (frequencyIndex != -1 && macIndex != -1) {
                     String freq = processMatch(paramGrab, line.substring(frequencyIndex, macIndex - 1));
                     if (freq != null) {
@@ -90,13 +106,16 @@ public class ParserIwconfig {
                 }
 
                 ///// Signal Level /////
-                int signalIndex = line.indexOf("signal level");
-                if (signalIndex != -1) {
-                    String signalLevel = processMatch(numericGrab, line.substring(signalIndex));
+                int signalLevelIndex = line.indexOf("signal level");
+                if (signalLevelIndex != -1) {
+                    String signalLevel = processMatch(numericGrab, line.substring(signalLevelIndex));
                     if (signalLevel != null) {
                         Long level = Longs.tryParse(signalLevel);
                         if (level != null) {
                             dataBuilder.setSignalLevelUnits(level);
+                        }
+                        if (previousWifiStat != null && previousWifiStat.getConnectedDiag().hasSignalLevelUnits()) {
+                            dataBuilder.setDeltaSignalLevelUnits(level - previousWifiStat.getConnectedDiag().getSignalLevelUnits());
                         }
                     }
                 }
@@ -107,7 +126,15 @@ public class ParserIwconfig {
                 if (bitRateIndex != -1 && txPowerIndex != -1) {
                     String bitRate = processMatch(paramGrab, line.substring(bitRateIndex, txPowerIndex - 1));
                     if (bitRate != null) {
-                        dataBuilder.setDataRate(bitRate);
+                        dataBuilder.setRawDataRate(bitRate);
+                        String dataRate = processMatch(numericGrab, bitRate);
+                        if (dataRate != null && Longs.tryParse(dataRate) != null) {
+                            Long rate = Longs.tryParse(dataRate);
+                            dataBuilder.setDataRate(rate);
+                            if (previousWifiStat != null && previousWifiStat.getConnectedDiag().hasDataRate()) {
+                                dataBuilder.setDeltaDataRate(rate - previousWifiStat.getConnectedDiag().getDataRate());
+                            }
+                        }
                     }
                 }
 
@@ -123,16 +150,18 @@ public class ParserIwconfig {
                 }
 
                 ///// retry limit /////
-                int retryLimitIndex = line.indexOf("retry limit");
-                int rtsIndex = line.indexOf("rts thr");
-                if (retryLimitIndex != -1 && rtsIndex != -1) {
-                    String retryLimit = processMatch(paramGrab, line.substring(retryLimitIndex, rtsIndex - 1));
-                    if (retryLimit != null) {
-                        wifiStatBuilder.setRetryConfig(retryLimit);
+                Matcher matcher = retryGrab.matcher(line);
+                if (matcher.find()) {
+                    if (matcher.group(1) != null) {
+                        wifiStatBuilder.setRetryLimitPhraseConfig(matcher.group(1));
+                    }
+                    if (matcher.group(2) != null) {
+                        wifiStatBuilder.setRetryLimitValueConfig(matcher.group(2));
                     }
                 }
 
                 ///// rts /////
+                int rtsIndex = line.indexOf("rts thr");
                 int fragmentIndex = line.indexOf("fragment thr");
                 if (rtsIndex != -1 && fragmentIndex != -1) {
                     String rts = processMatch(paramGrab, line.substring(rtsIndex, fragmentIndex - 1));
@@ -160,7 +189,6 @@ public class ParserIwconfig {
 
                 ///// link quality /////
                 int linkQualityIndex = line.indexOf("link quality");
-                int signalLevelIndex = line.indexOf("signal level");
                 if (linkQualityIndex != -1 && signalLevelIndex != -1) {
                     String linkQuality = processMatch(paramGrab, line.substring(linkQualityIndex, signalLevelIndex - 1));
                     if (linkQuality != null) {
@@ -169,29 +197,36 @@ public class ParserIwconfig {
                         if (parts.length == 2) {
                             Double numerator = Doubles.tryParse(parts[0]);
                             Double denominator = Doubles.tryParse(parts[1]);
-                            long linkQualityPercent = Math.round(numerator / denominator);
-                            if (numerator != null && denominator != null) {
+                            if (numerator != null && denominator != null && denominator != 0) {
+                                long linkQualityPercent = new BigDecimal(numerator / denominator).setScale(2, RoundingMode.HALF_UP).multiply(new BigDecimal(100)).longValue();
                                 dataBuilder.setLinkQualityPercentage(linkQualityPercent);
-                            }
+                                if (previousWifiStat != null && previousWifiStat.getConnectedDiag().hasLinkQualityPercentage()) {
+                                    dataBuilder.setDeltaLinkQualityPercentage(linkQualityPercent - previousWifiStat.getConnectedDiag().getLinkQualityPercentage());
+                                }
 
-                            if (linkQualityPercent < 34) {
-                                wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.WEAK);
-                            } else if (linkQualityPercent > 67) {
-                                wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.AVG);
-                            } else {
-                                wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.STRONG);
+                                if (linkQualityPercent < 34) {
+                                    wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.WEAK);
+                                } else if (linkQualityPercent > 67) {
+                                    wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.AVG);
+                                } else {
+                                    wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.STRONG);
+                                }
                             }
                         }
                     }
                 }
 
-                ///// signal level /////
-                if (signalLevelIndex != -1) {
-                    String signalLevel = processMatch(numericGrab, line.substring(signalLevelIndex));
-                    if (signalLevel != null) {
-                        Long signal = Longs.tryParse(signalLevel);
-                        if (signal != null) {
-                            dataBuilder.setSignalLevelUnits(signal);
+                ///// noise level /////
+                int noiseLevelIndex = line.indexOf("noise level");
+                if (noiseLevelIndex != -1) {
+                    String noiseLevel = processMatch(numericGrab, line.substring(noiseLevelIndex));
+                    if (noiseLevel != null) {
+                        Long noise = Longs.tryParse(noiseLevel);
+                        if (noise != null) {
+                            dataBuilder.setNoiseLevel(noise);
+                            if (previousWifiStat != null && previousWifiStat.getConnectedDiag().hasNoiseLevel()) {
+                                dataBuilder.setDeltaNoiseLevel(noise - previousWifiStat.getConnectedDiag().getNoiseLevel());
+                            }
                         }
                     }
                 }
@@ -203,6 +238,9 @@ public class ParserIwconfig {
                     String invalidNwid = processMatch(numericGrab, line.substring(invalidNetworkIndex, invalidCryptIndex - 1));
                     if (invalidNwid != null && Ints.tryParse(invalidNwid) != null) {
                         dataBuilder.setRxOtherAPPacketCount(Ints.tryParse(invalidNwid));
+                        if (previousWifiStat != null && previousWifiStat.getConnectedDiag().hasRxOtherAPPacketCount()) {
+                            dataBuilder.setDeltaRxOtherAPPacketCount(dataBuilder.getRxOtherAPPacketCount() - previousWifiStat.getConnectedDiag().getRxOtherAPPacketCount());
+                        }
                     }
                 }
 
@@ -212,6 +250,9 @@ public class ParserIwconfig {
                     String invalidCrypt = processMatch(numericGrab, line.substring(invalidCryptIndex, invalidFragIndex - 1));
                     if (invalidCrypt != null && Ints.tryParse(invalidCrypt) != null) {
                         dataBuilder.setRxInvalidCryptPacketCount(Ints.tryParse(invalidCrypt));
+                        if (previousWifiStat != null && previousWifiStat.getConnectedDiag().hasRxInvalidCryptPacketCount()) {
+                            dataBuilder.setDeltaRxInvalidCryptPacketCount(dataBuilder.getRxInvalidCryptPacketCount() - previousWifiStat.getConnectedDiag().getRxInvalidCryptPacketCount());
+                        }
                     }
                 }
 
@@ -220,16 +261,22 @@ public class ParserIwconfig {
                     String invalidFrag = processMatch(numericGrab, line.substring(invalidFragIndex));
                     if (invalidFrag != null && Ints.tryParse(invalidFrag) != null) {
                         dataBuilder.setRxInvalidFragPacketCount(Ints.tryParse(invalidFrag));
+                        if (previousWifiStat != null && previousWifiStat.getConnectedDiag().hasRxInvalidFragPacketCount()) {
+                            dataBuilder.setDeltaRxInvalidFragPacketCount(dataBuilder.getRxInvalidFragPacketCount() - previousWifiStat.getConnectedDiag().getRxInvalidFragPacketCount());
+                        }
                     }
                 }
 
                 ///// tx excessive retrty /////
-                int txExcessiveIndex = line.indexOf("Tx excessive retries");
+                int txExcessiveIndex = line.indexOf("tx excessive retries");
                 int invalidMiscIndex = line.indexOf("invalid misc");
                 if (txExcessiveIndex != -1 && invalidMiscIndex != -1) {
                     String invalidExcessive = processMatch(numericGrab, line.substring(txExcessiveIndex, invalidMiscIndex - 1));
                     if (invalidExcessive != null && Ints.tryParse(invalidExcessive) != null) {
                         dataBuilder.setTxExcessiveRetries(Ints.tryParse(invalidExcessive));
+                        if (previousWifiStat != null && previousWifiStat.getConnectedDiag().hasTxExcessiveRetries()) {
+                            dataBuilder.setDeltaTxExcessiveRetries(dataBuilder.getTxExcessiveRetries() - previousWifiStat.getConnectedDiag().getTxExcessiveRetries());
+                        }
                     }
                 }
 
@@ -239,19 +286,28 @@ public class ParserIwconfig {
                     String missedBeacon = processMatch(numericGrab, line.substring(missedBeaconIndex));
                     if (missedBeacon != null && Ints.tryParse(missedBeacon) != null) {
                         dataBuilder.setLostBeaconCount(Ints.tryParse(missedBeacon));
+                        if (previousWifiStat != null && previousWifiStat.getConnectedDiag().hasLostBeaconCount()) {
+                            dataBuilder.setDeltaLostBeaconCount(dataBuilder.getLostBeaconCount() - previousWifiStat.getConnectedDiag().getLostBeaconCount());
+                        }
                     }
                 }
             }
         } finally {
             proc.destroyForcibly();
         }
+        wifiStatBuilder.setConnectedDiag(dataBuilder);
         return wifiStatBuilder.build();
+    }
+
+    @VisibleForTesting
+    Process executeUnixCommand(String interfaceName) throws IOException {
+        return Runtime.getRuntime().exec("sudo iwconfig " + interfaceName);
     }
 
     private String processMatch(Pattern pattern, String input) {
         Matcher matcher = pattern.matcher(input);
         if (matcher.find()) {
-            return matcher.group().trim();
+            return matcher.group(1).trim();
         }
         return null;
     }
