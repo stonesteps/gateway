@@ -6,6 +6,7 @@ package com.tritonsvc.model;
 public class GenericSettings {
 
     private Integer updateInterval;
+    private Integer wifiUpdateInterval;
     private String rs485ControllerType;
 
     public String getRs485ControllerType() {
@@ -22,5 +23,13 @@ public class GenericSettings {
 
     public void setUpdateInterval(Integer updateInterval) {
         this.updateInterval = updateInterval;
+    }
+
+    public Integer getWifiUpdateInterval() {
+        return wifiUpdateInterval;
+    }
+
+    public void setWifiUpdateInterval(Integer wifiUpdateInterval) {
+        this.wifiUpdateInterval = wifiUpdateInterval;
     }
 }

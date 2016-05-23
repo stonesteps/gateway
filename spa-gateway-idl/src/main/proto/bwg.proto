@@ -369,9 +369,10 @@ message Uplink {
             }
 
             enum EventType {
-                REPORT = 1;
+                NOTIFICATION = 1;
                 ALERT = 2;
                 MEASUREMENT = 3;
+                REQEUST = 4;
             }
 
             enum TempRange {
@@ -422,7 +423,7 @@ message Uplink {
                 WEAK = 1;
                 AVG = 2;
                 STRONG = 3;
-                UNKONW = 4;
+                UNKONWN = 4;
             }
         }
 
@@ -451,16 +452,14 @@ message Uplink {
             required uint32 sensorATemp = 4;
             required uint32 sensorBTemp = 5;
             required bool celcius = 6;
-       }
+        }
 
-        // Fault Logs
         message WifiStats {
             repeated WifiStat wifiStats = 1;
         }
 
         message WifiStat {
             required fixed64 recordedDate = 1;
-            required bool   apConnected = 2;
             required Constants.WifiConnectionHealth wifiConnectionHealth = 12;
             optional double txPowerDbm = 3;
             optional string apMacAddress = 4;
@@ -473,15 +472,23 @@ message Uplink {
             optional WifiConnectionDiagnostics connectedDiag = 11; // this is only present if apConnected  = true
 
             message WifiConnectionDiagnostics {
-                optional double frequencyGhz = 1;
-                optional uint64 dataRateBitsSecond = 2;
-                optional double linkQualityPercentage = 3;
-                optional uint32 signalLevelUnits = 4; //usually it's dBm, but no gaurantee
+                optional string frequency = 1;
+                optional string dataRate = 2;
+                optional uint64 linkQualityPercentage = 3; //0 - 100
+                optional int32 deltaLinkQualityPercentage = 11;
+                optional string linkQualityRaw = 10;
+                optional uint64 signalLevelUnits = 4; //usually it's dBm, but no gaurantee
+                optional int32 deltaSignalLevelUnits = 12;
                 optional uint64 rxOtherAPPacketCount = 5;
+                optional int32 deltaRxOtherAPPacketCount = 13;
                 optional uint64 rxInvalidCryptPacketCount = 6;
+                optional int32 deltaRxInvalidCryptPacketCount = 14;
                 optional uint64 rxInvalidFragPacketCount = 7;
+                optional int32 deltaRxInvalidFragPacketCount = 15;
                 optional uint64 txExcessiveRetries = 8;
+                optional int32 deltaTxExcessiveRetries = 16;
                 optional uint64 lostBeaconCount = 9;
+                optional int32 deltaLostBeaconCount = 17;
             }
         }
     }
@@ -566,6 +573,7 @@ message Downlink {
             INTERVAL_SECONDS = 5;
             DURATION_MINUTES = 6;
             RS485_CONTROLLER_TYPE=7;
+            WIFI_INTERVAL_SECONDS = 8;
         }
 
         message RequestMetadata {

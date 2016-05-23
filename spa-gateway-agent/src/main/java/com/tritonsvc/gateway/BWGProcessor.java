@@ -25,13 +25,17 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestType;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.WifiConnectionHealth;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStat;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
@@ -44,6 +48,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -55,7 +60,9 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -68,6 +75,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private static final long MAX_REG_LIFETIME = 240000;
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static final long DEFAULT_UPDATE_INTERVAL = 0; //continuous
+    private static final long DEFAULT_WIFIUPDATE_INTERVAL = 0x9000000; // 4 hours
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     private static Map<String, String> DEFAULT_EMPTY_MAP = newHashMap();
@@ -81,14 +89,17 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private FaultLogManager faultLogManager;
     private UART rs485Uart;
     private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
+    private AtomicLong lastWifiStatsSent = new AtomicLong(0);
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private AtomicLong updateInterval = new AtomicLong(DEFAULT_UPDATE_INTERVAL);
+    private AtomicLong wifiStatUpdateInterval = new AtomicLong(DEFAULT_WIFIUPDATE_INTERVAL);
     private AtomicLong lastFaultLogsSent = new AtomicLong(0);
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
     private String rs485ControllerType = null;
     private String wifiDevice = null;
     private WifiStat lastWifiStat = null;
+    private WifiStat lastWifiStatSent = null;
     private ParserIwconfig lwconfigParser = new ParserIwconfig();
 
     @Override
@@ -196,6 +207,17 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         LOGGER.info("received downlink command from cloud {}, originatorid = {}", request.getRequestType().name(), originatorId);
         sendAck(hardwareId, originatorId, AckResponseCode.RECEIVED, null);
+        long receivedTime = new Date().getTime();
+        Event event = Event.newBuilder()
+                .setEventOccuredTimestamp(receivedTime)
+                .setEventReceivedTimestamp(receivedTime)
+                .setEventType(EventType.REQEUST)
+                .setDescription("Received " + request.getRequestType().name() + " request")
+                .addAllMetadata(convertRequestToMetaData(request.getMetadataList()))
+                .addMetadata(Metadata.newBuilder().setName("originatorId").setValue(originatorId))
+                .build();
+
+        sendEvents(hardwareId, newArrayList(event));
 
         try {
             if (request.getRequestType().equals(RequestType.HEATER)) {
@@ -265,6 +287,12 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.rs485ControllerType = type;
     }
 
+    private List<Metadata> convertRequestToMetaData(Collection<RequestMetadata> requestMetadata) {
+        return requestMetadata.stream()
+                .map(request ->  Metadata.newBuilder().setName(request.getName().name()).setValue(request.getValue()).build())
+                .collect(Collectors.toList());
+    }
+
     private void updateHeater(final List<RequestMetadata> metadataList, byte registeredAddress, String originatorId, String hardwareId, boolean celsius) throws Exception {
         getRS485DataHarvester().arePanelCommandsSafe(true);
         Integer temperature = null;
@@ -324,6 +352,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         final Integer intervalSeconds = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.INTERVAL_SECONDS.name(), metadataList));
         final Integer durationMinutes = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DURATION_MINUTES.name(), metadataList));
         final String rs485ControllerType = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.RS485_CONTROLLER_TYPE.name(), metadataList);
+        final Integer wifiIntervalSeconds = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.WIFI_INTERVAL_SECONDS.name(), metadataList));
 
         if (intervalSeconds != null && durationMinutes != null) {
             updateInterval.set(1000L * intervalSeconds.longValue());
@@ -344,6 +373,17 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                         updateInterval.set(DEFAULT_UPDATE_INTERVAL);
                     }, durationMinutes.longValue(), TimeUnit.MINUTES);
                 }
+            }
+        }
+
+        if (wifiIntervalSeconds != null) {
+            if (wifiIntervalSeconds < 0)
+            {
+                wifiStatUpdateInterval.set(DEFAULT_WIFIUPDATE_INTERVAL);
+                clearWifiUpdateIntervalFromAgentSettings();
+            } else {
+                wifiStatUpdateInterval.set(1000L * wifiIntervalSeconds.longValue());
+                saveCurrentWifiUpdateIntervalInAgentSettings();
             }
         }
 
@@ -564,7 +604,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
             locked = false;
             processFaultLogs(registeredSpa.getHardwareId());
-            //processWifiDiag(registeredSpa.getHardwareId());
+            processWifiDiag(registeredSpa.getHardwareId());
         } catch (Exception ex) {
             LOGGER.error("error while processing data harvest", ex);
         } finally {
@@ -716,40 +756,57 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private void processWifiDiag (String hardwareId) {
-
         boolean wLocked = false;
         try {
-            WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice);
-
-            // set connection currentWifiStat.connectionHealth
-
-
+            WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice, lastWifiStatSent);
 
             if (lastWifiStat == null || !Objects.equals(currentWifiStat.getWifiConnectionHealth(), lastWifiStat.getWifiConnectionHealth())) {
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
                 wLocked = true;
+                long receivedTime = new Date().getTime() + 1;
                 SpaState.Builder stateBuilder = SpaState.newBuilder(getRS485DataHarvester().getLatestSpaInfo());
                 stateBuilder.setWifiState(currentWifiStat.getWifiConnectionHealth());
-                stateBuilder.setLastUpdateTimestamp(new Date().getTime() + 1);
+                stateBuilder.setLastUpdateTimestamp(receivedTime);
                 getRS485DataHarvester().setLatestSpaInfo(stateBuilder.build());
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
                 wLocked = false;
 
-                // new event for wifi health changed.
-                //sendEvents();
+                String oldWifiStatus = (lastWifiStat == null ? WifiConnectionHealth.UNKONWN.name() : lastWifiStat.getWifiConnectionHealth().name());
+                Event event = Event.newBuilder()
+                        .setEventOccuredTimestamp(receivedTime)
+                        .setEventReceivedTimestamp(receivedTime)
+                        .setEventType(EventType.NOTIFICATION)
+                        .setDescription("Wifi status change detected, from " + oldWifiStatus + " to " + currentWifiStat.getWifiConnectionHealth().name())
+                        .addMetadata(Metadata.newBuilder().setName("oldWifiStatus").setValue(oldWifiStatus))
+                        .addMetadata(Metadata.newBuilder().setName("newWifiStatus").setValue(currentWifiStat.getWifiConnectionHealth().name()))
+                        .build();
+                sendEvents(hardwareId, newArrayList(event));
+                sendWifiStats(hardwareId, newArrayList(currentWifiStat));
+                lastWifiStatsSent.set(new Date().getTime());
+                lastWifiStatSent = currentWifiStat;
             }
 
+            if (wifiStatUpdateInterval.get() < 1) {
+                if (System.currentTimeMillis() - lastWifiStatsSent.get() > 60000) {
+                    sendWifiStats(hardwareId, newArrayList(currentWifiStat));
+                    lastWifiStatsSent.set(new Date().getTime());
+                    lastWifiStatSent = currentWifiStat;
+                }
+            } else if (System.currentTimeMillis() - lastWifiStatsSent.get() > wifiStatUpdateInterval.get()) {
+                sendWifiStats(hardwareId, newArrayList(currentWifiStat));
+                lastWifiStatsSent.set(new Date().getTime());
+                lastWifiStatSent = currentWifiStat;
+            }
+
+            lastWifiStat = currentWifiStat;
+
         } catch (Exception ex) {
-            LOGGER.error("problem while updated filter state", ex);
+            LOGGER.error("problem while processing wifi diag", ex);
         } finally {
             if (wLocked) {
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
             }
         }
-
-
-
-
     }
 
     private RS485MessagePublisher getRS485MessagePublisher() {
@@ -980,6 +1037,21 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         saveAgentSettings();
     }
 
+    private void saveCurrentWifiUpdateIntervalInAgentSettings() {
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setWifiUpdateInterval(getWifiUpdateIntervalSeconds());
+        }
+        saveAgentSettings();
+    }
+
+    private void clearWifiUpdateIntervalFromAgentSettings() {
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setWifiUpdateInterval(null);
+        }
+        saveAgentSettings();
+    }
+
+
     private void saveCurrentProcessorTypeInAgentSettings() {
         if (getAgentSettings() != null) {
             validateGenericSettings().setRs485ControllerType(getRS485ControllerType());
@@ -1001,6 +1073,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             updateInterval.set(agentSettings.getGenericSettings().getUpdateInterval().longValue() * 1000L);
         }
 
+        if (agentSettings != null && agentSettings.getGenericSettings() != null && agentSettings.getGenericSettings().getWifiUpdateInterval() != null) {
+            // translate seconds to milliseconds
+            wifiStatUpdateInterval.set(agentSettings.getGenericSettings().getWifiUpdateInterval().longValue() * 1000L);
+        }
+
         if (agentSettings != null && agentSettings.getGenericSettings() != null && !Strings.isNullOrEmpty(agentSettings.getGenericSettings().getRs485ControllerType())) {
             setRS485ControllerType(agentSettings.getGenericSettings().getRs485ControllerType());
         }
@@ -1008,6 +1085,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     public int getUpdateIntervalSeconds() {
         return (int) (updateInterval.get() / 1000L);
+    }
+
+    public int getWifiUpdateIntervalSeconds() {
+        return (int) (wifiStatUpdateInterval.get() / 1000L);
     }
 
 }
