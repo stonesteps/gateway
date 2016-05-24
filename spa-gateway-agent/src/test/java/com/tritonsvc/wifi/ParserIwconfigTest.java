@@ -27,7 +27,7 @@ public class ParserIwconfigTest {
         parser = new ParserIwconfig();
         parser = spy(parser);
         unixProcess = mock(Process.class);
-        doReturn(unixProcess).when(parser).executeUnixCommand(eq("wlan0"));
+        doReturn(unixProcess).when(parser).executeUnixCommand(eq("wlan0"), eq("iwconfig"));
      }
 
     @Test
@@ -52,7 +52,7 @@ public class ParserIwconfigTest {
                 .setWifiConnectionHealth(WifiConnectionHealth.AVG)
                 .build();
 
-        WifiStat newStat = parser.parseStat("wlan0", prev);
+        WifiStat newStat = parser.parseStat("wlan0", prev, "iwconfig");
 
         assertEquals(newStat.getApMacAddress(), "00:24:17:44:35:28");
         assertEquals(newStat.getWifiConnectionHealth(), WifiConnectionHealth.WEAK);
@@ -84,7 +84,7 @@ public class ParserIwconfigTest {
     public void itParsesDisConnectedWifi() throws Exception {
         when(unixProcess.getInputStream()).thenReturn(ParserIwconfigTest.class.getResourceAsStream("/disconnectedIwConfig.txt"));
 
-        WifiStat newStat = parser.parseStat("wlan0", null);
+        WifiStat newStat = parser.parseStat("wlan0", null, "iwconfig");
         assertFalse(newStat.hasApMacAddress());
         assertEquals(newStat.getWifiConnectionHealth(), WifiConnectionHealth.DISCONNECTED);
 
