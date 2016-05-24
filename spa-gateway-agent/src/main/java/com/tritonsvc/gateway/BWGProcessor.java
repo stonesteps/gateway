@@ -98,7 +98,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private ScheduledFuture<?> intervalResetFuture = null;
     private String rs485ControllerType = null;
     private String wifiDevice = null;
-    private WifiStat lastWifiStat = null;
+    private String iwConfigPath = null;
+    private WifiStat lastWifiStatParsed = null;
     private WifiStat lastWifiStatSent = null;
     private ParserIwconfig lwconfigParser = new ParserIwconfig();
 
@@ -126,6 +127,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.gwSerialNumber = gwSerialNumber;
         this.configProps = configProps;
         this.wifiDevice = configProps.getProperty(AgentConfiguration.WIFI_DEVICE_NAME, "wlan0");
+        this.iwConfigPath = configProps.getProperty(AgentConfiguration.WIFI_IWCONFIG_PATH, "/sbin/iwconfig");
         new WebServer(configProps, this, this);
         this.es = executorService;
         setupAgentSettings();
@@ -573,6 +575,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         // make sure the controller is registered as a compoenent to cloud
         obtainControllerRegistration(registeredSpa.getHardwareId());
 
+        processWifiDiag(registeredSpa.getHardwareId());
         if (getRS485DataHarvester().getRegisteredAddress() == null) {
             LOGGER.info("skipping data harvest, gateway has not registered over 485 bus with spa controller yet");
             return;
@@ -604,7 +607,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
             locked = false;
             processFaultLogs(registeredSpa.getHardwareId());
-            processWifiDiag(registeredSpa.getHardwareId());
         } catch (Exception ex) {
             LOGGER.error("error while processing data harvest", ex);
         } finally {
@@ -758,9 +760,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private void processWifiDiag (String hardwareId) {
         boolean wLocked = false;
         try {
-            WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice, lastWifiStatSent);
+            WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice, lastWifiStatSent, iwConfigPath);
 
-            if (lastWifiStat == null || !Objects.equals(currentWifiStat.getWifiConnectionHealth(), lastWifiStat.getWifiConnectionHealth())) {
+            if (lastWifiStatParsed == null || !Objects.equals(currentWifiStat.getWifiConnectionHealth(), lastWifiStatParsed.getWifiConnectionHealth())) {
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
                 wLocked = true;
                 long receivedTime = new Date().getTime() + 1;
@@ -771,7 +773,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
                 wLocked = false;
 
-                String oldWifiStatus = (lastWifiStat == null ? WifiConnectionHealth.UNKONWN.name() : lastWifiStat.getWifiConnectionHealth().name());
+                String oldWifiStatus = (lastWifiStatParsed == null ? WifiConnectionHealth.UNKONWN.name() : lastWifiStatParsed.getWifiConnectionHealth().name());
                 Event event = Event.newBuilder()
                         .setEventOccuredTimestamp(receivedTime)
                         .setEventReceivedTimestamp(receivedTime)
@@ -781,6 +783,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                         .addMetadata(Metadata.newBuilder().setName("newWifiStatus").setValue(currentWifiStat.getWifiConnectionHealth().name()))
                         .build();
                 sendEvents(hardwareId, newArrayList(event));
+                sendWifiStats(hardwareId, newArrayList(currentWifiStat));
+                lastWifiStatsSent.set(new Date().getTime());
+                lastWifiStatSent = currentWifiStat;
+                LOGGER.info("sent wifi stat and event to cloud, connection health changed from {} to {}", oldWifiStatus, currentWifiStat.getWifiConnectionHealth().name());
             }
 
             if (wifiStatUpdateInterval.get() < 1) {
@@ -788,15 +794,19 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                     sendWifiStats(hardwareId, newArrayList(currentWifiStat));
                     lastWifiStatsSent.set(new Date().getTime());
                     lastWifiStatSent = currentWifiStat;
+                    LOGGER.info("sent wifi stat to cloud, connection health {}", currentWifiStat.getWifiConnectionHealth().name());
                 }
             } else if (System.currentTimeMillis() - lastWifiStatsSent.get() > wifiStatUpdateInterval.get()) {
                 sendWifiStats(hardwareId, newArrayList(currentWifiStat));
                 lastWifiStatsSent.set(new Date().getTime());
                 lastWifiStatSent = currentWifiStat;
+                LOGGER.info("sent wifi stat to cloud, connection health {}", currentWifiStat.getWifiConnectionHealth().name());
             }
 
-            lastWifiStat = currentWifiStat;
+            lastWifiStatParsed = currentWifiStat;
 
+        } catch (InterruptedException ex) {
+            throw Throwables.propagate(ex);
         } catch (Exception ex) {
             LOGGER.error("problem while processing wifi diag", ex);
         } finally {

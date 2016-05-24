@@ -20,7 +20,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ParserIwconfig {
-    private static Logger LOGGER = LoggerFactory.getLogger(WifiStat.class);
+    private static Logger LOGGER = LoggerFactory.getLogger(ParserIwconfig.class);
     private static Pattern numericGrab = Pattern.compile("(-?[0-9]+)");
     private static Pattern paramGrab = Pattern.compile("[:,=](.*)");
     private static Pattern retryGrab = Pattern.compile("(retry.*?)[:,=](.*?)\\s");
@@ -46,27 +46,31 @@ public class ParserIwconfig {
      Power Management:on
      */
 
-    public WifiStat parseStat(String interfaceName, WifiStat previousWifiStat) throws Exception {
+    /**
+     * generate a wifi stat report
+     *
+     * @param interfaceName
+     * @param previousWifiStat
+     * @param iwConfigPath
+     * @return
+     * @throws Exception
+     */
+    public WifiStat parseStat(String interfaceName, WifiStat previousWifiStat, String iwConfigPath) throws Exception {
 
         String line;
         WifiStat.Builder wifiStatBuilder = WifiStat.newBuilder();
         WifiConnectionDiagnostics.Builder dataBuilder = WifiConnectionDiagnostics.newBuilder();
-        Process proc = executeUnixCommand(interfaceName);
+        Process proc = executeUnixCommand(interfaceName, iwConfigPath);
         wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.UNKONWN);
         wifiStatBuilder.setRecordedDate(new Date().getTime());
         if (previousWifiStat != null) {
             wifiStatBuilder.setElapsedDeltaMilliseconds(wifiStatBuilder.getRecordedDate() - previousWifiStat.getRecordedDate());
         }
 
-
         try (BufferedReader iwconfigInput = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
             while ((line = iwconfigInput.readLine()) != null) {
-
                 line = line.toLowerCase();
-                LOGGER.debug("retrieved wifi stat: {}", line);
-
                 ///// BASE STATION MAC /////
-
                 Matcher apMatcher = apGrab.matcher(line);
                 if (apMatcher.find()) {
                     if (!apMatcher.group(1).equals("not-associated")) {
@@ -88,11 +92,13 @@ public class ParserIwconfig {
 
                 ///// ACCESS POINT MODE /////
                 int modeIndex = line.indexOf("mode");
+                int accessPointIndex = line.indexOf("access point");
                 int frequencyIndex = line.indexOf("frequency");
-                if (modeIndex != -1 && frequencyIndex != -1) {
-                    String mode = processMatch(paramGrab, line.substring(modeIndex, frequencyIndex - 1));
-                    if (mode != null) {
-                        wifiStatBuilder.setMode(mode);
+                if (modeIndex != -1 && accessPointIndex != -1) {
+                    if (wifiStatBuilder.getWifiConnectionHealth().equals(WifiConnectionHealth.AVG.DISCONNECTED)) {
+                        wifiStatBuilder.setMode(processMatch(paramGrab, line.substring(modeIndex, accessPointIndex - 1)));
+                    } else if (frequencyIndex != -1) {
+                        wifiStatBuilder.setMode(processMatch(paramGrab, line.substring(modeIndex, frequencyIndex - 1)));
                     }
                 }
 
@@ -300,8 +306,8 @@ public class ParserIwconfig {
     }
 
     @VisibleForTesting
-    Process executeUnixCommand(String interfaceName) throws IOException {
-        return Runtime.getRuntime().exec("sudo iwconfig " + interfaceName);
+    Process executeUnixCommand(String interfaceName, String iwConfigPath) throws IOException {
+        return Runtime.getRuntime().exec(iwConfigPath + " " + interfaceName);
     }
 
     private String processMatch(Pattern pattern, String input) {

@@ -368,6 +368,7 @@ public class Agent {
 			try {
                 if (!connection.isConnected()) {
                     connection.connect();
+                    //TODO needs to be callback connection with onsuccess/failure handlers, cache uplink if possible
                 }
 
                 Builder builder = Header.newBuilder()
@@ -393,6 +394,8 @@ public class Agent {
                 if (msg != null) {
                     msg.writeDelimitedTo(out);
                 }
+
+                //TODO needs to be call back connection, with onsuccess/failure handlers
 				connection.publish(topic, out.toByteArray(), QoS.EXACTLY_ONCE, false);
             } catch (Exception e) {
 				throw Throwables.propagate(e);
