@@ -6,6 +6,7 @@ import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MessageListener;
 import com.tritonsvc.messageprocessor.mqtt.MqttSubscribeService;
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Events;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.FaultLogs;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
@@ -75,6 +76,9 @@ public class UplinkProcessor implements MessageListener {
             } else if (uplinkHeader.getCommand() == UplinkCommandType.WIFI_STATS) {
                 final WifiStats wifiStats = WifiStats.parseDelimitedFrom(stream);
                 handleMessage(WifiStats.class, header, uplinkHeader, wifiStats);
+            } else if (uplinkHeader.getCommand() == UplinkCommandType.EVENT) {
+                final Events events = Events.parseDelimitedFrom(stream);
+                handleMessage(Events.class, header, uplinkHeader, events);
             }
 
         } catch (Exception e) {

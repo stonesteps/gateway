@@ -5,6 +5,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -27,6 +28,16 @@ public final class BwgHelper {
             }
         }
         return value;
+    }
+
+    public static Map<String, String> getMetadataAsMap(final Iterable<Bwg.Metadata> metadata) {
+        Map<String, String> metadataMap = new HashMap<>();
+        if (metadata != null) {
+            for (final Bwg.Metadata metadataElem : metadata) {
+                metadataMap.put(metadataElem.getName(), metadataElem.getValue());
+            }
+        }
+        return metadataMap;
     }
 
     public static String getRequestMetadataValue(final String name, final Iterable<Bwg.Downlink.Model.RequestMetadata> metadata) {

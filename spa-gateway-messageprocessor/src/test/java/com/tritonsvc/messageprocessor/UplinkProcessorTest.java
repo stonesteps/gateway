@@ -2,6 +2,7 @@ package com.tritonsvc.messageprocessor;
 
 import com.bwg.iot.model.*;
 import com.bwg.iot.model.Component.ComponentType;
+import com.bwg.iot.model.EventType;
 import com.bwg.iot.model.WifiConnectionHealth;
 import com.tritonsvc.gateway.FaultLogEntry;
 import com.tritonsvc.gateway.FaultLogManager;
@@ -60,6 +61,9 @@ public class UplinkProcessorTest {
 
     @Autowired
     private WifiStatRepository wifiStatRepository;
+
+    @Autowired
+    private EventRepository eventRepository;
 
     @After
     @Before
@@ -265,5 +269,33 @@ public class UplinkProcessorTest {
         assertEquals("spaId", stats.get(0).getSpaId());
         assertEquals("mode", stats.get(0).getMode());
         assertEquals(WifiConnectionHealth.AVG, stats.get(0).getWifiConnectionHealth());
+    }
+
+    @Test
+    public void handleEvents() throws Exception {
+        eventRepository.deleteAll();
+
+        // send register message
+        Spa spa = new Spa();
+        spa.set_id("spaId");
+        spaRepository.save(spa);
+
+        final Bwg.Uplink.Model.Event event = Bwg.Uplink.Model.Event.newBuilder().
+                setEventType(Bwg.Uplink.Model.Constants.EventType.ALERT).
+                setEventOccuredTimestamp(System.currentTimeMillis()).
+                setEventReceivedTimestamp(System.currentTimeMillis()).
+                build();
+        final Bwg.Uplink.Model.Events events = Bwg.Uplink.Model.Events.newBuilder().addEvents(event).build();
+
+        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), BwgHelper.buildUplinkMessage("1", "spaId", UplinkCommandType.EVENT, events));
+
+        // wait for message to be delivered and processed
+        Thread.sleep(1000);
+
+        final List<Event> entities = eventRepository.findAll();
+        assertNotNull(entities);
+        assertEquals(1, entities.size());
+        assertEquals("spaId", entities.get(0).getSpaId());
+        assertEquals(EventType.ALERT, entities.get(0).getEventType());
     }
 }

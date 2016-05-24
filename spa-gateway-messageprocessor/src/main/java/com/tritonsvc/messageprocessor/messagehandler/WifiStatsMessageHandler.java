@@ -1,7 +1,6 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
 import com.bwg.iot.model.*;
-import com.tritonsvc.messageprocessor.mongo.repository.FaultLogDescriptionRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.WifiStatRepository;
 import com.tritonsvc.spa.communication.proto.Bwg;
@@ -28,9 +27,6 @@ public class WifiStatsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
     @Autowired
     private WifiStatRepository wifiStatRepository;
 
-    @Autowired
-    private FaultLogDescriptionRepository faultLogDescriptionRepository;
-
     @Override
     public Class<Bwg.Uplink.Model.WifiStats> handles() {
         return Bwg.Uplink.Model.WifiStats.class;
@@ -43,7 +39,7 @@ public class WifiStatsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         final String spaId = uplinkHeader.getHardwareId();
         final Spa spa = spaRepository.findOne(spaId);
         if (spa == null) {
-            log.error("Received fault logs for unknown spa: {}", spaId);
+            log.error("Received wifi stats for unknown spa: {}", spaId);
             return;
         }
 
