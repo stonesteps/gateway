@@ -2,18 +2,15 @@ package com.tritonsvc.messageprocessor;
 
 import com.bwg.iot.model.*;
 import com.bwg.iot.model.Component.ComponentType;
+import com.bwg.iot.model.WifiConnectionHealth;
 import com.tritonsvc.gateway.FaultLogEntry;
 import com.tritonsvc.gateway.FaultLogManager;
-import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.FaultLogRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
+import com.tritonsvc.messageprocessor.mongo.repository.*;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BluetoothStatus;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.SwimSpaMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
@@ -36,7 +33,6 @@ import java.util.*;
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.*;
 
@@ -61,6 +57,9 @@ public class UplinkProcessorTest {
 
     @Autowired
     private FaultLogRepository faultLogRepository;
+
+    @Autowired
+    private WifiStatRepository wifiStatRepository;
 
     @After
     @Before
@@ -237,5 +236,34 @@ public class UplinkProcessorTest {
         assertEquals(100, logs.get(0).getTargetTemp());
         assertEquals(101, logs.get(0).getSensorATemp());
         assertEquals(102, logs.get(0).getSensorBTemp());
+    }
+
+    @Test
+    public void handleWifiStats() throws Exception {
+        wifiStatRepository.deleteAll();
+
+        // send register message
+        Spa spa = new Spa();
+        spa.set_id("spaId");
+        spaRepository.save(spa);
+
+        final Bwg.Uplink.Model.WifiStat wifiStat = Bwg.Uplink.Model.WifiStat.newBuilder().
+                setMode("mode").
+                setWifiConnectionHealth(Bwg.Uplink.Model.Constants.WifiConnectionHealth.AVG).
+                setRecordedDate(System.currentTimeMillis()).
+                build();
+        final Bwg.Uplink.Model.WifiStats wifiStats = Bwg.Uplink.Model.WifiStats.newBuilder().addWifiStats(wifiStat).build();
+
+        mqttSendService.sendMessage(messageProcessorConfiguration.getUplinkTopicName(), BwgHelper.buildUplinkMessage("1", "spaId", UplinkCommandType.WIFI_STATS, wifiStats));
+
+        // wait for message to be delivered and processed
+        Thread.sleep(1000);
+
+        final List<WifiStat> stats = wifiStatRepository.findAll();
+        assertNotNull(stats);
+        assertEquals(1, stats.size());
+        assertEquals("spaId", stats.get(0).getSpaId());
+        assertEquals("mode", stats.get(0).getMode());
+        assertEquals(WifiConnectionHealth.AVG, stats.get(0).getWifiConnectionHealth());
     }
 }
