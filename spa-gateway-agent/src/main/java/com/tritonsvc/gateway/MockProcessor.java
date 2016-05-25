@@ -30,7 +30,7 @@ import static com.google.common.collect.Maps.newHashMap;
  */
 public class MockProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
-    private static final long FAULT_LOG_SEND_INTERVAL = 3600000; // 1 hour in milliseconds
+    private static final long RANDOM_DATA_SEND_INTERVAL = 3600000; // 1 hour in milliseconds
     private static Logger LOGGER = LoggerFactory.getLogger(MockProcessor.class);
     private DeviceRegistration registeredSpa = new DeviceRegistration();
     private DeviceRegistration registeredController = new DeviceRegistration();
@@ -43,7 +43,10 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     // enabled by default
     private boolean sendRandomFaultLogs = true;
-    private long lastFaultLogSendTime = 0L;
+    private long lastFaultLogsSendTime = 0L;
+
+    private boolean sendRandomWifiStats = true;
+    private long lastWifiStatsSendTime = 0L;
 
     @Override
     public void handleShutdown() {
@@ -103,6 +106,11 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         final String sendRandomFaultLogsStr = props.getProperty("mock.sendRandomFaultLogs");
         if (sendRandomFaultLogsStr != null) {
             sendRandomFaultLogs = "true".equalsIgnoreCase(sendRandomFaultLogsStr);
+        }
+
+        final String sendRandomWifiStatsStr = props.getProperty("mock.sendRandomWifiStats");
+        if (sendRandomWifiStatsStr != null) {
+            sendRandomWifiStats = "true".equalsIgnoreCase(sendRandomWifiStatsStr);
         }
     }
 
@@ -315,16 +323,18 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
         sendFaultLogs();
 
+        sendWifiStats();
+
         LOGGER.info("Sent harvest periodic reports");
     }
 
     private void sendFaultLogs() {
         if (!sendRandomFaultLogs) return;
 
-        if (System.currentTimeMillis() > lastFaultLogSendTime + FAULT_LOG_SEND_INTERVAL) {
+        if (System.currentTimeMillis() > lastFaultLogsSendTime + RANDOM_DATA_SEND_INTERVAL) {
             final Bwg.Uplink.Model.FaultLogs randomFaultLogs = buildRandomFaultLogs();
             getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, Bwg.Uplink.UplinkCommandType.FAULT_LOGS, randomFaultLogs);
-            lastFaultLogSendTime = System.currentTimeMillis();
+            lastFaultLogsSendTime = System.currentTimeMillis();
         }
     }
 
@@ -340,6 +350,61 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
         faultLogManager.addFaultLogEntry(new FaultLogEntry(0, randomCode, System.currentTimeMillis(), targetTemp, tempA, tempB, false));
         return faultLogManager.getUnsentFaultLogs();
+    }
+
+    private void sendWifiStats() {
+        if (!sendRandomWifiStats) return;
+
+        if (System.currentTimeMillis() > lastWifiStatsSendTime + RANDOM_DATA_SEND_INTERVAL) {
+            sendWifiStats(registeredSpa.getHardwareId(), buildRandomWifiStats());
+            lastWifiStatsSendTime = System.currentTimeMillis();
+        }
+    }
+
+    private List<Bwg.Uplink.Model.WifiStat> buildRandomWifiStats() {
+        Bwg.Uplink.Model.WifiStat.Builder builder = Bwg.Uplink.Model.WifiStat.newBuilder();
+
+        Bwg.Uplink.Model.WifiStat.WifiConnectionDiagnostics.Builder diagBuilder = Bwg.Uplink.Model.WifiStat.WifiConnectionDiagnostics.newBuilder();
+        diagBuilder.setFrequency("2.437 GHz");
+        diagBuilder.setRawDataRate("11 Mb/s");
+        diagBuilder.setDataRate(1100000);
+        diagBuilder.setDeltaDataRate(0);
+        diagBuilder.setLinkQualityPercentage(100);
+        diagBuilder.setDeltaLinkQualityPercentage(0);
+        diagBuilder.setLinkQualityRaw("255/255");
+        diagBuilder.setSignalLevelUnits(0);
+        diagBuilder.setDeltaSignalLevelUnits(0);
+        diagBuilder.setRxOtherAPPacketCount(0);
+        diagBuilder.setDeltaRxOtherAPPacketCount(0);
+        diagBuilder.setRxInvalidCryptPacketCount(0);
+        diagBuilder.setDeltaRxInvalidCryptPacketCount(0);
+        diagBuilder.setRxInvalidFragPacketCount(0);
+        diagBuilder.setDeltaRxInvalidFragPacketCount(0);
+        diagBuilder.setTxExcessiveRetries(0);
+        diagBuilder.setDeltaTxExcessiveRetries(0);
+        diagBuilder.setLostBeaconCount(0);
+        diagBuilder.setDeltaLostBeaconCount(0);
+        diagBuilder.setNoiseLevel(0);
+        diagBuilder.setDeltaNoiseLevel(0);
+
+        Random rnd = new Random();
+        builder.setWifiConnectionHealth(Bwg.Uplink.Model.Constants.WifiConnectionHealth.valueOf(rnd.nextInt(4)));
+        builder.setApMacAddress("00:24:17:44:35:28");
+        builder.setMode("Managed");
+        builder.setConnectedDiag(diagBuilder);
+        builder.setFragConfig("1536 B");
+        builder.setElapsedDeltaMilliseconds(100);
+        builder.setPowerMgmtConfig("off");
+        builder.setRecordedDate(System.currentTimeMillis());
+        builder.setRetryLimitPhraseConfig("0");
+        builder.setRetryLimitValueConfig("8");
+        builder.setRtsConfig("1536 B");
+        builder.setSSID("test");
+        builder.setTxPowerDbm(15);
+
+        List<Bwg.Uplink.Model.WifiStat> list = new ArrayList<>();
+        list.add(builder.build());
+        return list;
     }
 
     @Override
