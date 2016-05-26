@@ -24,6 +24,7 @@ import java.net.URL;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
@@ -220,7 +221,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
             builder.setParentDeviceHardwareId(parentHardwareId);
         }
         builder.setGatewaySerialNumber(gwSerialNumber);
-        eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build());
+        eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build(), false);
         LOGGER.info("sent device registration for {}", deviceTypeName);
     }
 
@@ -236,56 +237,35 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
         if (description != null) {
             builder.setDescription(description);
         }
-        eventDispatcher.sendUplink(hardwareId, originator, UplinkCommandType.ACKNOWLEDGEMENT, builder.build());
-    }
-
-    /**
-     * Convenience method for sending a measurement event to cloud.
-     *
-     * @param hardwareId
-     * @param originator
-     * @param measurements
-     * @param measurementTimestampMillis
-     * @param meta
-     */
-    public void sendMeasurements(String hardwareId,
-                                 String originator,
-                                 Map<String, Double> measurements,
-                                 long measurementTimestampMillis,
-                                 Map<String, String> meta) {
-        checkNotNull(hardwareId, "hardwareId must not be null for measurements");
-        DeviceMeasurements.Builder builder = DeviceMeasurements.newBuilder();
-        builder.setEventDate(measurementTimestampMillis);
-        for (Map.Entry<String, Double> entry : measurements.entrySet()) {
-            builder.addMeasurement(Measurement.newBuilder().setMeasurementId(entry.getKey()).setMeasurementValue(entry.getValue()).build());
-        }
-
-        for (Map.Entry<String, String> entry : meta.entrySet()) {
-            builder.addMetadata(Metadata.newBuilder().setName(entry.getKey()).setValue(entry.getValue()).build());
-        }
-        eventDispatcher.sendUplink(hardwareId, originator, UplinkCommandType.MEASUREMENT, builder.build());
+        eventDispatcher.sendUplink(hardwareId, originator, UplinkCommandType.ACKNOWLEDGEMENT, builder.build(), false);
     }
 
     /**
      * convenience method to send events to cloud
      *
      * @param hardwareId
-     * @param eventType
-     * @param eventTimestampMillis
-     * @param meta
+     * @param events
      */
-    public void sendEvent(String hardwareId, Constants.EventType eventType, long eventTimestampMillis, Map<String, String> meta) {
-        Event.Builder eb = Event.newBuilder();
-        eb.setEventTimestamp(eventTimestampMillis);
-        eb.setEventType(eventType);
-        for (Map.Entry<String, String> entry : meta.entrySet()) {
-            eb.addMetadata(Metadata.newBuilder().setName(entry.getKey()).setValue(entry.getValue()).build());
-        }
-        eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.EVENT, eb.build());
+    public void sendEvents(String hardwareId, List<Event> events ) {
+        Events.Builder eb = Events.newBuilder();
+        eb.addAllEvents(events);
+        eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.EVENT, eb.build(), true);
+    }
+
+    /**
+     * convenience method to send wifi to cloud
+     *
+     * @param hardwareId
+     * @param stats
+     */
+    public void sendWifiStats(String hardwareId, List<WifiStat> stats ) {
+        WifiStats.Builder report = WifiStats.newBuilder();
+        report.addAllWifiStats(stats);
+        eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.WIFI_STATS, report.build(), true);
     }
 
     public void sendSpaState(String hardwareId, Bwg.Uplink.Model.SpaState spaState) {
-        getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.SPA_STATE, spaState);
+        getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.SPA_STATE, spaState, false);
     }
 
     /**

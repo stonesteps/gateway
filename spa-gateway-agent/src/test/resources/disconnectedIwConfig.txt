@@ -1,0 +1,4 @@
+wlan0     IEEE 802.11abgn  ESSID:off/any
+Mode:Managed  Access Point: Not-Associated   Tx-Power=20 dBm
+Retry  long limit:7   RTS thr:off   Fragment thr:off
+Power Management:on

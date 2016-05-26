@@ -1,18 +1,7 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
+import com.bwg.iot.model.*;
 import com.bwg.iot.model.Component.ComponentType;
-import com.bwg.iot.model.ComponentState;
-import com.bwg.iot.model.DipSwitch;
-import com.bwg.iot.model.FiltrationMode;
-import com.bwg.iot.model.PanelMode;
-import com.bwg.iot.model.ReminderCode;
-import com.bwg.iot.model.SetupParams;
-import com.bwg.iot.model.Spa;
-import com.bwg.iot.model.SpaRunState;
-import com.bwg.iot.model.SpaState;
-import com.bwg.iot.model.SwimSpaMode;
-import com.bwg.iot.model.SystemInfo;
-import com.bwg.iot.model.TempRange;
 import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.spa.communication.proto.Bwg;
@@ -96,6 +85,11 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         }
         updateComponentState(spa.get_id(), spaStateEntity, ComponentType.GATEWAY.toString(), null, newArrayList(), null);
         updateComponentState(spa.get_id(), spaStateEntity, ComponentType.CONTROLLER.toString(), null, newArrayList(), null);
+
+        // wifi signal strength
+        if (spaState.hasWifiState()) {
+            spaStateEntity.setWifiConnectionHealth(WifiConnectionHealth.toEnum(spaState.getWifiState().getNumber()));
+        }
 
         spaRepository.save(spa);
     }

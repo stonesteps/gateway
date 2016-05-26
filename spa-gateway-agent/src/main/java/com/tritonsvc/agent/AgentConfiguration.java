@@ -35,4 +35,10 @@ public interface AgentConfiguration {
 
 	/** Optional Property for serial port that rs485 is located **/
 	public static final String RS485_LINUX_SERIAL_PORT_BAUD = "rs485.port.baudrate";
+
+	/** Optioal Property for wifi device name on linux **/
+	public static final String WIFI_DEVICE_NAME = "wifi.device";
+
+	/** Optioal Property for iwconfig path on linux **/
+	public static final String WIFI_IWCONFIG_PATH = "wifi.iwconfig.path";
 }

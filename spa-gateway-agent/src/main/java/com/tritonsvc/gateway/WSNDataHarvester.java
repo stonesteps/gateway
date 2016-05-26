@@ -3,6 +3,9 @@ package com.tritonsvc.gateway;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tritonsvc.gateway.wsn.WsnData;
 import com.tritonsvc.gateway.wsn.WsnValue;
+import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.ZMQ;
@@ -11,8 +14,11 @@ import org.zeromq.ZMQ.Poller;
 import org.zeromq.ZMQ.Socket;
 
 import java.io.IOException;
+import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.zeromq.ZMQ.poll;
 
@@ -97,18 +103,11 @@ public class WSNDataHarvester implements Runnable {
 
         // TODO send a 'pump registered' data in here once the NFC tag for the pump appears
 
-        Map<String, String> meta = newHashMap();
-        meta.put("receivedDate", Long.toString(wsnData.getReceivedUnixTimestamp() * 1000));
-        if (wsnData.getRssi() != null) {
-            meta.put("rssi_quality", Double.toString(wsnData.getRssi().getQuality()));
-            meta.put("rssi_ul", Double.toString(wsnData.getRssi().getUplink()));
-            meta.put("rssi_dl", Double.toString(wsnData.getRssi().getDownlink()));
-        }
-
+        List<Event> events = newArrayList();
         String safeMacKey = wsnData.getMac().replaceAll(":","").toLowerCase();
         for (WsnValue wsnValue : wsnData.getValues()) {
             String oid = processor.getConfigProps().getProperty(BWGProcessor.DYNAMIC_DEVICE_OID_PROPERTY
-                    .replaceAll("MAC",safeMacKey)
+                    .replaceAll("MAC", safeMacKey)
                     .replaceAll("DEVICE_NAME", wsnValue.getDeviceName()));
 
             if (oid == null) {
@@ -117,11 +116,25 @@ public class WSNDataHarvester implements Runnable {
                 continue;
             }
 
-            Map<String, Double> measurement = newHashMap();
-            measurement.put(oid, wsnValue.getValue());
+            Event.Builder eb = Event.newBuilder();
+            eb.setEventReceivedTimestamp(wsnData.getReceivedUnixTimestamp());
+            if (wsnData.getRssi() != null) {
+                eb.addMetadata(Metadata.newBuilder().setName("rssi_quality").setValue(Double.toString(wsnData.getRssi().getQuality())).build());
+                eb.addMetadata(Metadata.newBuilder().setName("rssi_ul").setValue(Double.toString(wsnData.getRssi().getUplink())).build());
+                eb.addMetadata(Metadata.newBuilder().setName("rssi_dl").setValue(Double.toString(wsnData.getRssi().getDownlink())).build());
+            }
+            eb.addOidData(Metadata.newBuilder().setName(oid).setValue(wsnValue.getValue().toString()).build());
             long timestamp = wsnData.getRecordedUnixTimestamp() != null ? wsnData.getRecordedUnixTimestamp() * 1000 : wsnData.getReceivedUnixTimestamp() * 1000;
-            processor.sendMeasurements(registeredMote.getHardwareId(), null, measurement, timestamp, meta);
+
+            eb.setEventOccuredTimestamp(timestamp);
+            eb.setEventType(EventType.MEASUREMENT);
+            eb.setDescription("WSN sensor data acquisition");
+            events.add(eb.build());
             LOGGER.info(" sent measurement for mote {}, registered id {} {} {}", wsnValue.getDeviceName(), registeredMote.getHardwareId(), oid, Double.toString(wsnValue.getValue()));
+        }
+
+        if (events.size() > 0) {
+            processor.sendEvents(registeredMote.getHardwareId(), events);
         }
     }
 

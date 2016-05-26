@@ -1,0 +1,7 @@
+Mode:Managed  Frequency:2.412 GHz  Access Point: 00:24:17:44:35:28
+Bit Rate=2 Mb/s   Tx-Power=19 dBm
+Retry limit:231   RTS thr:off   Fragment thr:off
+Power Management:off
+Link Quality=2/100  Signal level=-2 dBm Noise level=-2 dBm
+Rx invalid nwid:2  Rx invalid crypt:2  Rx invalid frag:2
+Tx excessive retries:2  Invalid misc:2   Missed beacon:0
