@@ -99,6 +99,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private String rs485ControllerType = null;
     private String wifiDevice = null;
     private String iwConfigPath = null;
+    private String ethernetDevice = null;
     private WifiStat lastWifiStatParsed = null;
     private WifiStat lastWifiStatSent = null;
     private ParserIwconfig lwconfigParser = new ParserIwconfig();
@@ -128,6 +129,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.configProps = configProps;
         this.wifiDevice = configProps.getProperty(AgentConfiguration.WIFI_DEVICE_NAME, "wlan0");
         this.iwConfigPath = configProps.getProperty(AgentConfiguration.WIFI_IWCONFIG_PATH, "/sbin/iwconfig");
+        this.ethernetDevice = configProps.getProperty(AgentConfiguration.ETHERNET_DEVICE_NAME, "eth0");
         new WebServer(configProps, this, this);
         this.es = executorService;
         setupAgentSettings();
@@ -760,14 +762,17 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private void processWifiDiag (String hardwareId) {
         boolean wLocked = false;
         try {
-            WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice, lastWifiStatSent, iwConfigPath);
+            WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice, lastWifiStatSent, iwConfigPath, ethernetDevice);
 
-            if (lastWifiStatParsed == null || !Objects.equals(currentWifiStat.getWifiConnectionHealth(), lastWifiStatParsed.getWifiConnectionHealth())) {
+            if (lastWifiStatParsed == null ||
+                    !Objects.equals(currentWifiStat.getWifiConnectionHealth(), lastWifiStatParsed.getWifiConnectionHealth()) ||
+                    !Objects.equals(currentWifiStat.getEthernetPluggedIn(), lastWifiStatParsed.getEthernetPluggedIn())) {
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
                 wLocked = true;
                 long receivedTime = new Date().getTime() + 1;
                 SpaState.Builder stateBuilder = SpaState.newBuilder(getRS485DataHarvester().getLatestSpaInfo());
                 stateBuilder.setWifiState(currentWifiStat.getWifiConnectionHealth());
+                stateBuilder.setEthernetPluggedIn(currentWifiStat.getEthernetPluggedIn());
                 stateBuilder.setLastUpdateTimestamp(receivedTime);
                 getRS485DataHarvester().setLatestSpaInfo(stateBuilder.build());
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();

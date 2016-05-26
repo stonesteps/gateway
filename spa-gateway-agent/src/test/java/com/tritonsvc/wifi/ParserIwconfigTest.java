@@ -11,6 +11,7 @@ import java.io.IOException;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -27,12 +28,14 @@ public class ParserIwconfigTest {
         parser = new ParserIwconfig();
         parser = spy(parser);
         unixProcess = mock(Process.class);
-        doReturn(unixProcess).when(parser).executeUnixCommand(eq("wlan0"), eq("iwconfig"));
+        doReturn(unixProcess).when(parser).executeUnixCommand(any());
      }
 
     @Test
     public void itParsesConnectedWifi() throws Exception {
-        when(unixProcess.getInputStream()).thenReturn(ParserIwconfigTest.class.getResourceAsStream("/connectedIwConfig.txt"));
+        when(unixProcess.getInputStream())
+                .thenReturn(ParserIwconfigTest.class.getResourceAsStream("/connectedIwConfig.txt"))
+                .thenReturn(ParserIwconfigTest.class.getResourceAsStream("/eth0.txt"));
 
         WifiConnectionDiagnostics diag = WifiConnectionDiagnostics.newBuilder()
                 .setDataRate(1)
@@ -52,12 +55,13 @@ public class ParserIwconfigTest {
                 .setWifiConnectionHealth(WifiConnectionHealth.AVG)
                 .build();
 
-        WifiStat newStat = parser.parseStat("wlan0", prev, "iwconfig");
+        WifiStat newStat = parser.parseStat("wlan0", prev, "iwconfig", "eth0");
 
         assertEquals(newStat.getApMacAddress(), "00:24:17:44:35:28");
         assertEquals(newStat.getWifiConnectionHealth(), WifiConnectionHealth.WEAK);
         assertEquals(newStat.getRetryLimitPhraseConfig(), "retry limit");
         assertEquals(newStat.getRetryLimitValueConfig(), "231");
+        assertEquals(newStat.getEthernetPluggedIn(), true);
 
         assertTrue(newStat.getConnectedDiag().getDataRate() == 2);
         assertTrue(newStat.getConnectedDiag().getLinkQualityPercentage() == 2);
@@ -82,11 +86,14 @@ public class ParserIwconfigTest {
 
     @Test
     public void itParsesDisConnectedWifi() throws Exception {
-        when(unixProcess.getInputStream()).thenReturn(ParserIwconfigTest.class.getResourceAsStream("/disconnectedIwConfig.txt"));
+        when(unixProcess.getInputStream())
+                .thenReturn(ParserIwconfigTest.class.getResourceAsStream("/disconnectedIwConfig.txt"))
+                .thenReturn(ParserIwconfigTest.class.getResourceAsStream("/eth0.txt"));
 
-        WifiStat newStat = parser.parseStat("wlan0", null, "iwconfig");
+        WifiStat newStat = parser.parseStat("wlan0", null, "iwconfig", "eth0");
         assertFalse(newStat.hasApMacAddress());
         assertEquals(newStat.getWifiConnectionHealth(), WifiConnectionHealth.DISCONNECTED);
+        assertEquals(newStat.getEthernetPluggedIn(), true);
 
         assertFalse(newStat.getConnectedDiag().hasDataRate());
         assertFalse(newStat.getConnectedDiag().hasLinkQualityPercentage());

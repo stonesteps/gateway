@@ -98,6 +98,7 @@ message Uplink {
             optional fixed64 lastUpdateTimestamp = 5;
             optional uint32 updateInterval = 6;
             optional Constants.WifiConnectionHealth wifiState = 7;
+            optional bool ethernetPluggedIn = 8;
         }
 
         // this is the state of each known component attached to controller
@@ -473,6 +474,7 @@ message Uplink {
             optional string SSID = 10;
             optional WifiConnectionDiagnostics connectedDiag = 11; // this is only present if apConnected  = true
             optional string sensitivity = 14;
+            optional bool ethernetPluggedIn = 15;
 
             message WifiConnectionDiagnostics {
                 optional string frequency = 1;

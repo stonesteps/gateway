@@ -52,15 +52,16 @@ public class ParserIwconfig {
      * @param interfaceName
      * @param previousWifiStat
      * @param iwConfigPath
+     * @param ethernetDeviceName
      * @return
      * @throws Exception
      */
-    public WifiStat parseStat(String interfaceName, WifiStat previousWifiStat, String iwConfigPath) throws Exception {
+    public WifiStat parseStat(String interfaceName, WifiStat previousWifiStat, String iwConfigPath, String ethernetDeviceName) throws Exception {
 
         String line;
         WifiStat.Builder wifiStatBuilder = WifiStat.newBuilder();
         WifiConnectionDiagnostics.Builder dataBuilder = WifiConnectionDiagnostics.newBuilder();
-        Process proc = executeUnixCommand(interfaceName, iwConfigPath);
+        Process proc = executeUnixCommand(iwConfigPath + " " + interfaceName);
         wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.UNKONWN);
         wifiStatBuilder.setRecordedDate(new Date().getTime());
         if (previousWifiStat != null) {
@@ -316,13 +317,27 @@ public class ParserIwconfig {
         } finally {
             proc.destroyForcibly();
         }
+
+        proc = executeUnixCommand("cat /sys/class/net/eth/operstate".replaceAll("eth", ethernetDeviceName));
+        try (BufferedReader iwconfigInput = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+            while ((line = iwconfigInput.readLine()) != null) {
+                if (line.toLowerCase().indexOf("up") > -1) {
+                    wifiStatBuilder.setEthernetPluggedIn(true);
+                } else {
+                    wifiStatBuilder.setEthernetPluggedIn(false);
+                }
+            }
+        } finally {
+            proc.destroyForcibly();
+        }
+
         wifiStatBuilder.setConnectedDiag(dataBuilder);
         return wifiStatBuilder.build();
     }
 
     @VisibleForTesting
-    Process executeUnixCommand(String interfaceName, String iwConfigPath) throws IOException {
-        return Runtime.getRuntime().exec(iwConfigPath + " " + interfaceName);
+    Process executeUnixCommand(String command) throws IOException {
+        return Runtime.getRuntime().exec(command);
     }
 
     private String processMatch(Pattern pattern, String input) {

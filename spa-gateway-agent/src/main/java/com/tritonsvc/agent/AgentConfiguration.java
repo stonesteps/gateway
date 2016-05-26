@@ -41,4 +41,7 @@ public interface AgentConfiguration {
 
 	/** Optioal Property for iwconfig path on linux **/
 	public static final String WIFI_IWCONFIG_PATH = "wifi.iwconfig.path";
+
+	/** Optioal Property for ethernet device  on linux **/
+	public static final String ETHERNET_DEVICE_NAME = "ethernet.device";
 }
