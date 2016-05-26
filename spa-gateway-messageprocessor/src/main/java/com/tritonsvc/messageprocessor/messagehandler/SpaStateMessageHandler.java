@@ -90,6 +90,9 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         if (spaState.hasWifiState()) {
             spaStateEntity.setWifiConnectionHealth(WifiConnectionHealth.toEnum(spaState.getWifiState().getNumber()));
         }
+        if (spaState.hasEthernetPluggedIn()) {
+            spaStateEntity.setEthernetPluggedIn(spaState.getEthernetPluggedIn());
+        }
 
         spaRepository.save(spa);
     }

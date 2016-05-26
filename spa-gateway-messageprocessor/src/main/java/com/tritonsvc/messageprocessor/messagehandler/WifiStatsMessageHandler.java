@@ -87,6 +87,8 @@ public class WifiStatsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             statEntity.setConnectedDiag(getConnectedDiag(wifiStat.getConnectedDiag()));
         if (wifiStat.hasSensitivity())
             statEntity.setSensitivity(wifiStat.getSensitivity());
+        if (wifiStat.hasEthernetPluggedIn())
+            statEntity.setEthernetPortPluggedIn(wifiStat.getEthernetPluggedIn());
 
         return statEntity;
     }
