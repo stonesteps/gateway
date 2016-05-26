@@ -221,7 +221,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
             builder.setParentDeviceHardwareId(parentHardwareId);
         }
         builder.setGatewaySerialNumber(gwSerialNumber);
-        eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build());
+        eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build(), false);
         LOGGER.info("sent device registration for {}", deviceTypeName);
     }
 
@@ -237,7 +237,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
         if (description != null) {
             builder.setDescription(description);
         }
-        eventDispatcher.sendUplink(hardwareId, originator, UplinkCommandType.ACKNOWLEDGEMENT, builder.build());
+        eventDispatcher.sendUplink(hardwareId, originator, UplinkCommandType.ACKNOWLEDGEMENT, builder.build(), false);
     }
 
     /**
@@ -249,7 +249,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
     public void sendEvents(String hardwareId, List<Event> events ) {
         Events.Builder eb = Events.newBuilder();
         eb.addAllEvents(events);
-        eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.EVENT, eb.build());
+        eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.EVENT, eb.build(), true);
     }
 
     /**
@@ -261,11 +261,11 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
     public void sendWifiStats(String hardwareId, List<WifiStat> stats ) {
         WifiStats.Builder report = WifiStats.newBuilder();
         report.addAllWifiStats(stats);
-        eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.WIFI_STATS, report.build());
+        eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.WIFI_STATS, report.build(), true);
     }
 
     public void sendSpaState(String hardwareId, Bwg.Uplink.Model.SpaState spaState) {
-        getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.SPA_STATE, spaState);
+        getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.SPA_STATE, spaState, false);
     }
 
     /**

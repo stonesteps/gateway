@@ -333,7 +333,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
         if (System.currentTimeMillis() > lastFaultLogsSendTime + RANDOM_DATA_SEND_INTERVAL) {
             final Bwg.Uplink.Model.FaultLogs randomFaultLogs = buildRandomFaultLogs();
-            getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, Bwg.Uplink.UplinkCommandType.FAULT_LOGS, randomFaultLogs);
+            getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, Bwg.Uplink.UplinkCommandType.FAULT_LOGS, randomFaultLogs, false);
             lastFaultLogsSendTime = System.currentTimeMillis();
         }
     }
@@ -371,8 +371,9 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         diagBuilder.setDeltaDataRate(0);
         diagBuilder.setLinkQualityPercentage(100);
         diagBuilder.setDeltaLinkQualityPercentage(0);
-        diagBuilder.setLinkQualityRaw("255/255");
-        diagBuilder.setSignalLevelUnits(0);
+        diagBuilder.setLinkQualityRaw("88/100");
+        diagBuilder.setSignalLevelUnits(40);
+        diagBuilder.setSignalLevelUnitsRaw("40/100");
         diagBuilder.setDeltaSignalLevelUnits(0);
         diagBuilder.setRxOtherAPPacketCount(0);
         diagBuilder.setDeltaRxOtherAPPacketCount(0);
@@ -384,7 +385,8 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         diagBuilder.setDeltaTxExcessiveRetries(0);
         diagBuilder.setLostBeaconCount(0);
         diagBuilder.setDeltaLostBeaconCount(0);
-        diagBuilder.setNoiseLevel(0);
+        diagBuilder.setNoiseLevel(10);
+        diagBuilder.setNoiseLevelRaw("10/100");
         diagBuilder.setDeltaNoiseLevel(0);
 
         Random rnd = new Random();
@@ -401,6 +403,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         builder.setRtsConfig("1536 B");
         builder.setSSID("test");
         builder.setTxPowerDbm(15);
+        builder.setSensitivity("30/100");
 
         List<Bwg.Uplink.Model.WifiStat> list = new ArrayList<>();
         list.add(builder.build());

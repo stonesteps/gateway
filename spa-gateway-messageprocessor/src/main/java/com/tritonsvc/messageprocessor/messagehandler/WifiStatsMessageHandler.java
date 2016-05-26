@@ -85,6 +85,8 @@ public class WifiStatsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             statEntity.setSSID(wifiStat.getSSID());
         if (wifiStat.hasConnectedDiag())
             statEntity.setConnectedDiag(getConnectedDiag(wifiStat.getConnectedDiag()));
+        if (wifiStat.hasSensitivity())
+            statEntity.setSensitivity(wifiStat.getSensitivity());
 
         return statEntity;
     }
@@ -110,6 +112,8 @@ public class WifiStatsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             connectionDiag.setSignalLevelUnits(connectedDiag.getSignalLevelUnits());
         if (connectedDiag.hasDeltaSignalLevelUnits())
             connectionDiag.setDeltaSignalLevelUnits(connectedDiag.getDeltaSignalLevelUnits());
+        if (connectedDiag.hasSignalLevelUnitsRaw())
+            connectionDiag.setSignalLevelUnitsRaw(connectedDiag.getSignalLevelUnitsRaw());
         if (connectedDiag.hasRxOtherAPPacketCount())
             connectionDiag.setRxOtherAPPacketCount(connectedDiag.getRxOtherAPPacketCount());
         if (connectedDiag.hasDeltaRxOtherAPPacketCount())
@@ -134,6 +138,8 @@ public class WifiStatsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             connectionDiag.setNoiseLevel(connectedDiag.getNoiseLevel());
         if (connectedDiag.hasDeltaNoiseLevel())
             connectionDiag.setDeltaNoiseLevel(connectedDiag.getDeltaNoiseLevel());
+        if (connectedDiag.hasNoiseLevelRaw())
+            connectionDiag.setNoiseLevelRaw(connectedDiag.getNoiseLevelRaw());
 
         return connectionDiag;
     }

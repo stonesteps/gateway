@@ -75,7 +75,7 @@ public class ParserIwconfig {
                 if (apMatcher.find()) {
                     if (!apMatcher.group(1).equals("not-associated")) {
                         wifiStatBuilder.setApMacAddress(apMatcher.group(1));
-                        wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.AVG);
+                        wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.UNKONWN);
                     } else {
                         wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.DISCONNECTED);
                     }
@@ -94,12 +94,12 @@ public class ParserIwconfig {
                 int modeIndex = line.indexOf("mode");
                 int accessPointIndex = line.indexOf("access point");
                 int frequencyIndex = line.indexOf("frequency");
-                if (modeIndex != -1 && accessPointIndex != -1) {
-                    if (wifiStatBuilder.getWifiConnectionHealth().equals(WifiConnectionHealth.AVG.DISCONNECTED)) {
-                        wifiStatBuilder.setMode(processMatch(paramGrab, line.substring(modeIndex, accessPointIndex - 1)));
-                    } else if (frequencyIndex != -1) {
-                        wifiStatBuilder.setMode(processMatch(paramGrab, line.substring(modeIndex, frequencyIndex - 1)));
-                    }
+                int modeEndIndex = frequencyIndex;
+                if (frequencyIndex == -1) {
+                    modeEndIndex = accessPointIndex;
+                }
+                if (modeIndex != -1 && modeEndIndex != -1) {
+                    wifiStatBuilder.setMode(processMatch(paramGrab, line.substring(modeIndex, modeEndIndex - 1)));
                 }
 
                 ///// FREQ /////
@@ -116,6 +116,7 @@ public class ParserIwconfig {
                 if (signalLevelIndex != -1) {
                     String signalLevel = processMatch(numericGrab, line.substring(signalLevelIndex));
                     if (signalLevel != null) {
+                        dataBuilder.setSignalLevelUnitsRaw(signalLevel);
                         Long level = Longs.tryParse(signalLevel);
                         if (level != null) {
                             dataBuilder.setSignalLevelUnits(level);
@@ -129,8 +130,13 @@ public class ParserIwconfig {
                 ///// bit rate /////
                 int bitRateIndex = line.indexOf("bit rate");
                 int txPowerIndex = line.indexOf("tx-power");
-                if (bitRateIndex != -1 && txPowerIndex != -1) {
-                    String bitRate = processMatch(paramGrab, line.substring(bitRateIndex, txPowerIndex - 1));
+                int sensitiviyIndex = line.indexOf("sensitivity");
+                int bitRateEndIndex = txPowerIndex;
+                if (txPowerIndex == -1) {
+                    bitRateEndIndex = sensitiviyIndex;
+                }
+                if (bitRateIndex != -1 && bitRateEndIndex != -1 ) {
+                    String bitRate = processMatch(paramGrab, line.substring(bitRateIndex, bitRateEndIndex - 1));
                     if (bitRate != null) {
                         dataBuilder.setRawDataRate(bitRate);
                         String dataRate = processMatch(numericGrab, bitRate);
@@ -152,6 +158,14 @@ public class ParserIwconfig {
                         if (power != null) {
                             wifiStatBuilder.setTxPowerDbm(power);
                         }
+                    }
+                }
+
+                ///// SENS /////
+                if (sensitiviyIndex != -1) {
+                    String sens = processMatch(paramGrab, line.substring(sensitiviyIndex));
+                    if (sens != null) {
+                        wifiStatBuilder.setSensitivity(sens);
                     }
                 }
 
@@ -213,9 +227,9 @@ public class ParserIwconfig {
                                 if (linkQualityPercent < 34) {
                                     wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.WEAK);
                                 } else if (linkQualityPercent > 67) {
-                                    wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.AVG);
-                                } else {
                                     wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.STRONG);
+                                } else {
+                                    wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.AVG);
                                 }
                             }
                         }
@@ -227,6 +241,7 @@ public class ParserIwconfig {
                 if (noiseLevelIndex != -1) {
                     String noiseLevel = processMatch(numericGrab, line.substring(noiseLevelIndex));
                     if (noiseLevel != null) {
+                        dataBuilder.setNoiseLevelRaw(noiseLevel);
                         Long noise = Longs.tryParse(noiseLevel);
                         if (noise != null) {
                             dataBuilder.setNoiseLevel(noise);

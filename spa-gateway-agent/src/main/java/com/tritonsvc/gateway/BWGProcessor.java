@@ -599,7 +599,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             if (getRS485DataHarvester().getLatestSpaInfo().hasLastUpdateTimestamp() &&
                     lastSpaDetailsSent.get() != getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp() &&
                     System.currentTimeMillis() - lastSpaDetailsSent.get() > updateInterval.get()) {
-                getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, getRS485DataHarvester().getLatestSpaInfo());
+                getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, getRS485DataHarvester().getLatestSpaInfo(), false);
                 lastSpaDetailsSent.set(getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp());
                 LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
             }
@@ -736,7 +736,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
             if (faultLogs != null) {
                 LOGGER.info("sent {} fault logs to cloud", faultLogs.getFaultLogsCount());
-                getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.FAULT_LOGS, faultLogs);
+                getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.FAULT_LOGS, faultLogs, false);
             }
         }
 

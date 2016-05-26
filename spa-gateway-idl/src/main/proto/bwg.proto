@@ -472,6 +472,7 @@ message Uplink {
             optional string powerMgmtConfig = 9;
             optional string SSID = 10;
             optional WifiConnectionDiagnostics connectedDiag = 11; // this is only present if apConnected  = true
+            optional string sensitivity = 14;
 
             message WifiConnectionDiagnostics {
                 optional string frequency = 1;
@@ -483,6 +484,7 @@ message Uplink {
                 optional string linkQualityRaw = 10;
                 optional uint64 signalLevelUnits = 4; //usually it's dBm, but no gaurantee
                 optional int64 deltaSignalLevelUnits = 12;
+                optional string signalLevelUnitsRaw = 23;
                 optional uint64 rxOtherAPPacketCount = 5;
                 optional int64 deltaRxOtherAPPacketCount = 13;
                 optional uint64 rxInvalidCryptPacketCount = 6;
@@ -495,6 +497,7 @@ message Uplink {
                 optional int64 deltaLostBeaconCount = 17;
                 optional uint64 noiseLevel = 20;
                 optional int64 deltaNoiseLevel = 21;
+                optional string noiseLevelRaw = 22;
             }
         }
     }
