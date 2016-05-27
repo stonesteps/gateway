@@ -57,17 +57,19 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             spa.setCurrentState(spaStateEntity);
         }
 
-        spaStateEntity.setDesiredTemp(spaState.getController().hasTargetWaterTemperature() ? Integer.toString(spaState.getController().getTargetWaterTemperature()) : null);
-        spaStateEntity.setCurrentTemp(spaState.getController().hasCurrentWaterTemp() ? Integer.toString(spaState.getController().getCurrentWaterTemp()) : null);
-        spaStateEntity.setCleanupCycle(spaState.getController().getCleanupCycle());
-        spaStateEntity.setErrorCode(spaState.getController().getErrorCode());
-        spaStateEntity.setMessageSeverity(spaState.getController().getMessageSeverity());
-        spaStateEntity.setUplinkTimestamp(new Date(spaState.getLastUpdateTimestamp()));
+        spaStateEntity.setDesiredTemp(spaState.hasController() && spaState.getController().hasTargetWaterTemperature() ? Integer.toString(spaState.getController().getTargetWaterTemperature()) : null);
+        spaStateEntity.setCurrentTemp(spaState.hasController() && spaState.getController().hasCurrentWaterTemp() ? Integer.toString(spaState.getController().getCurrentWaterTemp()) : null);
+        spaStateEntity.setCleanupCycle(spaState.hasController() && spaState.getController().hasCleanupCycle() ? spaState.getController().getCleanupCycle() : false);
+        spaStateEntity.setErrorCode(spaState.hasController() && spaState.getController().hasErrorCode() ? spaState.getController().getErrorCode() : 0);
+        spaStateEntity.setMessageSeverity(spaState.hasController() && spaState.getController().hasMessageSeverity() ? spaState.getController().getMessageSeverity() : null);
+        spaStateEntity.setUplinkTimestamp(spaState.hasLastUpdateTimestamp() ? new Date(spaState.getLastUpdateTimestamp()) : new Date());
         if (spaState.hasUpdateInterval()) {
             spaStateEntity.setUpdateIntervalSeconds(spaState.getUpdateInterval());
         }
 
-        updateOtherControllerParams(spaStateEntity, spaState.getController());
+        if (spaState.hasController()) {
+            updateOtherControllerParams(spaStateEntity, spaState.getController());
+        }
 
         if (spaState.hasSetupParams()) {
             spaStateEntity.setSetupParams(buildSetupParams(spaState.getSetupParams()));
@@ -80,6 +82,9 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             spaStateEntity.getSystemInfo().setLastUpdateTimestamp(null);
         }
 
+        // all component states get initialized to non-registered, then as the registerable components get processed
+        // they'll put register dates on where needed
+        spaStateEntity.getComponents().stream().forEach(state -> state.setRegisteredTimestamp(null));
         if (spaState.hasComponents()) {
             updateComponents(spa.get_id(), spaStateEntity, spaState.getComponents());
         }
@@ -200,10 +205,6 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
     }
 
     private void updateComponents(final String spaId, final SpaState spaStateEntity, final Bwg.Uplink.Model.Components components) {
-        // all states get initialized to non-registered, then as the registerable components get processed
-        // they'll put register dates on where needed
-        spaStateEntity.getComponents().stream().forEach(state -> state.setRegisteredTimestamp(null));
-
         // heater
         if (components.hasHeater1()) { updateComponentState(spaId, spaStateEntity, Bwg.Uplink.Model.Constants.ComponentType.HEATER.toString(), components.getHeater1().toString(), null, 0); }
         if (components.hasHeater2()) { updateComponentState(spaId, spaStateEntity, Bwg.Uplink.Model.Constants.ComponentType.HEATER.toString(), components.getHeater2().toString(), null, 1); }

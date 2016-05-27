@@ -114,7 +114,7 @@ public class Agent {
 	private BlockingConnection subConnection;
 
     /** MQTT connection */
-    private CallbackConnection pubConnection;
+    private BlockingConnection pubConnection;
 
 	/** Outbound message processing */
 	private MQTTOutbound outbound;
@@ -204,7 +204,7 @@ public class Agent {
 		LOGGER.info("Connecting to MQTT broker at '" + mqttHostname + ":" + mqttPort + "'...");
 
         subConnection = mqttSub.blockingConnection();
-        pubConnection = mqttPub.callbackConnection();
+        pubConnection = mqttPub.blockingConnection();
 
 		// Create outbound message processor.
 		outbound = new MQTTOutbound(pubConnection, outboundTopic);
@@ -356,127 +356,64 @@ public class Agent {
         return new MQTT();
     }
 
-    private void addUplinkRetry(QueuedUplink uplink) {
-        if (uplink.getAttempts() > 5) {
-            removeUplinkRetry(uplink);
-            return;
-        }
-
-        uplink.incrementAttempts();
-        if (uplink.isCached() == false && retryUplinksSize.get() < MAX_FAILED_SIZE) {
-            synchronized (retryUplinks) {
-                if (uplink.isCached() == false && retryUplinksSize.get() < MAX_FAILED_SIZE) {
-                    uplink.setCached();
-                    retryUplinks.add(uplink);
-                    retryUplinksSize.incrementAndGet();
-                }
-            }
-        }
-    }
-
-    private void removeUplinkRetry(QueuedUplink uplink) {
-        synchronized (retryUplinks) {
-            retryUplinks.remove(uplink);
-        }
-    }
-
-    private void drainRetry() {
-        if (retryUplinksSize.get() > 0) {
-            synchronized(retryUplinks) {
-                retryUplinks.stream().forEach(uplink -> outbound.sendMessage(uplink, true));
-            }
-        }
-    }
-
 	private class MQTTOutbound implements GatewayEventDispatcher {
 
 		/** MQTT outbound topic */
 		private String topic;
 
 		/** MQTT connection */
-		private CallbackConnection connection;
+		private BlockingConnection connection;
 
-		public MQTTOutbound(CallbackConnection connection, String topic) {
+		public MQTTOutbound(BlockingConnection connection, String topic) {
 			this.connection = connection;
 			this.topic = topic;
 		}
 
         @Override
-        public void sendMessage(QueuedUplink uplink,
-                                 boolean retryOnFailure)  {
+        public void sendUplink(String hardwareId,
+                               String originator,
+                               UplinkCommandType uplinkCommandType,
+                               AbstractMessageLite msg,
+                               boolean retry)  {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
             try {
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                if (!connection.isConnected()) {
+                    connection.connect();
+                }
+
                 Builder builder = Header.newBuilder()
                         .setCommand(CommandType.UPLINK)
                         .setSentTimestamp(System.currentTimeMillis());
 
-                if (uplink.getOriginator() != null) {
-                    builder.setOriginator(uplink.getOriginator());
+                if (originator != null) {
+                    builder.setOriginator(originator);
                 }
                 Header header = builder.build();
 
                 UplinkHeader.Builder ulBuilder = UplinkHeader.newBuilder();
-                if (uplink.getHardwareId() != null) {
-                    ulBuilder.setHardwareId(uplink.getHardwareId());
+                if (hardwareId != null) {
+                    ulBuilder.setHardwareId(hardwareId);
                 }
 
                 UplinkHeader uplinkHeader = ulBuilder
-                        .setCommand(uplink.getUplinkCommandType())
+                        .setCommand(uplinkCommandType)
                         .build();
 
                 header.writeDelimitedTo(out);
                 uplinkHeader.writeDelimitedTo(out);
-                if (uplink.getMsg() != null) {
-                    uplink.getMsg().writeDelimitedTo(out);
+                if (msg != null) {
+                    msg.writeDelimitedTo(out);
                 }
 
-                connection.publish(topic, out.toByteArray(), QoS.EXACTLY_ONCE, false, new Callback<Void> () {
-                    @Override
-                    public void onSuccess(Void value) {
-                        if (!uplink.isCached()) {
-                            drainRetry();
-                        } else {
-                            removeUplinkRetry(uplink);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Throwable value) {
-                        LOGGER.error("MQTT publish failed", value);
-                        if (retryOnFailure) {
-                            addUplinkRetry(uplink);
-                        }
-                    }
-                });
-            } catch (Exception ex) {
-                LOGGER.error("had error processing uplink message payload while trying to publish message", ex);
+                if (retry || connection.isConnected()) {
+                    connection.publish(topic, out.toByteArray(), QoS.EXACTLY_ONCE, false);
+                } else {
+                    LOGGER.info("not submitting message {} because no connection to MQTT currenty.", uplinkCommandType.name());
+                }
+            } catch (Exception e) {
+                throw Throwables.propagate(e);
             }
         }
-
-        @Override
-		public void sendUplink(String hardwareId,
-                               String originator,
-                               UplinkCommandType uplinkCommandType,
-                               AbstractMessageLite msg,
-                               boolean retryOnFailure)  {
-            QueuedUplink uplink = new QueuedUplink(hardwareId, originator, uplinkCommandType, msg);
-            if (connection.transport() == null) {
-                connection.connect( new Callback<Void>() {
-                    @Override
-                    public void onSuccess(Void value) {
-                        sendMessage(uplink, retryOnFailure);
-                    }
-                    @Override
-                    public void onFailure(Throwable value) {
-                        if (retryOnFailure) {
-                            addUplinkRetry(uplink);
-                        }
-                        LOGGER.error("Could not establish connection to MQTT broker to publish message", value);
-                    }
-                });
-            }
-            sendMessage(uplink, retryOnFailure);
-		}
     }
 
 	/**
@@ -561,12 +498,7 @@ public class Agent {
                         subConnection.disconnect();
                     }
                     if (pubConnection != null) {
-                        pubConnection.disconnect(new Callback<Void> () {
-                            @Override
-                            public void onSuccess(Void value) {}
-                            @Override
-                            public void onFailure(Throwable value) {}
-                        });
+                        pubConnection.disconnect();
                     }
 					LOGGER.info("Disconnected from MQTT broker.");
 				} catch (Exception e) {

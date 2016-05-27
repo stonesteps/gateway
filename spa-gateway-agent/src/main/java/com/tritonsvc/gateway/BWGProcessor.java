@@ -576,22 +576,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         // make sure the controller is registered as a compoenent to cloud
         obtainControllerRegistration(registeredSpa.getHardwareId());
-
         processWifiDiag(registeredSpa.getHardwareId());
-        if (getRS485DataHarvester().getRegisteredAddress() == null) {
-            LOGGER.info("skipping data harvest, gateway has not registered over 485 bus with spa controller yet");
-            return;
-        }
-
         boolean locked = false;
         try {
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
-            if (getRS485DataHarvester().getLatestSpaInfo().hasController() == false) {
-                throw new RS485Exception("panel update message has not been received yet, cannot generate spa state yet.");
-            }
-
-            if (!getRS485DataHarvester().hasAllConfigState() &&
+            if (getRS485DataHarvester().getRegisteredAddress() == null) {
+                LOGGER.info("gateway has not registered over 485 bus with spa controller yet ...");
+            } else if (!getRS485DataHarvester().hasAllConfigState() &&
                     System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM) {
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
                 lastPanelRequestSent.set(System.currentTimeMillis());
@@ -733,6 +725,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private void processFaultLogs (String hardwareId) {
+        if (getRS485DataHarvester().getRegisteredAddress() == null) {
+            return;
+        }
+
         // send when logs fetched from device become available
         if (faultLogManager.hasUnsentFaultLogs()) {
             final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();

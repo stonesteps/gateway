@@ -24,14 +24,4 @@ public interface GatewayEventDispatcher {
                               UplinkCommandType uplinkCommandType,
                               AbstractMessageLite msg,
                               boolean retry);
-
-    /**
-     * pushes uplink message to the cloud
-     *
-     * @param uplink
-     * @param retryOnFailure
-     */
-    void sendMessage(QueuedUplink uplink,
-                boolean retryOnFailure);
-
 }
