@@ -32,6 +32,5 @@ public interface GatewayEventDispatcher {
      * @param retryOnFailure
      */
     void sendMessage(QueuedUplink uplink,
-                boolean retryOnFailure);
-
+                     boolean retryOnFailure);
 }

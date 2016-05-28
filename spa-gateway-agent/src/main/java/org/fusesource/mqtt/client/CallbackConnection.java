@@ -608,15 +608,17 @@ public class CallbackConnection {
             heartBeatMonitor.stop();
             heartBeatMonitor = null;
         }
-        transport.stop(new Task() {
-            @Override
-            public void run() {
-                listener.onDisconnected();
-                if (onComplete != null) {
-                    onComplete.onSuccess(null);
+        if (transport != null) {
+            transport.stop(new Task() {
+                @Override
+                public void run() {
+                    listener.onDisconnected();
+                    if (onComplete != null) {
+                        onComplete.onSuccess(null);
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     public void publish(String topic, byte[] payload, QoS qos, boolean retain, Callback<Void> cb) {

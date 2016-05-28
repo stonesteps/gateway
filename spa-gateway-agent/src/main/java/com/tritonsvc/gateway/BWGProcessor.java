@@ -9,6 +9,7 @@ import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
+import com.tritonsvc.agent.Agent;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
@@ -72,7 +73,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_NEW_REG_WAIT_TIME = 30000;
-    private static final long MAX_REG_LIFETIME = 240000;
+    private static final long MAX_REG_LIFETIME = Agent.MAX_SUBSCRIPTION_INACTIVITY_TIME - 30000; // set this to the same value
+                                                                                                 // this guarantees that at least one
+                                                                                                 // mqtt downlink is due to arrive into agent via the reg ack in given time
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static final long DEFAULT_UPDATE_INTERVAL = 0; //continuous
     private static final long DEFAULT_WIFIUPDATE_INTERVAL = 0x9000000; // 4 hours
@@ -576,22 +579,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         // make sure the controller is registered as a compoenent to cloud
         obtainControllerRegistration(registeredSpa.getHardwareId());
-
         processWifiDiag(registeredSpa.getHardwareId());
-        if (getRS485DataHarvester().getRegisteredAddress() == null) {
-            LOGGER.info("skipping data harvest, gateway has not registered over 485 bus with spa controller yet");
-            return;
-        }
-
         boolean locked = false;
         try {
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
-            if (getRS485DataHarvester().getLatestSpaInfo().hasController() == false) {
-                throw new RS485Exception("panel update message has not been received yet, cannot generate spa state yet.");
-            }
-
-            if (!getRS485DataHarvester().hasAllConfigState() &&
+            if (getRS485DataHarvester().getRegisteredAddress() == null) {
+                LOGGER.info("gateway has not registered over 485 bus with spa controller yet ...");
+            } else if (!getRS485DataHarvester().hasAllConfigState() &&
                     System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM) {
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
                 lastPanelRequestSent.set(System.currentTimeMillis());
@@ -733,6 +728,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private void processFaultLogs (String hardwareId) {
+        if (getRS485DataHarvester().getRegisteredAddress() == null) {
+            return;
+        }
+
         // send when logs fetched from device become available
         if (faultLogManager.hasUnsentFaultLogs()) {
             final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
