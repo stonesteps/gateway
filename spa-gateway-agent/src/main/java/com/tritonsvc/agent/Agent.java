@@ -9,9 +9,8 @@ import com.tritonsvc.spa.communication.proto.Bwg.Header;
 import com.tritonsvc.spa.communication.proto.Bwg.Header.Builder;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkHeader;
-import org.fusesource.mqtt.client.BlockingConnection;
-import org.fusesource.mqtt.client.Callback;
-import org.fusesource.mqtt.client.CallbackConnection;
+import org.fusesource.mqtt.client.Future;
+import org.fusesource.mqtt.client.FutureConnection;
 import org.fusesource.mqtt.client.MQTT;
 import org.fusesource.mqtt.client.Message;
 import org.fusesource.mqtt.client.QoS;
@@ -29,8 +28,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
-import java.net.URL;
 import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -38,17 +35,14 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.Enumeration;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.jar.Manifest;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -61,6 +55,7 @@ public class Agent {
 	/** Static logger instance */
 	private static final Logger LOGGER = LoggerFactory.getLogger(Agent.class);
     private static final Logger MQTT_TRACE_LOGGER = LoggerFactory.getLogger("mqtt_trace");
+    public static final long MAX_SUBSCRIPTION_INACTIVITY_TIME = 270000;
 
     /** Default filename for configuration properties */
     private static final String DEFAULT_CONFIG_FILENAME = "config.properties";
@@ -110,12 +105,6 @@ public class Agent {
     /** MQTT client */
     private MQTT mqttPub;
 
-	/** MQTT connection */
-	private BlockingConnection subConnection;
-
-    /** MQTT connection */
-    private BlockingConnection pubConnection;
-
 	/** Outbound message processing */
 	private MQTTOutbound outbound;
 
@@ -136,8 +125,9 @@ public class Agent {
 
     /** uplink retry queue **/
     private ConcurrentLinkedQueue<QueuedUplink> retryUplinks = new ConcurrentLinkedQueue();
-    private AtomicInteger retryUplinksSize = new AtomicInteger(0);
     private static final int MAX_FAILED_SIZE = 500;
+    private AtomicLong lastConnectAttempt = new AtomicLong(0);
+    private AtomicLong lastSubReceived = new AtomicLong(0);
 
 
 	/**
@@ -178,6 +168,8 @@ public class Agent {
             mqttPub.setCleanSession(true);
             mqttPub.setKeepAlive(mqttKeepaliveSeconds);
             mqttPub.setSslContext(sslContext);
+            mqttPub.setConnectAttemptsMax(1);
+            mqttPub.setReconnectAttemptsMax(0);
 
             // set up the mqtt broker connection health logger
             if (MQTT_TRACE_LOGGER.isDebugEnabled()) {
@@ -203,11 +195,8 @@ public class Agent {
 		}
 		LOGGER.info("Connecting to MQTT broker at '" + mqttHostname + ":" + mqttPort + "'...");
 
-        subConnection = mqttSub.blockingConnection();
-        pubConnection = mqttPub.blockingConnection();
-
 		// Create outbound message processor.
-		outbound = new MQTTOutbound(pubConnection, outboundTopic);
+		outbound = new MQTTOutbound(mqttPub, outboundTopic);
 
         // data path
         final String dataPath = props.getProperty("dataPath", homePath);
@@ -222,7 +211,7 @@ public class Agent {
         processor.setPKI(gatewayPublic, gatewayPrivate);
 
 		// Create inbound message processing thread.
-		inbound = new MQTTInbound(subConnection, inboundTopic, processor);
+		inbound = new MQTTInbound(mqttSub, inboundTopic, processor);
 
 		// Handle shutdown gracefully.
 		Runtime.getRuntime().addShutdownHook(new ShutdownHandler());
@@ -356,18 +345,114 @@ public class Agent {
         return new MQTT();
     }
 
+    private void addUplinkRetry(QueuedUplink uplink) {
+        if (uplink.getAttempts() > 5) {
+            removeUplinkRetry(uplink);
+            LOGGER.info("expired tries and removed cached uplink for {}", uplink.getUplinkCommandType().name());
+            return;
+        }
+
+        uplink.incrementAttempts();
+        if (uplink.isCached() == false && retryUplinks.size() < MAX_FAILED_SIZE) {
+            synchronized (retryUplinks) {
+                if (uplink.isCached() == false && retryUplinks.size() < MAX_FAILED_SIZE) {
+                    uplink.setCached();
+                    retryUplinks.add(uplink);
+                }
+            }
+        }
+    }
+
+    private void removeUplinkRetry(QueuedUplink uplink) {
+        synchronized (retryUplinks) {
+            retryUplinks.remove(uplink);
+        }
+    }
+
+
+    private void drainRetry() {
+        synchronized(retryUplinks) {
+            if (retryUplinks.size() > 0) {
+                retryUplinks.stream().forEach(uplink -> outbound.sendMessage(uplink, true));
+            }
+        }
+    }
+
 	private class MQTTOutbound implements GatewayEventDispatcher {
 
 		/** MQTT outbound topic */
 		private String topic;
 
 		/** MQTT connection */
-		private BlockingConnection connection;
+		private FutureConnection connection;
+        private MQTT mqttPub;
 
-		public MQTTOutbound(BlockingConnection connection, String topic) {
-			this.connection = connection;
+		public MQTTOutbound(MQTT mqttPub, String topic) {
+            this.mqttPub = mqttPub;
 			this.topic = topic;
+            this.connection = mqttPub.futureConnection();
+            this.connection.connect();
 		}
+
+        @Override
+        public void sendMessage(QueuedUplink uplink,
+                                boolean retryOnFailure)  {
+            try {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                Builder builder = Header.newBuilder()
+                        .setCommand(CommandType.UPLINK)
+                        .setSentTimestamp(System.currentTimeMillis());
+
+                if (uplink.getOriginator() != null) {
+                    builder.setOriginator(uplink.getOriginator());
+                }
+                Header header = builder.build();
+
+                UplinkHeader.Builder ulBuilder = UplinkHeader.newBuilder();
+                if (uplink.getHardwareId() != null) {
+                    ulBuilder.setHardwareId(uplink.getHardwareId());
+                }
+
+                UplinkHeader uplinkHeader = ulBuilder
+                        .setCommand(uplink.getUplinkCommandType())
+                        .build();
+
+                header.writeDelimitedTo(out);
+                uplinkHeader.writeDelimitedTo(out);
+                if (uplink.getMsg() != null) {
+                    uplink.getMsg().writeDelimitedTo(out);
+                }
+
+                Future<Void> attempt = connection.publish(topic, out.toByteArray(), QoS.EXACTLY_ONCE, false);
+                try {
+                    attempt.await(10, TimeUnit.SECONDS);
+                    if (!uplink.isCached()) {
+                        if (retryUplinks.size() > 0) {
+                            drainRetry();
+                        }
+                    } else {
+                        removeUplinkRetry(uplink);
+                        LOGGER.info("resent and removed cached uplink for {}", uplink.getUplinkCommandType().name());
+                    }
+                } catch (Exception te) {
+                    LOGGER.info("Unable to publish message {}, retry={}, cannot connect to broker", uplink.getUplinkCommandType().name(), uplink.getAttempts());
+                    if (retryOnFailure) {
+                        addUplinkRetry(uplink);
+                    }
+                    if (System.currentTimeMillis() - lastConnectAttempt.get() > 60000) {
+                        try {
+                            cleanUp(60);
+                            connection = mqttPub.futureConnection();
+                            connection.connect();
+                        } finally {
+                            lastConnectAttempt.set(System.currentTimeMillis());
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                LOGGER.error("had error processing uplink message payload while trying to publish message", ex);
+            }
+        }
 
         @Override
         public void sendUplink(String hardwareId,
@@ -375,44 +460,11 @@ public class Agent {
                                UplinkCommandType uplinkCommandType,
                                AbstractMessageLite msg,
                                boolean retry)  {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            try {
-                if (!connection.isConnected()) {
-                    connection.connect();
-                }
+            sendMessage(new QueuedUplink(hardwareId, originator, uplinkCommandType, msg), retry);
+        }
 
-                Builder builder = Header.newBuilder()
-                        .setCommand(CommandType.UPLINK)
-                        .setSentTimestamp(System.currentTimeMillis());
-
-                if (originator != null) {
-                    builder.setOriginator(originator);
-                }
-                Header header = builder.build();
-
-                UplinkHeader.Builder ulBuilder = UplinkHeader.newBuilder();
-                if (hardwareId != null) {
-                    ulBuilder.setHardwareId(hardwareId);
-                }
-
-                UplinkHeader uplinkHeader = ulBuilder
-                        .setCommand(uplinkCommandType)
-                        .build();
-
-                header.writeDelimitedTo(out);
-                uplinkHeader.writeDelimitedTo(out);
-                if (msg != null) {
-                    msg.writeDelimitedTo(out);
-                }
-
-                if (retry || connection.isConnected()) {
-                    connection.publish(topic, out.toByteArray(), QoS.EXACTLY_ONCE, false);
-                } else {
-                    LOGGER.info("not submitting message {} because no connection to MQTT currenty.", uplinkCommandType.name());
-                }
-            } catch (Exception e) {
-                throw Throwables.propagate(e);
-            }
+        public void cleanUp(int timeout) throws Exception {
+            connection.kill().await(timeout, TimeUnit.SECONDS);
         }
     }
 
@@ -421,21 +473,17 @@ public class Agent {
 	 */
 	private class MQTTInbound implements Runnable {
 
-		/** MQTT connection */
-		private BlockingConnection connection;
-
-		/** inbound MQTT topic */
+		private FutureConnection connection;
+        private MQTT mqtt;
 		private String topic;
-
-		/** Command processor */
 		private AgentMessageProcessor processor;
-
-        /** run flag **/
         boolean running;
+        private int killAttempts;
+        private Thread currentThread;
 
-		public MQTTInbound(BlockingConnection connection, String topic,
+		public MQTTInbound(MQTT mqttSub, String topic,
                            AgentMessageProcessor processor) {
-			this.connection = connection;
+			this.mqtt = mqttSub;
 			this.topic = topic;
 			this.processor = processor;
 		}
@@ -445,42 +493,59 @@ public class Agent {
 			// Subscribe to chosen topic.
 			Topic[] topics = {new Topic(topic, QoS.AT_LEAST_ONCE)};
             running = true;
+            currentThread = Thread.currentThread();
 
-            while (running) {
-                try {
-                    if (!connection.isConnected()) {
-                        connection.connect();
-                    }
-                    connection.subscribe(topics);
-                    LOGGER.info("Started MQTT inbound processing thread.");
-                } catch (Exception e) {
-                    LOGGER.error("Exception while attempting to subscribe to inbound topics.", e);
-                    try {Thread.sleep(5000);} catch(InterruptedException ie) {return;}
-                    continue;
-                }
-
-                while (running) {
+            while (!Thread.currentThread().isInterrupted() && running) {
+                if (connection != null) {
                     try {
-                        Message message = connection.receive();
-                        if (message == null) {
-                            LOGGER.debug("no downlink messages received in last 10 seconds");
+                        connection.kill().await(60, TimeUnit.SECONDS);
+                    } catch (Exception ex) {
+                        LOGGER.info("unable to terminate stale old connection");
+                        try {Thread.sleep(10000);} catch(InterruptedException ie) {break;}
+                        if (killAttempts++ < 5) {
                             continue;
                         }
+                    }
+                }
+                killAttempts = 0;
+                connection = mqtt.futureConnection();
+                connection.connect();
+                connection.subscribe(topics);
+                lastSubReceived.set(System.currentTimeMillis());
+
+                while (!Thread.currentThread().isInterrupted() && running) {
+                    try {
+                        Message message = connection.receive().await(30, TimeUnit.SECONDS);
+                        if (message == null) {
+                            LOGGER.debug("no downlink messages received in last 30 seconds");
+                            continue;
+                        }
+                        lastSubReceived.set(System.currentTimeMillis());
                         message.ack();
                         processor.processDownlinkCommand(message.getPayload());
                     } catch (InterruptedException e) {
                         LOGGER.warn("Device event processor interrupted.");
-                        return;
+                        running = false;
+                        break;
                     } catch (Throwable e) {
-                        LOGGER.error("Exception processing inbound message", e);
-                        try {Thread.sleep(5000);} catch(InterruptedException ie) {return;}
+                        if (System.currentTimeMillis() - lastSubReceived.get() > MAX_SUBSCRIPTION_INACTIVITY_TIME) {
+                            LOGGER.error("Have not received a downlink in {} seconds, recreating mqtt session", MAX_SUBSCRIPTION_INACTIVITY_TIME / 1000);
+                            break;
+                        }
                     }
                 }
+            }
+
+            if (connection != null) {
+                try {
+                    connection.kill().await(20, TimeUnit.SECONDS);
+                } catch (Exception ex) {}
             }
 		}
 
         public void stop() {
             running = false;
+            currentThread.interrupt();
         }
     }
 
@@ -494,12 +559,7 @@ public class Agent {
 
 				try {
                     inbound.stop();
-                    if (subConnection != null) {
-                        subConnection.disconnect();
-                    }
-                    if (pubConnection != null) {
-                        pubConnection.disconnect();
-                    }
+                    outbound.cleanUp(20);
 					LOGGER.info("Disconnected from MQTT broker.");
 				} catch (Exception e) {
 					LOGGER.warn("Shutdown initiated, exception disconnecting from MQTT broker.", e);

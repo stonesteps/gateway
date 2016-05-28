@@ -9,6 +9,7 @@ import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
+import com.tritonsvc.agent.Agent;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
@@ -72,7 +73,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_NEW_REG_WAIT_TIME = 30000;
-    private static final long MAX_REG_LIFETIME = 240000;
+    private static final long MAX_REG_LIFETIME = Agent.MAX_SUBSCRIPTION_INACTIVITY_TIME - 30000; // set this to the same value
+                                                                                                 // this guarantees that at least one
+                                                                                                 // mqtt downlink is due to arrive into agent via the reg ack in given time
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static final long DEFAULT_UPDATE_INTERVAL = 0; //continuous
     private static final long DEFAULT_WIFIUPDATE_INTERVAL = 0x9000000; // 4 hours
