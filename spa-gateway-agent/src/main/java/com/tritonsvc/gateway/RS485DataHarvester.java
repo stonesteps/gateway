@@ -55,7 +55,7 @@ public abstract class RS485DataHarvester implements Runnable {
     private final ReentrantReadWriteLock spaStateLock = new ReentrantReadWriteLock();
     private boolean cancelled;
 
-    private SpaState spaState = SpaState.newBuilder().build();
+    private SpaState spaState = SpaState.newBuilder().setLastUpdateTimestamp(new Date().getTime()).build();
 
     /**
      * process just the message, delimiters have been removed, the FCS should be the last byte
