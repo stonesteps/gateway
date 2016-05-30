@@ -102,7 +102,6 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
             bb.position(0);
 
             addToPending(new PendingRequest(bb.array(), "self", null));
-            LOGGER.info("sent panel request {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
             LOGGER.info("rs485 sending panel request got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
