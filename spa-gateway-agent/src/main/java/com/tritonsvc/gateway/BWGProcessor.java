@@ -78,7 +78,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                                                                                                  // mqtt downlink is due to arrive into agent via the reg ack in given time
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static final long DEFAULT_UPDATE_INTERVAL = 0; //continuous
-    private static final long DEFAULT_WIFIUPDATE_INTERVAL = 0x9000000; // 4 hours
+    private static final long DEFAULT_WIFIUPDATE_INTERVAL = 3600000; // 1 hour
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     private static Map<String, String> DEFAULT_EMPTY_MAP = newHashMap();
@@ -773,55 +773,54 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
     }
 
+    private boolean hasWifiStateChanged(WifiStat currentWifiStat) {
+        return lastWifiStatParsed == null ||
+                !Objects.equals(currentWifiStat.getWifiConnectionHealth(), lastWifiStatParsed.getWifiConnectionHealth()) ||
+                !Objects.equals(currentWifiStat.getEthernetPluggedIn(), lastWifiStatParsed.getEthernetPluggedIn());
+    }
     private void processWifiDiag (String hardwareId) {
         boolean wLocked = false;
         try {
             WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice, lastWifiStatSent, iwConfigPath, ethernetDevice);
+            long receivedTime = new Date().getTime() + 1;
 
-            if (lastWifiStatParsed == null ||
-                    !Objects.equals(currentWifiStat.getWifiConnectionHealth(), lastWifiStatParsed.getWifiConnectionHealth()) ||
-                    !Objects.equals(currentWifiStat.getEthernetPluggedIn(), lastWifiStatParsed.getEthernetPluggedIn())) {
+            if (hasWifiStateChanged(currentWifiStat)) {
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
                 wLocked = true;
-                long receivedTime = new Date().getTime() + 1;
                 SpaState.Builder stateBuilder = SpaState.newBuilder(getRS485DataHarvester().getLatestSpaInfo());
                 stateBuilder.setWifiState(currentWifiStat.getWifiConnectionHealth());
                 stateBuilder.setEthernetPluggedIn(currentWifiStat.getEthernetPluggedIn());
                 stateBuilder.setLastUpdateTimestamp(receivedTime);
+                stateBuilder.setUpdateInterval(getUpdateIntervalSeconds());
+                stateBuilder.setWifiUpdateInterval(getWifiUpdateIntervalSeconds());
                 getRS485DataHarvester().setLatestSpaInfo(stateBuilder.build());
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
                 wLocked = false;
-
                 String oldWifiStatus = (lastWifiStatParsed == null ? WifiConnectionHealth.UNKONWN.name() : lastWifiStatParsed.getWifiConnectionHealth().name());
-                Event event = Event.newBuilder()
-                        .setEventOccuredTimestamp(receivedTime)
-                        .setEventReceivedTimestamp(receivedTime)
-                        .setEventType(EventType.NOTIFICATION)
-                        .setDescription("Wifi status change detected, from " + oldWifiStatus + " to " + currentWifiStat.getWifiConnectionHealth().name())
-                        .addMetadata(Metadata.newBuilder().setName("oldWifiStatus").setValue(oldWifiStatus))
-                        .addMetadata(Metadata.newBuilder().setName("newWifiStatus").setValue(currentWifiStat.getWifiConnectionHealth().name()))
-                        .build();
-                sendEvents(hardwareId, newArrayList(event));
-                sendWifiStats(hardwareId, newArrayList(currentWifiStat));
-                lastWifiStatsSent.set(new Date().getTime());
-                lastWifiStatSent = currentWifiStat;
-                LOGGER.info("sent wifi stat and event to cloud, connection health changed from {} to {}", oldWifiStatus, currentWifiStat.getWifiConnectionHealth().name());
+                LOGGER.info("Wifi status change detected, from " + oldWifiStatus + " to " + currentWifiStat.getWifiConnectionHealth().name());
             }
 
-            if (wifiStatUpdateInterval.get() < 1) {
-                if (System.currentTimeMillis() - lastWifiStatsSent.get() > 60000) {
-                    sendWifiStats(hardwareId, newArrayList(currentWifiStat));
-                    lastWifiStatsSent.set(new Date().getTime());
-                    lastWifiStatSent = currentWifiStat;
-                    LOGGER.info("sent wifi stat to cloud, connection health {}", currentWifiStat.getWifiConnectionHealth().name());
-                }
-            } else if (System.currentTimeMillis() - lastWifiStatsSent.get() > wifiStatUpdateInterval.get()) {
+            if ( (wifiStatUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastWifiStatsSent.get() > 60000)) ||
+                    (System.currentTimeMillis() - lastWifiStatsSent.get() > wifiStatUpdateInterval.get())) {
                 sendWifiStats(hardwareId, newArrayList(currentWifiStat));
                 lastWifiStatsSent.set(new Date().getTime());
                 lastWifiStatSent = currentWifiStat;
                 LOGGER.info("sent wifi stat to cloud, connection health {}", currentWifiStat.getWifiConnectionHealth().name());
-            }
 
+                if (hasWifiStateChanged(currentWifiStat)) {
+                    String oldWifiStatus = (lastWifiStatParsed == null ? WifiConnectionHealth.UNKONWN.name() : lastWifiStatParsed.getWifiConnectionHealth().name());
+                    Event event = Event.newBuilder()
+                            .setEventOccuredTimestamp(receivedTime)
+                            .setEventReceivedTimestamp(receivedTime)
+                            .setEventType(EventType.NOTIFICATION)
+                            .setDescription("Wifi status change detected, from " + oldWifiStatus + " to " + currentWifiStat.getWifiConnectionHealth().name())
+                            .addMetadata(Metadata.newBuilder().setName("oldWifiStatus").setValue(oldWifiStatus))
+                            .addMetadata(Metadata.newBuilder().setName("newWifiStatus").setValue(currentWifiStat.getWifiConnectionHealth().name()))
+                            .build();
+                    sendEvents(hardwareId, newArrayList(event));
+                    LOGGER.info("sent wifi event to cloud, connection health {}", currentWifiStat.getWifiConnectionHealth().name());
+                }
+            }
             lastWifiStatParsed = currentWifiStat;
 
         } catch (InterruptedException ex) {
