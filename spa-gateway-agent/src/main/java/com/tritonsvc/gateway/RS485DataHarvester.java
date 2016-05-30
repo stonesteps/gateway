@@ -622,6 +622,7 @@ public abstract class RS485DataHarvester implements Runnable {
             }
             builder.setLastUpdateTimestamp(new Date().getTime());
             builder.setUpdateInterval(processor.getUpdateIntervalSeconds());
+            builder.setWifiUpdateInterval(processor.getWifiUpdateIntervalSeconds());
             spaState = builder.build();
         } catch (Exception ex) {
             throw Throwables.propagate(ex);

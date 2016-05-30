@@ -67,6 +67,10 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             spaStateEntity.setUpdateIntervalSeconds(spaState.getUpdateInterval());
         }
 
+        if (spaState.hasWifiUpdateInterval()) {
+            spaStateEntity.setWifiUpdateIntervalSeconds(spaState.getWifiUpdateInterval());
+        }
+
         if (spaState.hasController()) {
             updateOtherControllerParams(spaStateEntity, spaState.getController());
         }
