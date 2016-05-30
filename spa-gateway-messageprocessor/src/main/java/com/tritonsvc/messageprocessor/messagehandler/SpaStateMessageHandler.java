@@ -194,7 +194,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         if (systemInfo.hasMfrSSID()) systemInfoEntity.setMfrSSID(systemInfo.getMfrSSID());
         if (systemInfo.hasModelSSID()) systemInfoEntity.setModelSSID(systemInfo.getModelSSID());
         if (systemInfo.hasVersionSSID()) systemInfoEntity.setVersionSSID(systemInfo.getVersionSSID());
-        if (systemInfo.hasPackMinorVersion()) systemInfoEntity.setMinorVersion(systemInfo.getMinorVersion());
+        if (systemInfo.hasMinorVersion()) systemInfoEntity.setMinorVersion(systemInfo.getMinorVersion());
         if (systemInfo.hasSwSignature()) systemInfoEntity.setSwSignature(systemInfo.getSwSignature());
         if (systemInfo.hasHeaterType()) systemInfoEntity.setHeaterType(systemInfo.getHeaterType());
         if (systemInfo.hasCurrentSetup()) systemInfoEntity.setCurrentSetup(systemInfo.getCurrentSetup());

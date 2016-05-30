@@ -235,7 +235,7 @@ public abstract class RS485MessagePublisher {
     @VisibleForTesting
     void addToPending(PendingRequest request) throws Exception{
         if (pendingDownlinks.offer(request, 5000, TimeUnit.MILLISECONDS)) {
-            LOGGER.info("put rs485 request, originator id {} in downlink queue, payload {}", request.getOriginatorId(), printHexBinary(request.getPayload()));
+            LOGGER.info("put rs485 request, originator id {} in downlink queue, payload {}, queue size {}", request.getOriginatorId(), printHexBinary(request.getPayload()), pendingDownlinks.size());
         } else {
             LOGGER.error("downlink queue was full, clearing it to try and recover");
             pendingDownlinks.clear();
