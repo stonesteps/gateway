@@ -218,7 +218,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         Event event = Event.newBuilder()
                 .setEventOccuredTimestamp(receivedTime)
                 .setEventReceivedTimestamp(receivedTime)
-                .setEventType(EventType.REQEUST)
+                .setEventType(EventType.REQUEST)
                 .setDescription("Received " + request.getRequestType().name() + " request")
                 .addAllMetadata(convertRequestToMetaData(request.getMetadataList()))
                 .addMetadata(Metadata.newBuilder().setName("originatorId").setValue(originatorId))

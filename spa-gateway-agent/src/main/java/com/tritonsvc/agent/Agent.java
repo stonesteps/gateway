@@ -9,6 +9,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Header;
 import com.tritonsvc.spa.communication.proto.Bwg.Header.Builder;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkHeader;
+import org.fusesource.mqtt.client.Callback;
 import org.fusesource.mqtt.client.Future;
 import org.fusesource.mqtt.client.FutureConnection;
 import org.fusesource.mqtt.client.MQTT;
@@ -41,6 +42,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.stream.Collectors.toList;
@@ -509,15 +511,21 @@ public class Agent {
                 }
                 killAttempts = 0;
                 connection = mqtt.futureConnection();
-                connection.connect();
-                connection.subscribe(topics);
+                try {
+                    connection.connect().await(45, TimeUnit.SECONDS);
+                    connection.subscribe(topics).await(45, TimeUnit.SECONDS);
+                } catch (Exception ex) {
+                    LOGGER.info("unable to get connection and subscription set in 45 seconds, will try again");
+                    continue;
+                }
                 lastSubReceived.set(System.currentTimeMillis());
 
+                Future<Message> receive = connection.receive();
                 while (!Thread.currentThread().isInterrupted() && running) {
                     try {
-                        Message message = connection.receive().await(30, TimeUnit.SECONDS);
+                        Message message = receive.await(10, TimeUnit.SECONDS);
+                        receive = connection.receive();
                         if (message == null) {
-                            LOGGER.debug("no downlink messages received in last 30 seconds");
                             continue;
                         }
                         lastSubReceived.set(System.currentTimeMillis());

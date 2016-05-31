@@ -374,7 +374,7 @@ message Uplink {
                 NOTIFICATION = 1;
                 ALERT = 2;
                 MEASUREMENT = 3;
-                REQEUST = 4;
+                REQUEST = 4;
             }
 
             enum TempRange {
