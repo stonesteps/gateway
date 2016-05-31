@@ -1,7 +1,6 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
 import com.bwg.iot.model.Event;
-import com.bwg.iot.model.EventType;
 import com.bwg.iot.model.FaultLogDescription;
 import com.bwg.iot.model.Spa;
 import com.tritonsvc.messageprocessor.mongo.repository.EventRepository;
@@ -13,7 +12,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * process events from spa systems
@@ -64,7 +67,7 @@ public class EventsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mode
         eventEntity.setDealerId(spa.getDealerId());
         eventEntity.setOemId(spa.getOemId());
 
-        eventEntity.setEventType(event.hasEventType() ? EventType.toEnum(event.getEventType().getNumber()) : null);
+        eventEntity.setEventType(event.hasEventType() ? event.getEventType().name() : null);
         if (event.hasDescription()) eventEntity.setDescription(event.getDescription());
         if (event.hasEventOccuredTimestamp())
             eventEntity.setEventOccuredTimestamp(new Date(event.getEventOccuredTimestamp()));
