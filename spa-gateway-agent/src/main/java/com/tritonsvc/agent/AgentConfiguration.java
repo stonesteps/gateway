@@ -34,6 +34,9 @@ public interface AgentConfiguration {
 	public static final String RS485_LINUX_SERIAL_PORT = "rs485.port";
 
 	/** Optional Property for serial port that rs485 is located **/
+	public static final String RS485_GATEWAY_ADDRESS = "rs485.gateway.address";
+
+	/** Optional Property for serial port that rs485 is located **/
 	public static final String RS485_LINUX_SERIAL_PORT_BAUD = "rs485.port.baudrate";
 
 	/** Optioal Property for wifi device name on linux **/

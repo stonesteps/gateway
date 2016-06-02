@@ -46,11 +46,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
     public void processMessage(byte[] message) {
         int packetType = message[3];
 
-        if (packetType == 0x0) {
-            processUnassignedDevicePoll();
-        } else if (packetType == 0x2) {
-            processAddressAssignment(message);
-        } else if (packetType == 0x4) {
+        if (packetType == 0x4) {
             processDevicePresentQuery();
         } else if (packetType == 0x6) {
             processDevicePollForDownlink();

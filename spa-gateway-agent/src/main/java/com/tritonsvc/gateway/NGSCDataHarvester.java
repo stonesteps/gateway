@@ -50,11 +50,7 @@ public class NGSCDataHarvester extends RS485DataHarvester {
         int packetType = message[3];
         // FCS already checked
 
-        if (packetType == 0x0) {
-            processUnassignedDevicePoll();
-        } else if (packetType == 0x2) {
-            processAddressAssignment(message);
-        } else if (packetType == 0x4) {
+        if (packetType == 0x4) {
             processDevicePresentQuery();
         } else if (packetType == 0x6) {
             processDevicePollForDownlink();

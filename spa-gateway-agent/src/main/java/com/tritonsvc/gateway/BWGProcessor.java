@@ -206,12 +206,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             return;
         }
 
-        if (getRS485DataHarvester().getRegisteredAddress() == null) {
-            LOGGER.error("received request {}, gateway has not registered with controller yet ", request.getRequestType().name());
-            sendAck(hardwareId, originatorId, AckResponseCode.ERROR, "gateway has not registered with controller yet");
-            return;
-        }
-
         LOGGER.info("received downlink command from cloud {}, originatorid = {}", request.getRequestType().name(), originatorId);
         sendAck(hardwareId, originatorId, AckResponseCode.RECEIVED, null);
         long receivedTime = new Date().getTime();
@@ -583,24 +577,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         boolean locked = false;
         boolean wLocked = false;
         try {
-            if (getRS485DataHarvester().getRegisteredAddress() == null) {
-                if (System.currentTimeMillis() - getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp() > (updateInterval.get() < 1 ? 60000 : updateInterval.get())) {
-                    LOGGER.info("gateway has not registered over 485 bus with spa controller yet, manually trigger spa state to cloud");
-                    getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
-                    wLocked = true;
-                    SpaState.Builder stateBuilder = SpaState.newBuilder(getRS485DataHarvester().getLatestSpaInfo());
-                    stateBuilder.setLastUpdateTimestamp(new Date().getTime());
-                    getRS485DataHarvester().setLatestSpaInfo(stateBuilder.build());
-                    getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
-                    wLocked = false;
-                }
-            }
-
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
-            if (getRS485DataHarvester().getRegisteredAddress() != null &&
-                    !getRS485DataHarvester().hasAllConfigState() &&
-                    System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM) {
+            if (!getRS485DataHarvester().hasAllConfigState() &&
+                    (System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM)) {
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
                 lastPanelRequestSent.set(System.currentTimeMillis());
             }
@@ -743,10 +723,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private void processFaultLogs (String hardwareId) {
-        if (getRS485DataHarvester().getRegisteredAddress() == null) {
-            return;
-        }
-
         // send when logs fetched from device become available
         if (faultLogManager.hasUnsentFaultLogs()) {
             final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();

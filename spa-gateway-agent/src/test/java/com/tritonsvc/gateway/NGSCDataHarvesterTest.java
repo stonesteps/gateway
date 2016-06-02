@@ -6,6 +6,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -27,6 +28,7 @@ public class NGSCDataHarvesterTest {
     @Before
     public void setUp() {
         processor = mock(BWGProcessor.class);
+        when(processor.getConfigProps()).thenReturn(new Properties());
         uart = mock(UART.class);
         publisher = mock(NGSCMessagePublisher.class);
         manager = mock(FaultLogManager.class);
@@ -38,17 +40,17 @@ public class NGSCDataHarvesterTest {
     }
 
     @Test
-    public void itAcquiresAddressOnBus() throws Exception {
+    public void itSetsFixedAddressOnBus() throws Exception {
 
-        byte[] addressUnassigned = new byte[]{(byte) 0x7E, (byte) 0x05, (byte) 0xFE, (byte) 0xBF, (byte) 0x00};
+        byte[] devicePoll = new byte[]{(byte) 0x7E, (byte) 0x05, (byte) 0xA, (byte) 0xBF, (byte) 0x04};
         doAnswer(invocation -> {
             if (read < 7) {
                 ByteBuffer bb = (ByteBuffer) invocation.getArguments()[0];
 
                 if (read < 5) {
-                    bb.put(addressUnassigned[read]);
+                    bb.put(devicePoll[read]);
                 } else if (read == 5) {
-                    bb.put(HdlcCrc.generateFCS(addressUnassigned));
+                    bb.put(HdlcCrc.generateFCS(devicePoll));
                 } else {
                     bb.put((byte) 0x7E); // flag
                 }
@@ -65,22 +67,38 @@ public class NGSCDataHarvesterTest {
         // wait at most 5 seconds for the message to be read, should really be under one second.
         cdl.await(5, TimeUnit.SECONDS);
 
-        verify(publisher).sendUnassignedDeviceResponse(anyInt());
+        verify(publisher).sendDeviceQueryResponse(eq((byte)10));
     }
 
     @Test
     public void itSwitchesToJacuzzi() throws Exception {
-        byte[] addressUnassigned = new byte[]{(byte) 0x7E, (byte) 0x05, (byte) 0xFE, (byte) 0xBF, (byte) 0x16};
+        byte[] devicePoll = new byte[]{(byte) 0x7E, (byte) 0x05, (byte) 0xA, (byte) 0xBF, (byte) 0x04};
+        byte[] jacuzziPanelUpdate = new byte[]{(byte) 0x7E, (byte) 0x05, (byte) 0xA, (byte) 0xBF, (byte) 0x16};
+
         doAnswer(invocation -> {
-            if (read < 7) {
+            if (read < 14) {
                 ByteBuffer bb = (ByteBuffer) invocation.getArguments()[0];
 
                 if (read < 5) {
-                    bb.put(addressUnassigned[read]);
+                    bb.put(devicePoll[read]);
                 } else if (read == 5) {
-                    bb.put(HdlcCrc.generateFCS(addressUnassigned));
-                } else {
-                    bb.put((byte) 0x7E); // flag
+                    bb.put(HdlcCrc.generateFCS(devicePoll));
+                } else if (read == 6){
+                    bb.put((byte) 0x7E); // flag}
+                } else if (read == 7){
+                    bb.put(jacuzziPanelUpdate[0]);
+                } else if (read == 8){
+                    bb.put(jacuzziPanelUpdate[1]);
+                } else if (read == 9){
+                    bb.put(jacuzziPanelUpdate[2]);
+                } else if (read == 10){
+                    bb.put(jacuzziPanelUpdate[3]);
+                } else if (read == 11){
+                    bb.put(jacuzziPanelUpdate[4]);
+                } else if (read == 12) {
+                    bb.put(HdlcCrc.generateFCS(jacuzziPanelUpdate));
+                } else if (read == 13){
+                    bb.put((byte) 0x7E);
                 }
                 read++;
             } else {
