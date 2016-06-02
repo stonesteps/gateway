@@ -109,63 +109,6 @@ public abstract class RS485MessagePublisher {
                                         int LowLow) throws RS485Exception;
 
     /**
-     * send the unassigned device response
-     *
-     * @param requestId
-     * @throws RS485Exception
-     */
-    public synchronized void sendUnassignedDeviceResponse(int requestId) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(10);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x08); // length between flags
-            bb.put(LINKING_ADDRESS_BYTE); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x01); // the unassigned device reponse packet type
-            bb.put((byte) 0x00); // device type
-            bb.put((byte) (0xFF & (requestId >> 8))); // unique id 1
-            bb.put((byte) (requestId & 0xFF)); // unique id 2
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            bb.position(0);
-
-            pauseForBus();
-            processor.getRS485UART().write(bb);
-            LOGGER.info("sent unassigned device response {}", printHexBinary(bb.array()));
-        } catch (Throwable ex) {
-            LOGGER.info("rs485 sending unnassigned device response got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
-     * send the address assignemnt acknowledgent message back to controller when
-     *
-     * @param address
-     * @throws RS485Exception
-     */
-    public synchronized void sendAddressAssignmentAck(byte address) throws RS485Exception {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(7);
-            bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x05); // length between flags
-            bb.put(address); // device address
-            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
-            bb.put((byte) 0x03); // the assigned device ack packet type
-            bb.put(HdlcCrc.generateFCS(bb.array()));
-            bb.put(DELIMITER_BYTE); // stop flag
-            bb.position(0);
-
-            pauseForBus();
-            processor.getRS485UART().write(bb);
-            LOGGER.info("sent address assignment response for newly acquired address {} {}", address, printHexBinary(bb.array()));
-        } catch (Throwable ex) {
-            LOGGER.info("rs485 sending address assignment ack got exception " + ex.getMessage());
-            throw new RS485Exception(new Exception(ex));
-        }
-    }
-
-    /**
      * send the response message for a device query message
      *
      * @param address
