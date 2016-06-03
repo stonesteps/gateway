@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Calendar;
 import java.util.Date;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -565,7 +566,7 @@ public class NGSCDataHarvester extends RS485DataHarvester {
     }
 
     private long buildTimestamp(final int daysAgo, final int hour, final int minute) {
-        final Calendar c = Calendar.getInstance();
+        final Calendar c = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
         c.add(Calendar.DAY_OF_YEAR, -daysAgo);
         c.set(Calendar.HOUR_OF_DAY, hour);
         c.set(Calendar.MINUTE, minute);

@@ -63,7 +63,7 @@ public class ParserIwconfig {
         WifiConnectionDiagnostics.Builder dataBuilder = WifiConnectionDiagnostics.newBuilder();
         Process proc = executeUnixCommand(iwConfigPath + " " + interfaceName);
         wifiStatBuilder.setWifiConnectionHealth(WifiConnectionHealth.UNKONWN);
-        wifiStatBuilder.setRecordedDate(new Date().getTime());
+        wifiStatBuilder.setRecordedDate(System.currentTimeMillis());
         if (previousWifiStat != null) {
             wifiStatBuilder.setElapsedDeltaMilliseconds(wifiStatBuilder.getRecordedDate() - previousWifiStat.getRecordedDate());
         }

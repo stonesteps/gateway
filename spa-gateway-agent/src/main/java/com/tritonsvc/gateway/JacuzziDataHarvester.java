@@ -1,21 +1,26 @@
 package com.tritonsvc.gateway;
 
 import com.google.common.base.Throwables;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.*;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent.State;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BluetoothStatus;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Controller;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DipSwitch;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SystemInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -420,7 +425,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
     }
 
     private long buildTimestamp(final int year, final int month, final int day, final int hour, final int minute) {
-        final Calendar c = Calendar.getInstance();
+        final Calendar c = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
         c.clear();
         c.set(Calendar.YEAR, year + 2000);
         c.set(Calendar.MONTH, month - 1);
