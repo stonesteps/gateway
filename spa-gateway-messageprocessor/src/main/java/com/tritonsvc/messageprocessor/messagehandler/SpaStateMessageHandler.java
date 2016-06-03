@@ -62,7 +62,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         spaStateEntity.setCleanupCycle(spaState.hasController() && spaState.getController().hasCleanupCycle() ? spaState.getController().getCleanupCycle() : false);
         spaStateEntity.setErrorCode(spaState.hasController() && spaState.getController().hasErrorCode() ? spaState.getController().getErrorCode() : 0);
         spaStateEntity.setMessageSeverity(spaState.hasController() && spaState.getController().hasMessageSeverity() ? spaState.getController().getMessageSeverity() : null);
-        spaStateEntity.setUplinkTimestamp(spaState.hasLastUpdateTimestamp() ? new Date(spaState.getLastUpdateTimestamp()) : new Date());
+        spaStateEntity.setUplinkTimestamp(new Date());
         if (spaState.hasUpdateInterval()) {
             spaStateEntity.setUpdateIntervalSeconds(spaState.getUpdateInterval());
         }
