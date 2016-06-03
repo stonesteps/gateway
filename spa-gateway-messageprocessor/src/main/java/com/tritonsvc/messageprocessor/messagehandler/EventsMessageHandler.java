@@ -66,13 +66,12 @@ public class EventsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mode
         eventEntity.setOwnerId(spa.getOwner() != null ? spa.getOwner().get_id() : null);
         eventEntity.setDealerId(spa.getDealerId());
         eventEntity.setOemId(spa.getOemId());
+        eventEntity.setEventReceivedTimestamp(new Date());
 
         eventEntity.setEventType(event.hasEventType() ? event.getEventType().name() : null);
         if (event.hasDescription()) eventEntity.setDescription(event.getDescription());
         if (event.hasEventOccuredTimestamp())
             eventEntity.setEventOccuredTimestamp(new Date(event.getEventOccuredTimestamp()));
-        if (event.hasEventReceivedTimestamp())
-            eventEntity.setEventReceivedTimestamp(new Date(event.getEventReceivedTimestamp()));
         if (event.getMetadataCount() > 0) eventEntity.setMetadata(BwgHelper.getMetadataAsMap(event.getMetadataList()));
         if (event.getOidDataCount() > 0) eventEntity.setOidData(BwgHelper.getMetadataAsMap(event.getOidDataList()));
 

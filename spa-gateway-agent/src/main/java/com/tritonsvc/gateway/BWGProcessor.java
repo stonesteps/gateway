@@ -221,7 +221,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         LOGGER.info("received downlink command from cloud {}, originatorid = {}", request.getRequestType().name(), originatorId);
         sendAck(hardwareId, originatorId, AckResponseCode.RECEIVED, null);
-        long receivedTime = new Date().getTime();
+        long receivedTime = System.currentTimeMillis();
         Event event = Event.newBuilder()
                 .setEventOccuredTimestamp(receivedTime)
                 .setEventReceivedTimestamp(receivedTime)
@@ -758,7 +758,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             lastFaultLogsSent.set(System.currentTimeMillis());
         }
 
-        boolean currentRs485Active = (faultLogManager.getLastLogReceived() + (2 * faultLogManager.getFetchInterval())) > lastFaultLogsSent.get();
+        boolean currentRs485Active = (faultLogManager.getLastLogReceived() + (4 * faultLogManager.getFetchInterval())) > lastFaultLogsSent.get();
         if (currentRs485Active != lastRs485Active) {
             LOGGER.info("rs 485 status change detected from {} to {}", lastRs485Active, currentRs485Active);
             boolean wLocked = false;
@@ -800,7 +800,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         boolean wLocked = false;
         try {
             WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice, lastWifiStatSent, iwConfigPath, ethernetDevice);
-            long receivedTime = new Date().getTime() + 1;
+            long receivedTime = System.currentTimeMillis() + 1;
 
             if (hasWifiStateChanged(currentWifiStat)) {
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
