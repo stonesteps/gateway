@@ -96,7 +96,7 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
             bb.put((byte) 0x22); // the panel request packet type
             bb.put((byte) (0xFF & request)); // requested messages
             bb.put((byte) (faultLogEntryNumber != null ? (0xFF & faultLogEntryNumber) : 0xFF)); // fault log entry number
-            bb.put((byte) 0x01); // get device config
+            bb.put((byte) (faultLogs ? 0x00 : 0x01)); // get device config
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
