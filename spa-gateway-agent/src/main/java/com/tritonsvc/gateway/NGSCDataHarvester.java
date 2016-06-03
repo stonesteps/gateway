@@ -539,8 +539,16 @@ public class NGSCDataHarvester extends RS485DataHarvester {
     }
 
     private void processFaultLogMessage(byte[] message) {
+        int totalEntries = (0x7F & message[4]);
         int number = message[5];
         int code = message[6];
+
+        LOGGER.info("received fault log, code = {}, number = {}", code, number);
+        getFaultLogManager().setLastLogReceived();
+
+        if (totalEntries < 1) {
+            return;
+        }
 
         int daysAgo = message[7];
         int hour = message[8]; // 0-23
@@ -554,7 +562,6 @@ public class NGSCDataHarvester extends RS485DataHarvester {
 
         final FaultLogEntry entry = new FaultLogEntry(number, code, timestamp, targetTemp, sensorATemp, sensorBTemp, celcius);
         getFaultLogManager().addFaultLogEntry(entry);
-        LOGGER.info("received fault log, code = {}, number = {}", code, number);
     }
 
     private long buildTimestamp(final int daysAgo, final int hour, final int minute) {

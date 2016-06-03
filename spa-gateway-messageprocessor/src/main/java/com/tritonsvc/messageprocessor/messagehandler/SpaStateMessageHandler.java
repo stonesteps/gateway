@@ -103,6 +103,14 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             spaStateEntity.setEthernetPluggedIn(spaState.getEthernetPluggedIn());
         }
 
+        if (spaState.hasRs485Address()) {
+            spaStateEntity.setRs485AcquiredAddress(spaState.getRs485Address());
+        }
+
+        if (spaState.hasRs485AddressActive()) {
+            spaStateEntity.setRs485ConnectionActive(spaState.getRs485AddressActive());
+        }
+
         spaRepository.save(spa);
     }
 

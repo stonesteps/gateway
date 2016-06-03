@@ -392,8 +392,17 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
     }
 
     private void processFaultLogMessage(byte[] message) {
+        int totalEntries = (0x7F & message[4]);
         int number = message[5];
         int code = message[6];
+
+        LOGGER.info("received fault log, code = {}, number = {}", code, number);
+        getFaultLogManager().setLastLogReceived();
+
+        if (totalEntries < 1) {
+            return;
+        }
+
         int hour = message[7]; // 0-23
         int minute = message[8]; // 0-59
         int day = message[9]; // 1-31
@@ -408,7 +417,6 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
 
         final FaultLogEntry entry = new FaultLogEntry(number, code, timestamp, targetTemp, sensorATemp, sensorBTemp, celcius);
         getFaultLogManager().addFaultLogEntry(entry);
-        LOGGER.info("received fault log, code = {}, number = {}", code, number);
     }
 
     private long buildTimestamp(final int year, final int month, final int day, final int hour, final int minute) {

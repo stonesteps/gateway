@@ -4,6 +4,7 @@ import com.google.common.primitives.Longs;
 import com.tritonsvc.spa.communication.proto.Bwg;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Created by holow on 5/9/2016.
@@ -14,6 +15,7 @@ public class FaultLogManager {
     private static final int CACHE_SIZE = 256;
     private final long fetchInterval;
     private final Map<String, FaultLogEntry> cache = new LinkedHashMap<>();
+    private AtomicLong lastLogReceived = new AtomicLong(0);
 
     private int fetchNext = -1;
 
@@ -35,6 +37,14 @@ public class FaultLogManager {
 
     public long getFetchInterval() {
         return fetchInterval;
+    }
+
+    public long getLastLogReceived() {
+        return lastLogReceived.get();
+    }
+
+    public void setLastLogReceived() {
+        lastLogReceived.set(System.currentTimeMillis());
     }
 
     public synchronized int generateFetchNext() {

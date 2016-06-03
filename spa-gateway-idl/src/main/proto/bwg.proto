@@ -100,6 +100,8 @@ message Uplink {
             optional Constants.WifiConnectionHealth wifiState = 7;
             optional bool ethernetPluggedIn = 8;
             optional uint32 wifiUpdateInterval = 9;
+            optional uint32 rs485Address = 10;
+            optional bool rs485AddressActive = 11;
         }
 
         // this is the state of each known component attached to controller
