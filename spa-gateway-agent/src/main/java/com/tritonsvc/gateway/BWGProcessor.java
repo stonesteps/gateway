@@ -758,33 +758,32 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             lastFaultLogsSent.set(System.currentTimeMillis());
         }
 
-        if (System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getWorsCaseResponseLag()) {
-            boolean currentRs485Active = faultLogManager.getLastLogReceived() > lastFaultLogsSent.get();
-            if (currentRs485Active != lastRs485Active) {
-                boolean wLocked = false;
-                long timestamp = System.currentTimeMillis();
-                try {
-                    getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
-                    wLocked = true;
-                    SpaState.Builder stateBuilder = SpaState.newBuilder(getRS485DataHarvester().getLatestSpaInfo());
-                    stateBuilder.setRs485AddressActive(currentRs485Active);
-                    stateBuilder.setLastUpdateTimestamp(timestamp);
-                    getRS485DataHarvester().setLatestSpaInfo(stateBuilder.build());
-                } finally {
-                    if (wLocked) {
-                        getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
-                    }
+        boolean currentRs485Active = (faultLogManager.getLastLogReceived() + (2 * faultLogManager.getFetchInterval())) > lastFaultLogsSent.get();
+        if (currentRs485Active != lastRs485Active) {
+            LOGGER.info("rs 485 status change detected from {} to {}", lastRs485Active, currentRs485Active);
+            boolean wLocked = false;
+            long timestamp = System.currentTimeMillis();
+            try {
+                getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
+                wLocked = true;
+                SpaState.Builder stateBuilder = SpaState.newBuilder(getRS485DataHarvester().getLatestSpaInfo());
+                stateBuilder.setRs485AddressActive(currentRs485Active);
+                stateBuilder.setLastUpdateTimestamp(timestamp);
+                getRS485DataHarvester().setLatestSpaInfo(stateBuilder.build());
+            } finally {
+                if (wLocked) {
+                    getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
                 }
-                Event event = Event.newBuilder()
-                        .setEventOccuredTimestamp(timestamp)
-                        .setEventReceivedTimestamp(timestamp)
-                        .setEventType(currentRs485Active ? EventType.NOTIFICATION : EventType.ALERT)
-                        .setDescription("Spa Controller rs-485 connectivity status change detected, from " + textualRS485Meaning(lastRs485Active) + " to " + textualRS485Meaning(currentRs485Active))
-                        .addMetadata(Metadata.newBuilder().setName("oldRS485Status").setValue(textualRS485Meaning(lastRs485Active)))
-                        .addMetadata(Metadata.newBuilder().setName("newRS485Status").setValue(textualRS485Meaning(currentRs485Active)))
-                        .build();
-                sendEvents(hardwareId, newArrayList(event));
             }
+            Event event = Event.newBuilder()
+                    .setEventOccuredTimestamp(timestamp)
+                    .setEventReceivedTimestamp(timestamp)
+                    .setEventType(currentRs485Active ? EventType.NOTIFICATION : EventType.ALERT)
+                    .setDescription("Spa Controller rs-485 connectivity status change detected, from " + textualRS485Meaning(lastRs485Active) + " to " + textualRS485Meaning(currentRs485Active))
+                    .addMetadata(Metadata.newBuilder().setName("oldRS485Status").setValue(textualRS485Meaning(lastRs485Active)))
+                    .addMetadata(Metadata.newBuilder().setName("newRS485Status").setValue(textualRS485Meaning(currentRs485Active)))
+                    .build();
+            sendEvents(hardwareId, newArrayList(event));
         }
     }
 

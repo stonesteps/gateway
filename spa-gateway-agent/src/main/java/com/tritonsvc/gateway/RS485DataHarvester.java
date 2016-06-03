@@ -504,7 +504,6 @@ public abstract class RS485DataHarvester implements Runnable {
             wLocked = true;
             SpaState.Builder builder = SpaState.newBuilder(getLatestSpaInfo());
             builder.setComponents(components);
-            builder.setRs485AddressActive(true);
             builder.setLastUpdateTimestamp(components.getLastUpdateTimestamp());
             setLatestSpaInfo(builder.build());
         } catch (Exception ex) {

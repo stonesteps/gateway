@@ -14,7 +14,6 @@ public class FaultLogManager {
     private static final long DEFAULT_INTERVAL = 60000; // 1 minute
     private static final int CACHE_SIZE = 256;
     private final long fetchInterval;
-    private final long worstCase;
     private final Map<String, FaultLogEntry> cache = new LinkedHashMap<>();
     private AtomicLong lastLogReceived = new AtomicLong(0);
 
@@ -33,7 +32,6 @@ public class FaultLogManager {
         } else {
             fetchInterval = DEFAULT_INTERVAL;
         }
-        worstCase = fetchInterval / 2;
     }
 
 
@@ -47,10 +45,6 @@ public class FaultLogManager {
 
     public void setLastLogReceived() {
         lastLogReceived.set(System.currentTimeMillis());
-    }
-
-    public long getWorsCaseResponseLag() {
-        return worstCase;
     }
 
     public synchronized int generateFetchNext() {
