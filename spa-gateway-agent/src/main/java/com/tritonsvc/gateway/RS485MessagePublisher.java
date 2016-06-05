@@ -28,6 +28,7 @@ public abstract class RS485MessagePublisher {
     protected LinkedBlockingQueue<PendingRequest> pendingDownlinks = new LinkedBlockingQueue<>(100);
     protected AtomicLong lastLoggedDownlinkPoll = new AtomicLong(0);
     protected AtomicReference<FilterCycleRequest> filterCycleRequest = new AtomicReference<>();
+    protected AtomicLong lastEmptyPollSent = new AtomicLong();
 
     /**
      * Constructor
@@ -139,6 +140,77 @@ public abstract class RS485MessagePublisher {
     }
 
     /**
+     * send the wifi module mac address
+     *
+     * @param address
+     * @throws RS485Exception
+     */
+    public synchronized void sendWifiMacAddress(byte address) throws RS485Exception {
+        try {
+            ByteBuffer bb = ByteBuffer.allocate(16);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte) 0xE); // length between flags
+            bb.put(address); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte) 0x91); // the device query reponse packet type
+            bb.put((byte) 0x00); // mac msb, this is static made-up mac up of 0:10:20:30:40:50, it's not important
+            bb.put((byte) 0x10); //
+            bb.put((byte) 0x20); //
+            bb.put((byte) 0x30); //
+            bb.put((byte) 0x40); //
+            bb.put((byte) 0x50); // mac lsb
+            bb.put((byte) 0x01); // our fw major
+            bb.put((byte) 0x00); // our fw minor
+            bb.put((byte) 0x00); // world enabled
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            bb.position(0);
+
+            pauseForBus();
+            processor.getRS485UART().write(bb);
+            LOGGER.info("sent wifi mac response {}", printHexBinary(bb.array()));
+        } catch (Throwable ex) {
+            LOGGER.info("rs485 sending wifi mac response got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+    /**
+     * send the wifi module mac address
+     *
+     * @param address
+     * @throws RS485Exception
+     */
+    public synchronized void sendWifiPollResponse(byte address) throws RS485Exception {
+        try {
+            ByteBuffer bb = ByteBuffer.allocate(12);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte) 0xA); // length between flags
+            bb.put(address); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte) 0x96); // packet type
+            bb.put((byte) 0x62); // wifi state, connected
+            bb.put((byte) 0x10); // MSB ip address, pass something hardcoded, this is not meaningful
+            bb.put((byte) 0x20); //
+            bb.put((byte) 0x30); //
+            bb.put((byte) 0x40); // LSB ip address
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            bb.position(0);
+
+            pauseForBus();
+            processor.getRS485UART().write(bb);
+            // dont log this one, will take up too much
+            //LOGGER.info("sent wifi poll default response {}", printHexBinary(bb.array()));
+        } catch (Throwable ex) {
+            LOGGER.info("rs485 sending wifi poll default response got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+
+
+    /**
      * sends a pending downlink message if one is queued
      *
      * @param address
@@ -167,6 +239,9 @@ public abstract class RS485MessagePublisher {
                 } finally {
                     lastLoggedDownlinkPoll.set(System.currentTimeMillis());
                 }
+            } else if (System.currentTimeMillis() - lastEmptyPollSent.get() > 1800){
+                sendWifiPollResponse(address);
+                lastEmptyPollSent.set(System.currentTimeMillis());
             }
         }
         catch (Throwable ex) {

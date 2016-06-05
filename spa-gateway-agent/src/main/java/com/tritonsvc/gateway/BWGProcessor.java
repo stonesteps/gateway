@@ -77,7 +77,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                                                                                                  // this guarantees that at least one
                                                                                                  // mqtt downlink is due to arrive into agent via the reg ack in given time
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
-    private static final long DEFAULT_UPDATE_INTERVAL = 0; //continuous
+    private static final long DEFAULT_UPDATE_INTERVAL = 15000; //0 is continuous, in ms
     private static final long DEFAULT_WIFIUPDATE_INTERVAL = 3600000; // 1 hour
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);

@@ -68,6 +68,8 @@ public class NGSCDataHarvester extends RS485DataHarvester {
             processFaultLogMessage(message);
         } else if (packetType == 0x2E) {
             processDeviceConfigsMessage(message);
+        } else if (packetType == 0x90) {
+            processWifiModuleCommand(message);
         }
     }
 
