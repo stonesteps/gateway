@@ -69,6 +69,8 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
         } else if (packetType == 0x1D) {
             processDeviceConfigsMessage(message);
             processSystemInfoMessage(message);
+        } else if (packetType == 0x90) {
+            processWifiModuleCommand(message);
         }
     }
 

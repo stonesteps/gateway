@@ -462,6 +462,18 @@ public abstract class RS485DataHarvester implements Runnable {
         return spaStateLock;
     }
 
+    protected void processWifiModuleCommand(byte[] message) {
+        try {
+            int command = (0xFF & message[4]);
+            LOGGER.info("received wifi module command {}", command);
+            if (command == 1) {
+                rs485MessagePublisher.sendWifiMacAddress(rs485RegisrationAddress);
+            }
+        } catch (RS485Exception ex) {
+            LOGGER.error("unable to process wifi module command", ex);
+        }
+    }
+
     protected void processDevicePresentQuery() {
         try {
             rs485MessagePublisher.sendDeviceQueryResponse(rs485RegisrationAddress);
