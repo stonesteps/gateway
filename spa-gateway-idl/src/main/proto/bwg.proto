@@ -59,6 +59,7 @@ message Uplink {
         EVENT = 4;
         FAULT_LOGS = 6;
         WIFI_STATS = 7;
+        MEASUREMENT = 8;
 	}
 
     message UplinkHeader {
@@ -504,6 +505,22 @@ message Uplink {
                 optional int64 deltaNoiseLevel = 21;
                 optional string noiseLevelRaw = 22;
             }
+        }
+        // Measurements
+        message Measurements {
+            repeated Measurement measurements = 1;
+        }
+
+        message Measurement {
+            enum dataType {
+                PUMP_AC_CURRENT = 0;
+                AMBIENT_TEMP = 1;
+            }
+            required uint64 timestamp =1;
+            required dataType type = 2;
+            required double value = 3;
+            required string uom = 4;
+            repeated Metadata metadata = 5;
         }
     }
 }
