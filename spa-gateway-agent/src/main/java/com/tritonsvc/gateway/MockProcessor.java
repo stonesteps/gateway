@@ -187,13 +187,13 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
                 updateHeater(request.getMetadataList(), originatorId, hardwareId);
             } else {
                 switch (request.getRequestType()) {
-                    case PUMPS:
+                    case PUMP:
                         updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.PUMP);
                         break;
                     case CIRCULATION_PUMP:
                         updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.CIRCULATION_PUMP);
                         break;
-                    case LIGHTS:
+                    case LIGHT:
                         updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.LIGHT);
                         break;
                     case BLOWER:
