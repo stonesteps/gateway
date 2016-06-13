@@ -562,8 +562,8 @@ message Downlink {
         }
 
         enum RequestType {
-            PUMPS = 1;
-            LIGHTS = 2;
+            PUMP = 1;
+            LIGHT = 2;
             BLOWER = 3;
             MISTER = 4;
             FILTER = 5;
