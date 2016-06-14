@@ -241,13 +241,13 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             } else {
                 getRS485DataHarvester().arePanelCommandsSafe(false);
                 switch (request.getRequestType()) {
-                    case PUMPS:
+                    case PUMP:
                         updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kJets<port>MetaButton", ComponentType.PUMP);
                         break;
                     case CIRCULATION_PUMP:
                         updateCircPump(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
                         break;
-                    case LIGHTS:
+                    case LIGHT:
                         updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kLight<port>MetaButton", ComponentType.LIGHT);
                         break;
                     case BLOWER:

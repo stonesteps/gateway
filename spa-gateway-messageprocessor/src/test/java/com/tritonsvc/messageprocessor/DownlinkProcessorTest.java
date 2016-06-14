@@ -74,7 +74,7 @@ public class DownlinkProcessorTest {
         final HashMap<String, String> values = new HashMap<>();
         values.put(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name(), LightState.HIGH.toString());
         values.put(Bwg.Downlink.Model.SpaCommandAttribName.PORT.name(), String.valueOf(0));
-        final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
+        final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.LIGHT.getCode(), values);
 
         // wait some time (commands processed every 5s)
         Thread.sleep(10000);
@@ -93,7 +93,7 @@ public class DownlinkProcessorTest {
         // and command with metadata
         final HashMap<String, String> values = new HashMap<>();
         values.put(Bwg.Downlink.Model.SpaCommandAttribName.DESIREDSTATE.name(), LightState.HIGH.toString());
-        final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.LIGHTS.getCode(), values);
+        final SpaCommand command = unitTestHelper.createSpaCommand(spa, SpaCommand.RequestType.LIGHT.getCode(), values);
 
         // wait some time (commands processed every 5s)
         Thread.sleep(10000);
