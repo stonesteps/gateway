@@ -9,6 +9,7 @@ import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Events;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.FaultLogs;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurements;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStats;
@@ -79,6 +80,9 @@ public class UplinkProcessor implements MessageListener {
             } else if (uplinkHeader.getCommand() == UplinkCommandType.EVENT) {
                 final Events events = Events.parseDelimitedFrom(stream);
                 handleMessage(Events.class, header, uplinkHeader, events);
+            } else if (uplinkHeader.getCommand() == UplinkCommandType.MEASUREMENT) {
+                final Measurements measurements = Measurements.parseDelimitedFrom(stream);
+                handleMessage(Measurements.class, header, uplinkHeader, measurements);
             }
 
         } catch (Exception e) {

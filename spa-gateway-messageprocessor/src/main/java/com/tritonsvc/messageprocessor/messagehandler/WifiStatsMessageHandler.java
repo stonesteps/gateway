@@ -1,6 +1,9 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
-import com.bwg.iot.model.*;
+import com.bwg.iot.model.Spa;
+import com.bwg.iot.model.WifiConnectionDiagnostics;
+import com.bwg.iot.model.WifiConnectionHealth;
+import com.bwg.iot.model.WifiStat;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.WifiStatRepository;
 import com.tritonsvc.spa.communication.proto.Bwg;
@@ -9,7 +12,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
 /**
  * process wifi stats from spa systems
@@ -18,8 +23,6 @@ import java.util.*;
 public class WifiStatsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Model.WifiStats> {
 
     private static final Logger log = LoggerFactory.getLogger(WifiStatsMessageHandler.class);
-
-    private final Map<String, FaultLogDescription> cache = new HashMap<>();
 
     @Autowired
     private SpaRepository spaRepository;
