@@ -7,7 +7,6 @@ public class Ethernet {
     private String ipAddress;
     private String netmask;
     private String gateway;
-    private String dnsServer;
     private boolean dhcp;
 
     public String getIpAddress() {
@@ -32,14 +31,6 @@ public class Ethernet {
 
     public void setGateway(String gateway) {
         this.gateway = gateway;
-    }
-
-    public String getDnsServer() {
-        return dnsServer;
-    }
-
-    public void setDnsServer(String dnsServer) {
-        this.dnsServer = dnsServer;
     }
 
     public boolean isDhcp() {

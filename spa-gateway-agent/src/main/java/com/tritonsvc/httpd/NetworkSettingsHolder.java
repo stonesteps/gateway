@@ -7,8 +7,16 @@ import com.tritonsvc.model.NetworkSettings;
  */
 public interface NetworkSettingsHolder {
 
+    /**
+     * retrieve network settings
+     * @return
+     */
     NetworkSettings getNetworkSettings();
 
-    void setNetworkSettings(final NetworkSettings networkSettings);
+    /**
+     * set network settings
+     * @param networkSettings
+     */
+    void setNetworkSettings(final NetworkSettings networkSettings) throws Exception;
 
 }
