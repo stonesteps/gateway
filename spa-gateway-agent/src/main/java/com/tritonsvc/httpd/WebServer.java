@@ -4,6 +4,7 @@ import com.google.common.primitives.Ints;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
+import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.httpd.handler.NetworkSettingsHandler;
 import com.tritonsvc.httpd.handler.RegisterUserToSpaHandler;
 import org.slf4j.Logger;
@@ -18,14 +19,15 @@ import java.security.cert.CertificateException;
 import java.util.Properties;
 
 /**
- * Created by holow on 4/6/2016.
+ * Publish an HTTP service that is meant for the mobile device to access directly over AP Wifi mode
+ * of the gateway. this allows onboarding Wifi client credentials and user self reg.
  */
 public class WebServer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WebServer.class);
 
-    private static final int DEFAULT_PORT = 8000;
-    private static final boolean DEFAULT_SSL_ENABLED = true;
+    private static final int DEFAULT_PORT = 8080;
+    private static final boolean DEFAULT_SSL_ENABLED = false;
 
     private HttpServer server = null;
     private final int port;
@@ -34,27 +36,49 @@ public class WebServer {
     private final RegistrationInfoHolder registrationInfoHolder;
     private final NetworkSettingsHolder networkSettingsHolder;
 
-    private final NetworkSettingsHandler networkSettingsHandler;
-    private final RegisterUserToSpaHandler registerUserToSpaHandler;
+    private NetworkSettingsHandler networkSettingsHandler;
+    private RegisterUserToSpaHandler registerUserToSpaHandler;
+    private long lastActivity;
+    private long lastActivtyForDelayedShutdown;
+    private long timeoutMs;
 
-    public WebServer(final Properties properties, final RegistrationInfoHolder registrationInfoHolder, final NetworkSettingsHolder networkSettingsHolder) {
+    /**
+     * Constructor
+     *
+     * @param properties
+     * @param registrationInfoHolder
+     * @param networkSettingsHolder
+     */
+    public WebServer(final Properties properties, final RegistrationInfoHolder registrationInfoHolder, final NetworkSettingsHolder networkSettingsHolder, long timeoutMs) {
         this.registrationInfoHolder = registrationInfoHolder;
         this.networkSettingsHolder = networkSettingsHolder;
-
-        this.networkSettingsHandler = new NetworkSettingsHandler(this.networkSettingsHolder);
-        this.registerUserToSpaHandler = new RegisterUserToSpaHandler(this.registrationInfoHolder);
-
-        this.port = getInt(properties, "webServer.port", DEFAULT_PORT);
-        this.ssl = getBoolean(properties, "webServer.ssl", DEFAULT_SSL_ENABLED);
+        this.timeoutMs = timeoutMs;
+        this.port = getInt(properties, AgentConfiguration.AP_MODE_WEB_SERVER_PORT, DEFAULT_PORT);
+        this.ssl = getBoolean(properties, AgentConfiguration.AP_MODE_WEB_SERVER_SSLENABLED, DEFAULT_SSL_ENABLED);
     }
 
+    /**
+     * Start the web server
+     *
+     * @throws CertificateException
+     * @throws UnrecoverableKeyException
+     * @throws NoSuchAlgorithmException
+     * @throws IOException
+     * @throws KeyManagementException
+     * @throws KeyStoreException
+     */
     public void start() throws CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException, IOException, KeyManagementException, KeyStoreException {
         if (server == null) {
             init();
             server.start();
+            lastActivity = System.currentTimeMillis();
+            lastActivtyForDelayedShutdown = 0;
         }
     }
 
+    /**
+     * Stop the web server
+     */
     public void stop() {
         if (server != null) {
             server.stop(0);
@@ -62,12 +86,41 @@ public class WebServer {
         }
     }
 
+    /**
+     * get the timestamp of last time an http request was received.
+     *
+     * @return
+     */
+    public long getLastActivity() {
+        if (lastActivtyForDelayedShutdown > 0) {
+            return lastActivtyForDelayedShutdown;
+        }
+        if (networkSettingsHandler.getLastActivity() < 0 || registerUserToSpaHandler.getLastActivity() < 0) {
+            // if negative, user saved network settings, turn off ap mode and trigger a network restart
+            lastActivtyForDelayedShutdown =  System.currentTimeMillis() - (timeoutMs - 15000);
+            return lastActivtyForDelayedShutdown;
+        }
+        return Math.max(lastActivity, Math.max(networkSettingsHandler.getLastActivity(), registerUserToSpaHandler.getLastActivity()));
+    }
+
+    /**
+     * indicate whether the network settings have been updated
+     * @return
+     */
+    public boolean updatedNetwork() {
+        return networkSettingsHandler.getLastActivity() < 0;
+    }
+
     private void init() throws CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException, IOException, KeyManagementException, KeyStoreException {
-        server = HttpsServer.create(new InetSocketAddress(port), 0);
         if (ssl) {
+            server = HttpsServer.create(new InetSocketAddress(port), 0);
             ((HttpsServer) server).setHttpsConfigurator(getHttpsConfigurator());
+        } else {
+            server = HttpServer.create(new InetSocketAddress(port), 0);
         }
 
+        this.networkSettingsHandler = new NetworkSettingsHandler(this.networkSettingsHolder);
+        this.registerUserToSpaHandler = new RegisterUserToSpaHandler(this.registrationInfoHolder);
         server.createContext("/networkSettings", networkSettingsHandler);
         server.createContext("/registerUserToSpa", registerUserToSpaHandler);
         server.setExecutor(null);
@@ -78,6 +131,7 @@ public class WebServer {
                 WebServer.this.stop();
             }
         });
+        LOGGER.info("agent web server started on port {}", port);
     }
 
     private HttpsConfigurator getHttpsConfigurator() throws CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException, IOException, KeyManagementException, KeyStoreException {

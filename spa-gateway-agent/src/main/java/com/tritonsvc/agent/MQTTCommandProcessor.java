@@ -3,6 +3,7 @@ package com.tritonsvc.agent;
 import com.google.common.base.Throwables;
 import com.tritonsvc.httpd.NetworkSettingsHolder;
 import com.tritonsvc.model.AgentSettings;
+import com.tritonsvc.model.Ethernet;
 import com.tritonsvc.model.NetworkSettings;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
@@ -13,6 +14,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledg
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
+import com.tritonsvc.wifi.ParserIwconfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,11 +54,19 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
     private String dataPath;
     private GatewayEventDispatcher eventDispatcher;
     private int controllerUpdateInterval = 3;
-    private final ScheduledExecutorService scheduledExecutorService = new ScheduledThreadPoolExecutor(4);
+    private int realTimeEventsCheckInterval = 3;
+    private final ScheduledExecutorService scheduledExecutorService = new ScheduledThreadPoolExecutor(5);
+                                                                          // 1 = rs485 harvester
+                                                                          // 2 = wsn harvester
+                                                                          // 3 = update interval expiration watcher
+                                                                          // 4 = data harvest iterator
+                                                                          // 5 = real time events
     private X509Certificate publicCert;
     private PrivateKey privateKey;
     private AgentSettings agentSettings;
     private Map<String, String> buildParams = newHashMap();
+    private AgentSettingsPersister persister;
+
 
     protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId);
 
@@ -72,14 +82,23 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     protected abstract void processDataHarvestIteration();
 
+    protected abstract void processEventsHandler();
+
+    protected abstract String getOsType();
+
+    protected abstract String getEthernetDeviceName();
+
+    protected abstract String getWifiDeviceName();
+
     /**
      * Constructor
      */
-    public MQTTCommandProcessor() {
+    public MQTTCommandProcessor(AgentSettingsPersister persister) {
         loadBuildProps();
         LOGGER.info("agent build version {}", getBuildParams().get("BWG-Agent-Version"));
         LOGGER.info("agent build number {}", getBuildParams().get("BWG-Agent-Build-Number"));
         LOGGER.info("agent scm revision {}", getBuildParams().get("BWG-Agent-SCM-Revision"));
+        this.persister = persister;
 
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
@@ -96,7 +115,9 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     @Override
     public void executeStartup() {
-        loadAgentSettings();
+        String ethernetDevice = configProps.getProperty(AgentConfiguration.ETHERNET_DEVICE_NAME, "eth0");
+        String wifiDevice = configProps.getProperty(AgentConfiguration.WIFI_DEVICE_NAME, "wlan0");
+        loadAgentSettings(ethernetDevice, wifiDevice);
         handleStartup(gwSerialNumber, configProps, homePath, scheduledExecutorService);
         kickOffDataHarvest();
     }
@@ -289,8 +310,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
         return eventDispatcher;
     }
 
-    // after 30 seconds from start, and once every X minutes send up to cloud whatever system states
-    // the X reporting interval should be settable via other reuest messages like setSystemStateReportInterval(), etc
+    // once every X time period, check states
     private void kickOffDataHarvest() {
         scheduledExecutorService.scheduleWithFixedDelay((Runnable) () -> {
             try {
@@ -299,31 +319,59 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
                 LOGGER.error("unable to process data harvest iteration", ex);
             }
         }, controllerUpdateInterval, controllerUpdateInterval, TimeUnit.SECONDS);
+
+        scheduledExecutorService.scheduleWithFixedDelay((Runnable) () -> {
+            try {
+                processEventsHandler();
+            } catch (Throwable ex) {
+                LOGGER.error("unable to process events iteration", ex);
+            }
+        }, realTimeEventsCheckInterval, realTimeEventsCheckInterval, TimeUnit.SECONDS);
     }
 
     @Override
     public NetworkSettings getNetworkSettings() {
-        return this.agentSettings.getNetworkSettings();
+        NetworkSettings network = agentSettings.getNetworkSettings();
+        network.setEthernetPluggedIn(new ParserIwconfig().ethernetPluggedIn(getEthernetDeviceName()));
+        return network;
     }
 
     @Override
-    public void setNetworkSettings(final NetworkSettings networkSettings) {
-        this.agentSettings.setNetworkSettings(networkSettings);
-        saveAgentSettings();
+    public void setNetworkSettings(final NetworkSettings networkSettings) throws Exception {
+        // sanity validation
+        if (networkSettings.getEthernet() == null) {
+            Ethernet defaultEthernet = new Ethernet();
+            defaultEthernet.setDhcp(true);
+            networkSettings.setEthernet(defaultEthernet);
+        } else if (!networkSettings.getEthernet().isDhcp()){
+            if (networkSettings.getEthernet().getIpAddress() == null || networkSettings.getEthernet().getGateway() == null) {
+                throw new Exception("invalid ethernet credentials, need ip address");
+            }
+            if (getNetworkSettings().getEthernet().getNetmask() == null) {
+                getNetworkSettings().getEthernet().setNetmask("255.255.255.0");
+            }
+        }
+        if (networkSettings.getWifi() != null) {
+            if (networkSettings.getWifi().getSsid() == null) {
+                throw new Exception("invalid wifi credentials, need ssid");
+            }
+        }
+        saveAgentSettings(networkSettings);
     }
 
     protected AgentSettings getAgentSettings() {
         return agentSettings;
     }
 
-    protected synchronized void loadAgentSettings() {
+    protected synchronized void loadAgentSettings(String ethernetDevice, String wifiDevice) {
         final File networkSettingFile = new File(dataPath, AGENT_SETTINGS_PROPERTIES_FILENAME);
-        this.agentSettings = AgentSettingsPersister.load(networkSettingFile);
+        this.agentSettings = persister.load(networkSettingFile, getOsType(), ethernetDevice, wifiDevice);
     }
 
-    protected synchronized void saveAgentSettings() {
+    protected synchronized void saveAgentSettings(NetworkSettings networkSettings) {
         final File networkSettingFile = new File(dataPath, AGENT_SETTINGS_PROPERTIES_FILENAME);
-        AgentSettingsPersister.save(networkSettingFile, this.agentSettings);
+        persister.save(networkSettingFile, this.agentSettings, getOsType(), getEthernetDeviceName(), homePath, getWifiDeviceName(), networkSettings );
+        loadAgentSettings(getEthernetDeviceName(), getWifiDeviceName());
     }
 
     private void loadBuildProps() {

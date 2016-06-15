@@ -7,6 +7,7 @@ public class NetworkSettings {
 
     private Wifi wifi;
     private Ethernet ethernet;
+    private boolean ethernetPluggedIn;
 
     public Wifi getWifi() {
         return wifi;
@@ -22,5 +23,13 @@ public class NetworkSettings {
 
     public void setEthernet(Ethernet ethernet) {
         this.ethernet = ethernet;
+    }
+
+    public boolean isEthernetPluggedIn() {
+        return ethernetPluggedIn;
+    }
+
+    public void setEthernetPluggedIn(boolean ethernetPluggedIn) {
+        this.ethernetPluggedIn = ethernetPluggedIn;
     }
 }

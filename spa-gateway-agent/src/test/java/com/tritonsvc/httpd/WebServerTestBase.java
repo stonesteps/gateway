@@ -3,8 +3,14 @@ package com.tritonsvc.httpd;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 
-import javax.net.ssl.*;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
+import java.net.URLConnection;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
@@ -47,7 +53,7 @@ public abstract class WebServerTestBase {
         }
     }
 
-    protected String getContent(final HttpsURLConnection conn) throws IOException {
+    protected String getContent(final URLConnection conn) throws IOException {
         String response = null;
         if (conn != null) {
             final ByteArrayOutputStream bos = new ByteArrayOutputStream();
