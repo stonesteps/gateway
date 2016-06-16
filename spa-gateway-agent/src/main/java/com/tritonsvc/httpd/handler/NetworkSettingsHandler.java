@@ -16,7 +16,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * Created by holow on 4/6/2016.
+ * Handle network settings http requests
  */
 public class NetworkSettingsHandler implements HttpHandler {
 
@@ -24,9 +24,23 @@ public class NetworkSettingsHandler implements HttpHandler {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final NetworkSettingsHolder networkSettingsHolder;
+    private long lastActivity;
 
+    /**
+     * Constructor
+     *
+     * @param networkSettingsHolder
+     */
     public NetworkSettingsHandler(NetworkSettingsHolder networkSettingsHolder) {
         this.networkSettingsHolder = networkSettingsHolder;
+    }
+
+    /**
+     * retrieve the last time the handler was invoked
+     * @return
+     */
+    public long getLastActivity() {
+        return lastActivity;
     }
 
     @Override
@@ -34,6 +48,7 @@ public class NetworkSettingsHandler implements HttpHandler {
         // GET, POST
 
         final String requestMethod = httpExchange.getRequestMethod();
+        lastActivity = System.currentTimeMillis();
 
         if ("post".equalsIgnoreCase(requestMethod)) {
             handlePost(httpExchange);
@@ -43,6 +58,7 @@ public class NetworkSettingsHandler implements HttpHandler {
             log.error("Bad request, not supported request method: {}", requestMethod);
             httpExchange.sendResponseHeaders(400, 0); // bad request
         }
+        httpExchange.close();
     }
 
     private void handlePost(final HttpExchange httpExchange) throws IOException {
@@ -55,9 +71,15 @@ public class NetworkSettingsHandler implements HttpHandler {
             log.debug("Got in request: {}", body);
 
             final NetworkSettings networkSettings = mapper.readValue(body, NetworkSettings.class);
-            this.networkSettingsHolder.setNetworkSettings(networkSettings);
 
-            httpExchange.sendResponseHeaders(200, 0); // OK
+            try {
+                this.networkSettingsHolder.setNetworkSettings(networkSettings);
+                httpExchange.sendResponseHeaders(200, 0); // OK
+                lastActivity = -1;
+            } catch (Exception ex) {
+                log.error("ap mode client submitted invalid network credentials", ex);
+                httpExchange.sendResponseHeaders(400, 0); // BAD_REQUEST
+            }
         }
     }
 
@@ -68,9 +90,10 @@ public class NetworkSettingsHandler implements HttpHandler {
 
         final Headers responseHeaders = httpExchange.getResponseHeaders();
         responseHeaders.set("Content-Type", "application/json");
-        httpExchange.sendResponseHeaders(200, response.length());
+        byte[] json = response.getBytes();
+        httpExchange.sendResponseHeaders(200, json.length);
         try (final OutputStream os = httpExchange.getResponseBody()) {
-            os.write(response.getBytes());
+            os.write(json);
         }
     }
 }

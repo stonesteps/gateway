@@ -29,6 +29,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.lang.reflect.Constructor;
 import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -327,8 +328,8 @@ public class Agent {
     AgentMessageProcessor createProcessor() {
 		try {
 			Class<?> clazz = Class.forName(commandProcessorClassname);
-			AgentMessageProcessor processor = (AgentMessageProcessor) clazz.newInstance();
-			return processor;
+            Constructor construct = clazz.getDeclaredConstructor(AgentSettingsPersister.class);
+			return (AgentMessageProcessor) construct.newInstance(new AgentSettingsPersister());
 		} catch (Exception e) {
 			throw Throwables.propagate(e);
 		}

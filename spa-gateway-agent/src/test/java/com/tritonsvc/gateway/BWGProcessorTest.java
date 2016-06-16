@@ -1,6 +1,7 @@
 package com.tritonsvc.gateway;
 
 
+import com.tritonsvc.agent.AgentSettingsPersister;
 import com.tritonsvc.agent.GatewayEventDispatcher;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
@@ -38,7 +39,7 @@ public class BWGProcessorTest {
         rs485MessagePublisher = mock(RS485MessagePublisher.class);
         rs485DataHarvester = mock(RS485DataHarvester.class);
         eventDispatcher = mock(GatewayEventDispatcher.class);
-        processor = new BWGProcessor();
+        processor = new BWGProcessor(mock(AgentSettingsPersister.class));
         processor.setRS485DataHarvester(rs485DataHarvester);
         processor.setRS485MessagePublisher(rs485MessagePublisher);
         processor.setRS485(mock(UART.class));

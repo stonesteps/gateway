@@ -3,9 +3,13 @@ package com.tritonsvc.wifi;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.WifiConnectionHealth;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStat;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStat.WifiConnectionDiagnostics;
+import org.apache.commons.io.FileUtils;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import java.io.File;
 import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
@@ -23,12 +27,18 @@ public class ParserIwconfigTest {
     private ParserIwconfig parser;
     private Process unixProcess;
 
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
+
     @Before
     public void setUp() throws IOException {
         parser = new ParserIwconfig();
         parser = spy(parser);
         unixProcess = mock(Process.class);
         doReturn(unixProcess).when(parser).executeUnixCommand(any());
+        File file = new File(folder.getRoot(), "test1");
+        FileUtils.writeStringToFile(file, "up");
+        doReturn(file).when(parser).getSystemFile(any());
      }
 
     @Test

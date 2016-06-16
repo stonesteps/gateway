@@ -7,15 +7,19 @@ import com.google.common.primitives.Longs;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.WifiConnectionHealth;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStat;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStat.WifiConnectionDiagnostics;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Date;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -68,6 +72,7 @@ public class ParserIwconfig {
             wifiStatBuilder.setElapsedDeltaMilliseconds(wifiStatBuilder.getRecordedDate() - previousWifiStat.getRecordedDate());
         }
 
+        proc.waitFor(10, TimeUnit.SECONDS);
         try (BufferedReader iwconfigInput = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
             while ((line = iwconfigInput.readLine()) != null) {
                 line = line.toLowerCase();
@@ -318,26 +323,29 @@ public class ParserIwconfig {
             proc.destroyForcibly();
         }
 
-        proc = executeUnixCommand("cat /sys/class/net/eth/operstate".replaceAll("eth", ethernetDeviceName));
-        try (BufferedReader iwconfigInput = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-            while ((line = iwconfigInput.readLine()) != null) {
-                if (line.toLowerCase().indexOf("up") > -1) {
-                    wifiStatBuilder.setEthernetPluggedIn(true);
-                } else {
-                    wifiStatBuilder.setEthernetPluggedIn(false);
-                }
-            }
-        } finally {
-            proc.destroyForcibly();
-        }
-
+        wifiStatBuilder.setEthernetPluggedIn(ethernetPluggedIn(ethernetDeviceName));
         wifiStatBuilder.setConnectedDiag(dataBuilder);
         return wifiStatBuilder.build();
+    }
+
+    public boolean ethernetPluggedIn(String ethernetDeviceName) {
+        try {
+            String content = FileUtils.readFileToString(getSystemFile("/sys/class/net/eth/operstate".replaceAll("eth", ethernetDeviceName)));
+            return content.toLowerCase().contains("up");
+        } catch (Exception ex) {
+            LOGGER.error("error while getting ethernet states");
+        }
+        return false;
     }
 
     @VisibleForTesting
     Process executeUnixCommand(String command) throws IOException {
         return Runtime.getRuntime().exec(command);
+    }
+
+    @VisibleForTesting
+    File getSystemFile(String path) {
+        return new File(path);
     }
 
     private String processMatch(Pattern pattern, String input) {

@@ -9,8 +9,10 @@ import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import com.tritonsvc.agent.Agent;
 import com.tritonsvc.agent.AgentConfiguration;
+import com.tritonsvc.agent.AgentSettingsPersister;
 import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
@@ -48,6 +50,9 @@ import jdk.dio.uart.UARTConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Date;
@@ -79,6 +84,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static final long DEFAULT_UPDATE_INTERVAL = 15000; //0 is continuous, in ms
     private static final long DEFAULT_WIFIUPDATE_INTERVAL = 3600000; // 1 hour
+    public static final String TS_IMX6 = "ts-imx6";
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     private static Map<String, String> DEFAULT_EMPTY_MAP = newHashMap();
@@ -101,12 +107,24 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private ScheduledFuture<?> intervalResetFuture = null;
     private String rs485ControllerType = null;
     private String wifiDevice = null;
+    private String ifConfigPath = null;
     private String iwConfigPath = null;
     private String ethernetDevice = null;
     private WifiStat lastWifiStatParsed = null;
     private WifiStat lastWifiStatSent = null;
     private ParserIwconfig lwconfigParser = new ParserIwconfig();
     private boolean sentRebootEvent = false;
+    private ButtonManager buttonManager;
+    private String homePath;
+
+    /**
+     * Constructor
+     *
+     * @param persister
+     */
+    public BWGProcessor(AgentSettingsPersister persister) {
+        super(persister);
+    }
 
     @Override
     public void handleShutdown() {
@@ -124,6 +142,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         if (es != null) {es.shutdown();}
+        if (buttonManager != null) {buttonManager.stopAPProcessIfPresent();}
     }
 
     @Override
@@ -133,12 +152,19 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.configProps = configProps;
         this.wifiDevice = configProps.getProperty(AgentConfiguration.WIFI_DEVICE_NAME, "wlan0");
         this.iwConfigPath = configProps.getProperty(AgentConfiguration.WIFI_IWCONFIG_PATH, "/sbin/iwconfig");
+        this.ifConfigPath = configProps.getProperty(AgentConfiguration.WIFI_IFCONFIG_PATH, "/sbin/ifconfig");
         this.ethernetDevice = configProps.getProperty(AgentConfiguration.ETHERNET_DEVICE_NAME, "eth0");
-        new WebServer(configProps, this, this);
         this.es = executorService;
+        this.homePath = homePath;
+        Long timeoutMs = Longs.tryParse(configProps.getProperty(AgentConfiguration.AP_MODE_WEB_SERVER_TIMEOUT_SECONDS, "300"));
+        if (timeoutMs == null) {
+            timeoutMs = 300000L;
+        } else {
+            timeoutMs*=1000;
+        }
+        this.buttonManager = new ButtonManager(new WebServer(configProps, this, this, timeoutMs), timeoutMs, this, ifConfigPath , iwConfigPath);
         setupAgentSettings();
         validateOidProperties();
-        obtainSpaRegistration();
         setUpRS485Processors();
         executorService.execute(new WSNDataHarvester(this));
 
@@ -241,13 +267,13 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             } else {
                 getRS485DataHarvester().arePanelCommandsSafe(false);
                 switch (request.getRequestType()) {
-                    case PUMPS:
+                    case PUMP:
                         updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kJets<port>MetaButton", ComponentType.PUMP);
                         break;
                     case CIRCULATION_PUMP:
                         updateCircPump(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId);
                         break;
-                    case LIGHTS:
+                    case LIGHT:
                         updatePeripherlal(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, "kLight<port>MetaButton", ComponentType.LIGHT);
                         break;
                     case BLOWER:
@@ -279,6 +305,35 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
     }
 
+    @Override
+    public String getOsType() {
+        try {
+            Process proc = executeUnixCommand("uname -a");
+            proc.waitFor(2, TimeUnit.SECONDS);
+            String line;
+            try (BufferedReader iwconfigInput = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                while ((line = iwconfigInput.readLine()) != null) {
+                    if (line.toLowerCase().contains(TS_IMX6)) {
+                        return TS_IMX6;
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            LOGGER.error("problem getting os type", ex);
+        }
+        return "standard";
+    }
+
+    @Override
+    public String getEthernetDeviceName() {
+        return ethernetDevice;
+    }
+
+    @Override
+    public String getWifiDeviceName() {
+        return wifiDevice;
+    }
+
     public synchronized void setUpRS485Processors() {
         this.faultLogManager = new FaultLogManager(getConfigProps());
         if (Objects.equals(getRS485ControllerType(), "JACUZZI")) {
@@ -299,6 +354,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     public void setRS485ControllerType(String type) {
         this.rs485ControllerType = type;
+    }
+
+    public String getHomePath() {
+        return homePath;
     }
 
     private List<Metadata> convertRequestToMetaData(Collection<RequestMetadata> requestMetadata) {
@@ -577,19 +636,27 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     @Override
-    public synchronized void processDataHarvestIteration() {
-        DeviceRegistration registeredSpa = obtainSpaRegistration();
-        if (registeredSpa.getHardwareId() == null) {
-            LOGGER.info("skipping data harvest, spa gateway has not been registered");
-            return;
-        }
+    public void processEventsHandler() {
+        buttonManager.finish();
+        buttonManager.mark();
+    }
 
-        // make sure the controller is registered as a compoenent to cloud
-        obtainControllerRegistration(registeredSpa.getHardwareId());
-        processWifiDiag(registeredSpa.getHardwareId());
+    @Override
+    public synchronized void processDataHarvestIteration() {
         boolean locked = false;
-        boolean rs485Active;
         try {
+            DeviceRegistration registeredSpa = obtainSpaRegistration();
+            if (registeredSpa.getHardwareId() == null) {
+                LOGGER.info("skipping data harvest, spa gateway has not been registered");
+                return;
+            }
+
+            // make sure the controller is registered as a compoenent to cloud
+            obtainControllerRegistration(registeredSpa.getHardwareId());
+            processWifiDiag(registeredSpa.getHardwareId());
+            buttonManager.sendPendingEventIfAvailable();
+
+            boolean rs485Active;
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
             if (!getRS485DataHarvester().hasAllConfigState() &&
@@ -875,6 +942,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.faultLogManager = faultLogManager;
     }
 
+    @VisibleForTesting
+    Process executeUnixCommand(String command) throws IOException {
+        return Runtime.getRuntime().exec(command);
+    }
+
     private void validateOidProperties() {
         String preOidPropName = DYNAMIC_DEVICE_OID_PROPERTY
                 .replaceAll("MAC", "controller")
@@ -1070,28 +1142,28 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         if (getAgentSettings() != null) {
             validateGenericSettings().setUpdateInterval(getUpdateIntervalSeconds());
         }
-        saveAgentSettings();
+        saveAgentSettings(null);
     }
 
     private void clearUpdateIntervalFromAgentSettings() {
         if (getAgentSettings() != null) {
             validateGenericSettings().setUpdateInterval(null);
         }
-        saveAgentSettings();
+        saveAgentSettings(null);
     }
 
     private void saveCurrentWifiUpdateIntervalInAgentSettings() {
         if (getAgentSettings() != null) {
             validateGenericSettings().setWifiUpdateInterval(getWifiUpdateIntervalSeconds());
         }
-        saveAgentSettings();
+        saveAgentSettings(null);
     }
 
     private void clearWifiUpdateIntervalFromAgentSettings() {
         if (getAgentSettings() != null) {
             validateGenericSettings().setWifiUpdateInterval(null);
         }
-        saveAgentSettings();
+        saveAgentSettings(null);
     }
 
 
@@ -1099,14 +1171,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         if (getAgentSettings() != null) {
             validateGenericSettings().setRs485ControllerType(getRS485ControllerType());
         }
-        saveAgentSettings();
+        saveAgentSettings(null);
     }
 
     private void clearProcessorTypeFromAgentSettings() {
         if (getAgentSettings() != null) {
             validateGenericSettings().setUpdateInterval(null);
         }
-        saveAgentSettings();
+        saveAgentSettings(null);
     }
 
     private void setupAgentSettings() {

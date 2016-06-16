@@ -45,6 +45,18 @@ public interface AgentConfiguration {
 	/** Optioal Property for iwconfig path on linux **/
 	public static final String WIFI_IWCONFIG_PATH = "wifi.iwconfig.path";
 
+	/** Optioal Property for iwconfig path on linux **/
+	public static final String WIFI_IFCONFIG_PATH = "wifi.ifconfig.path";
+
 	/** Optioal Property for ethernet device  on linux **/
 	public static final String ETHERNET_DEVICE_NAME = "ethernet.device";
+
+	/** Optioal Property web service port **/
+	public static final String AP_MODE_WEB_SERVER_PORT = "webserver.port";
+
+	/** Optioal Property web service ssl enabled, true or false **/
+	public static final String AP_MODE_WEB_SERVER_SSLENABLED = "webserver.ssl";
+
+	/** Optioal Property web service idle timeout **/
+	public static final String AP_MODE_WEB_SERVER_TIMEOUT_SECONDS = "webserver.timeout.seconds";
 }

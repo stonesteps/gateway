@@ -11,15 +11,28 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 /**
- * Created by holow on 4/6/2016.
+ * Handler for user registration http requests
  */
 public class RegisterUserToSpaHandler implements HttpHandler {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final RegistrationInfoHolder registrationInfoHolder;
+    private long lastActivity;
 
+    /**
+     * Constructor
+     * @param registrationInfoHolder
+     */
     public RegisterUserToSpaHandler(final RegistrationInfoHolder registrationInfoHolder) {
         this.registrationInfoHolder = registrationInfoHolder;
+    }
+
+    /**
+     * retrieve the last time the handler was invoked
+     * @return
+     */
+    public long getLastActivity() {
+        return lastActivity;
     }
 
     @Override
@@ -29,6 +42,7 @@ public class RegisterUserToSpaHandler implements HttpHandler {
         final String regUserId = registrationInfoHolder != null ? registrationInfoHolder.getRegUserId() : null;
         final String spaId = registrationInfoHolder != null ? registrationInfoHolder.getSpaId() : null;
         final String serialNumber = registrationInfoHolder != null ? registrationInfoHolder.getSerialNumber() : null;
+        lastActivity = -1;
 
         if (regUserId != null) {
             error(httpExchange, "Spa already registered to User");
@@ -37,6 +51,7 @@ public class RegisterUserToSpaHandler implements HttpHandler {
         } else {
             ok(httpExchange, regKey, spaId, serialNumber);
         }
+        httpExchange.close();
     }
 
     private void error(final HttpExchange httpExchange, final String errorMessage) throws IOException {

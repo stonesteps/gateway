@@ -1,5 +1,6 @@
 package com.tritonsvc.gateway;
 
+import com.tritonsvc.agent.AgentSettingsPersister;
 import com.tritonsvc.agent.GatewayEventDispatcher;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
@@ -34,7 +35,7 @@ public class MockProcessorTest {
 
         mockGatewayEventDispatcher = mock(GatewayEventDispatcher.class);
 
-        mockProcessor = new MockProcessor();
+        mockProcessor = new MockProcessor(mock(AgentSettingsPersister.class));
         mockProcessor.handleStartup("1234", props, "./", null);
         mockProcessor.setEventDispatcher(mockGatewayEventDispatcher);
     }

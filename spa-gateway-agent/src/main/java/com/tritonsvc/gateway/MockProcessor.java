@@ -6,6 +6,7 @@ package com.tritonsvc.gateway;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
+import com.tritonsvc.agent.AgentSettingsPersister;
 import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
@@ -48,6 +49,15 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private boolean sendRandomWifiStats = true;
     private long lastWifiStatsSendTime = 0L;
 
+    /**
+     * Constructor
+     *
+     * @param persister
+     */
+    public MockProcessor(AgentSettingsPersister persister) {
+        super(persister);
+    }
+
     @Override
     public void handleShutdown() {
         spaStateHolder.shutdown();
@@ -69,6 +79,9 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             LOGGER.info("Spa already registered.");
         }
     }
+
+    @Override
+    public synchronized void processEventsHandler() {}
 
     private void init(final Properties props, String homePath) {
         spaStateHolder = new MockSpaStateHolder(props);
@@ -116,7 +129,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     private void setupWebServer(Properties props) {
         try {
-            this.webServer = new WebServer(props, this, this);
+            this.webServer = new WebServer(props, this, this, 0);
             if ("true".equalsIgnoreCase(props.getProperty("mock.webServer.runOnStart"))) {
                 this.webServer.start();
             }
@@ -187,13 +200,13 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
                 updateHeater(request.getMetadataList(), originatorId, hardwareId);
             } else {
                 switch (request.getRequestType()) {
-                    case PUMPS:
+                    case PUMP:
                         updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.PUMP);
                         break;
                     case CIRCULATION_PUMP:
                         updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.CIRCULATION_PUMP);
                         break;
-                    case LIGHTS:
+                    case LIGHT:
                         updatePeripherlal(request.getMetadataList(), originatorId, hardwareId, Bwg.Uplink.Model.Constants.ComponentType.LIGHT);
                         break;
                     case BLOWER:
@@ -326,6 +339,21 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         sendWifiStats();
 
         LOGGER.info("Sent harvest periodic reports");
+    }
+
+    @Override
+    protected String getOsType() {
+        return "standard";
+    }
+
+    @Override
+    protected String getEthernetDeviceName() {
+        return "eth0";
+    }
+
+    @Override
+    protected String getWifiDeviceName() {
+        return "wlan0";
     }
 
     private void sendFaultLogs() {
