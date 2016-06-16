@@ -449,7 +449,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
         if (System.currentTimeMillis() > lastMeasurementReadingsSendTime + RANDOM_DATA_SEND_INTERVAL) {
             sendMeasurements(registeredSpa.getHardwareId(), buildRandomMeasurementReadings());
-            lastWifiStatsSendTime = System.currentTimeMillis();
+            lastMeasurementReadingsSendTime = System.currentTimeMillis();
         }
     }
 
