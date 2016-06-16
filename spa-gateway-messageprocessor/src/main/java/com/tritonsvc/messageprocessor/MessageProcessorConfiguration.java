@@ -33,6 +33,8 @@ public class MessageProcessorConfiguration {
     private String clientCertFilePem;
     @Value("${clientKeyFilePkcs8:donotfind}")
     private String clientKeyFilePkcs8;
+    @Value("${swUpgradeUrl:http://localhost:8080/sw_upgrade?currentBuildNumber=SNAPSHOT}")
+    private String swUpgradeUrl;
 
     public String getDownlinkTopicName() {
         return downlinkTopicName;
@@ -122,5 +124,9 @@ public class MessageProcessorConfiguration {
             pki.setClientPrivate(null);
         }
         return pki;
+    }
+
+    public String getSwUpgradeUrl() {
+        return swUpgradeUrl;
     }
 }

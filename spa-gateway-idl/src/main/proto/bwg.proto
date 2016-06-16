@@ -576,6 +576,7 @@ message Downlink {
             optional string p2pAPPassword = 5;
             optional string regKey = 6;
             optional string regUserId = 7;
+            optional string swUpgradeUrl = 8;
         }
 
         enum RequestType {

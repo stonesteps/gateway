@@ -176,6 +176,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             registeredSpa.getMeta().put("apPassword", response.hasP2PAPPassword() ? response.getP2PAPPassword() : null);
             registeredSpa.getMeta().put("regKey", response.hasRegKey() ? response.getRegKey() : null);
             registeredSpa.getMeta().put("regUserId", response.hasRegUserId() ? response.getRegUserId() : null);
+            registeredSpa.getMeta().put("swUpgradeUrl", response.hasSwUpgradeUrl() ? response.getSwUpgradeUrl() : null);
             LOGGER.info("received spa registration success for originator {} on hardwareid {} ", originatorId, hardwareId);
         }
 

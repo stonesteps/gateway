@@ -229,6 +229,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             registered.getMeta().put("apPassword", response.hasP2PAPPassword() ? response.getP2PAPPassword() : null);
             registered.getMeta().put("regKey", response.hasRegKey() ? response.getRegKey() : null);
             registered.getMeta().put("regUserId", response.hasRegUserId() ? response.getRegUserId() : null);
+            registered.getMeta().put("swUpgradeUrl", response.hasSwUpgradeUrl() ? response.getSwUpgradeUrl() : null);
             getRegisteredHWIds().put(originatorId, registered);
             LOGGER.info("received successful spa registration, originatorid {} for hardwareid {} ", originatorId, hardwareId);
 

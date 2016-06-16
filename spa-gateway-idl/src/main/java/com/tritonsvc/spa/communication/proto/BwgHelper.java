@@ -90,8 +90,8 @@ public final class BwgHelper {
     }
 
     public static Bwg.Downlink.Model.SpaRegistrationResponse buildSpaRegistrationResponse(
-            final Bwg.Downlink.Model.RegistrationAckState state,
-            final String p2pAPSSID, final String p2pAPPassword, final String regKey, final String regUserId) {
+            final Bwg.Downlink.Model.RegistrationAckState state, final String p2pAPSSID, final String p2pAPPassword,
+            final String regKey, final String regUserId, final String swUpgradeUrl) {
         final Bwg.Downlink.Model.SpaRegistrationResponse.Builder builder = Bwg.Downlink.Model.SpaRegistrationResponse.newBuilder();
         builder.setState(state);
         if (p2pAPSSID != null) {
@@ -105,6 +105,9 @@ public final class BwgHelper {
         }
         if (regUserId != null) {
             builder.setRegUserId(regUserId);
+        }
+        if (swUpgradeUrl != null) {
+            builder.setSwUpgradeUrl(swUpgradeUrl);
         }
 
         return builder.build();
