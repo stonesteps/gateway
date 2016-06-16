@@ -285,6 +285,18 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
         eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.WIFI_STATS, report.build(), true);
     }
 
+    /**
+     * convenience method to send wifi to cloud
+     *
+     * @param hardwareId
+     * @param measurements
+     */
+    public void sendMeasurements(String hardwareId, List<Measurement> measurements ) {
+        Measurements.Builder builder = Measurements.newBuilder();
+        builder.addAllMeasurements(measurements);
+        eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.MEASUREMENT, builder.build(), true);
+    }
+
     public void sendSpaState(String hardwareId, Bwg.Uplink.Model.SpaState spaState) {
         getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.SPA_STATE, spaState, false);
     }

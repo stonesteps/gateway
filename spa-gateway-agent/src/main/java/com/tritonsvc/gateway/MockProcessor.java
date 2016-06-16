@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
@@ -48,6 +49,9 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     private boolean sendRandomWifiStats = true;
     private long lastWifiStatsSendTime = 0L;
+
+    private boolean sendRandomMeasurementReadings = true;
+    private long lastMeasurementReadingsSendTime = 0L;
 
     /**
      * Constructor
@@ -338,6 +342,8 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
         sendWifiStats();
 
+        sendMeasurementReadings();
+
         LOGGER.info("Sent harvest periodic reports");
     }
 
@@ -436,6 +442,31 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         List<Bwg.Uplink.Model.WifiStat> list = new ArrayList<>();
         list.add(builder.build());
         return list;
+    }
+
+    private void sendMeasurementReadings() {
+        if (!sendRandomMeasurementReadings) return;
+
+        if (System.currentTimeMillis() > lastMeasurementReadingsSendTime + RANDOM_DATA_SEND_INTERVAL) {
+            sendMeasurements(registeredSpa.getHardwareId(), buildRandomMeasurementReadings());
+            lastWifiStatsSendTime = System.currentTimeMillis();
+        }
+    }
+
+    private List<Bwg.Uplink.Model.Measurement> buildRandomMeasurementReadings() {
+        final List<Bwg.Uplink.Model.Measurement> list = new ArrayList<>();
+        list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.dataType.AMBIENT_TEMP, "celsius"));
+        list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.dataType.PUMP_AC_CURRENT, "milliamps"));
+        return list;
+    }
+
+    private Bwg.Uplink.Model.Measurement buildRandomMeasurementReading(final Bwg.Uplink.Model.Measurement.dataType dataType, final String uom) {
+        final Bwg.Uplink.Model.Measurement.Builder builder = Bwg.Uplink.Model.Measurement.newBuilder();
+        builder.setTimestamp(System.currentTimeMillis());
+        builder.setType(dataType);
+        builder.setUom(uom);
+        builder.setValue(ThreadLocalRandom.current().nextDouble(10.0d, 90.0d));
+        return builder.build();
     }
 
     @Override
