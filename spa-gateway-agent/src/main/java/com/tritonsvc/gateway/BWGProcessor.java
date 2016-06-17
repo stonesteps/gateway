@@ -20,33 +20,24 @@ import com.tritonsvc.model.AgentSettings;
 import com.tritonsvc.model.GenericSettings;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestType;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaCommandAttribName;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.LightComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.WifiConnectionHealth;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStat;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
+import com.tritonsvc.sw_upgrade.SoftwareUpgradeManager;
 import com.tritonsvc.wifi.ParserIwconfig;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
 import jdk.dio.uart.UARTConfig;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,13 +45,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -79,8 +64,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     public static final String DYNAMIC_DEVICE_OID_PROPERTY = "device.MAC.DEVICE_NAME.oid";
     private static final long MAX_NEW_REG_WAIT_TIME = 30000;
     private static final long MAX_REG_LIFETIME = Agent.MAX_SUBSCRIPTION_INACTIVITY_TIME - 30000; // set this to the same value
-                                                                                                 // this guarantees that at least one
-                                                                                                 // mqtt downlink is due to arrive into agent via the reg ack in given time
+    // this guarantees that at least one
+    // mqtt downlink is due to arrive into agent via the reg ack in given time
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static final long DEFAULT_UPDATE_INTERVAL = 15000; //0 is continuous, in ms
     private static final long DEFAULT_WIFIUPDATE_INTERVAL = 3600000; // 1 hour
@@ -116,6 +101,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private boolean sentRebootEvent = false;
     private ButtonManager buttonManager;
     private String homePath;
+    private SoftwareUpgradeManager softwareUpgradeManager;
 
     /**
      * Constructor
@@ -141,8 +127,12 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         } catch (Exception ex) {
         }
 
-        if (es != null) {es.shutdown();}
-        if (buttonManager != null) {buttonManager.stopAPProcessIfPresent();}
+        if (es != null) {
+            es.shutdown();
+        }
+        if (buttonManager != null) {
+            buttonManager.stopAPProcessIfPresent();
+        }
     }
 
     @Override
@@ -160,9 +150,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         if (timeoutMs == null) {
             timeoutMs = 300000L;
         } else {
-            timeoutMs*=1000;
+            timeoutMs *= 1000;
         }
-        this.buttonManager = new ButtonManager(new WebServer(configProps, this, this, timeoutMs), timeoutMs, this, ifConfigPath , iwConfigPath);
+        this.buttonManager = new ButtonManager(new WebServer(configProps, this, this, timeoutMs), timeoutMs, this, ifConfigPath, iwConfigPath);
+        this.softwareUpgradeManager = new SoftwareUpgradeManager(configProps);
+
         setupAgentSettings();
         validateOidProperties();
         setUpRS485Processors();
@@ -233,8 +225,15 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             getRegisteredHWIds().put(originatorId, registered);
             LOGGER.info("received successful spa registration, originatorid {} for hardwareid {} ", originatorId, hardwareId);
 
+            checkSoftwareUpgrade(response.hasSwUpgradeUrl() ? response.getSwUpgradeUrl() : null);
         } else {
             LOGGER.info("received spa registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
+        }
+    }
+
+    private void checkSoftwareUpgrade(final String swUpgradeUrl) {
+        if (StringUtils.isNotBlank(swUpgradeUrl) && softwareUpgradeManager.checkSoftwareUpgradeAvailable(swUpgradeUrl)) {
+            softwareUpgradeManager.initiateSoftwareUpgradeProcedure();
         }
     }
 
@@ -339,7 +338,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.faultLogManager = new FaultLogManager(getConfigProps());
         if (Objects.equals(getRS485ControllerType(), "JACUZZI")) {
             setRS485MessagePublisher(new JacuzziMessagePublisher(this));
-            setRS485DataHarvester(new JacuzziDataHarvester(this, (JacuzziMessagePublisher) getRS485MessagePublisher(),faultLogManager));
+            setRS485DataHarvester(new JacuzziDataHarvester(this, (JacuzziMessagePublisher) getRS485MessagePublisher(), faultLogManager));
             LOGGER.info("Configured RS485 connection for Jacuzzi Protocol");
         } else {
             setRS485MessagePublisher(new NGSCMessagePublisher(this));
@@ -363,7 +362,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     private List<Metadata> convertRequestToMetaData(Collection<RequestMetadata> requestMetadata) {
         return requestMetadata.stream()
-                .map(request ->  Metadata.newBuilder().setName(request.getName().name()).setValue(request.getValue()).build())
+                .map(request -> Metadata.newBuilder().setName(request.getName().name()).setValue(request.getValue()).build())
                 .collect(Collectors.toList());
     }
 
@@ -451,8 +450,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         if (wifiIntervalSeconds != null) {
-            if (wifiIntervalSeconds < 0)
-            {
+            if (wifiIntervalSeconds < 0) {
                 wifiStatUpdateInterval.set(DEFAULT_WIFIUPDATE_INTERVAL);
                 clearWifiUpdateIntervalFromAgentSettings();
             } else {
@@ -800,7 +798,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.rs485MessagePublisher = rs485MessagePublisher;
     }
 
-    private void processFaultLogs (String hardwareId, boolean lastRs485Active) throws Exception {
+    private void processFaultLogs(String hardwareId, boolean lastRs485Active) throws Exception {
         // send when logs fetched from device become available
         if (faultLogManager.hasUnsentFaultLogs()) {
             final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
@@ -815,7 +813,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         final int nextLogNumberToFetch = faultLogManager.generateFetchNext();
         if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || nextLogNumberToFetch > -1) {
             // get latest fetch log entry or entry with number held by fault log manager
-            Short logNumber = nextLogNumberToFetch > -1 ? Short.valueOf((short) nextLogNumberToFetch): null;
+            Short logNumber = nextLogNumberToFetch > -1 ? Short.valueOf((short) nextLogNumberToFetch) : null;
             LOGGER.info("sending request for fault log number {}", logNumber != null ? logNumber.toString() : 255);
 
             try {
@@ -856,7 +854,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private String textualRS485Meaning(boolean state) {
-        return (state ? "connected" : "disconnected" );
+        return (state ? "connected" : "disconnected");
     }
 
     private boolean hasWifiStateChanged(WifiStat currentWifiStat) {
@@ -864,7 +862,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 !Objects.equals(currentWifiStat.getWifiConnectionHealth(), lastWifiStatParsed.getWifiConnectionHealth()) ||
                 !Objects.equals(currentWifiStat.getEthernetPluggedIn(), lastWifiStatParsed.getEthernetPluggedIn());
     }
-    private void processWifiDiag (String hardwareId) {
+
+    private void processWifiDiag(String hardwareId) {
         boolean wLocked = false;
         try {
             WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice, lastWifiStatSent, iwConfigPath, ethernetDevice);
@@ -886,7 +885,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 LOGGER.info("Wifi status change detected, from " + oldWifiStatus + " to " + currentWifiStat.getWifiConnectionHealth().name());
             }
 
-            if ( (wifiStatUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastWifiStatsSent.get() > 60000)) ||
+            if ((wifiStatUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastWifiStatsSent.get() > 60000)) ||
                     (System.currentTimeMillis() - lastWifiStatsSent.get() > wifiStatUpdateInterval.get())) {
                 sendWifiStats(hardwareId, newArrayList(currentWifiStat));
                 lastWifiStatsSent.set(new Date().getTime());
