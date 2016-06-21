@@ -143,15 +143,6 @@ public abstract class RS485DataHarvester implements Runnable {
                     readBytes.clear();
                     int read = processor.getRS485UART().read(readBytes);
                     parseHDLCMessages(workingMessage, readBytes);
-
-                    if (LOGGER.isDebugEnabled()) {
-                        if (read > 0) {
-                            byte[] data = workingMessage.array();
-                            LOGGER.debug("Received raw rs485 data {}", printHexBinary(data));
-                        } else {
-                            LOGGER.debug("Received no rs485 data during read operation");
-                        }
-                    }
                 }
             }
             catch (Throwable ex) {
@@ -367,9 +358,7 @@ public abstract class RS485DataHarvester implements Runnable {
         if (bytesRead.remaining() + workingMessage.position() > 128) {
             hdlcFrameLength = 0;
             state = State.searchForBeginning;
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("rs 485 frame out of sync, message parsing went over 128 bytes, resetting state.");
-            }
+            LOGGER.info("rs 485 frame out of sync, message parsing went over 128 bytes, resetting state.");
         }
 
         while (bytesRead.remaining() > 0) {

@@ -11,7 +11,11 @@ import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.spa.communication.proto.Bwg;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
@@ -19,7 +23,12 @@ import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -36,7 +45,8 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private static Logger LOGGER = LoggerFactory.getLogger(MockProcessor.class);
     private DeviceRegistration registeredSpa = new DeviceRegistration();
     private DeviceRegistration registeredController = new DeviceRegistration();
-    private DeviceRegistration registeredMote = new DeviceRegistration();
+    private DeviceRegistration registeredTemp = new DeviceRegistration();
+    private DeviceRegistration registeredCurrent = new DeviceRegistration();
 
     private String gwSerialNumber;
 
@@ -115,9 +125,15 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         if (controllerId != null) {
             registeredController.setHardwareId(controllerId);
         }
-        final String moteId = props.getProperty("mock.moteId");
-        if (moteId != null) {
-            registeredMote.setHardwareId(moteId);
+
+        final String tempMoteId = props.getProperty("mock.tempMoteId");
+        if (tempMoteId != null) {
+            registeredTemp.setHardwareId(tempMoteId);
+        }
+
+        final String currentMoteId = props.getProperty("mock.currentMoteId");
+        if (currentMoteId != null) {
+            registeredCurrent.setHardwareId(currentMoteId);
         }
 
         final String sendRandomFaultLogsStr = props.getProperty("mock.sendRandomFaultLogs");
@@ -155,9 +171,14 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             LOGGER.info("received registration success for controller originator {} on hardwareid {} ", originatorId, hardwareId);
         }
 
-        if (originatorId.equals("mote_originatorid")) {
-            registeredMote.setHardwareId(hardwareId);
-            LOGGER.info("received registration success for mote originator {} on hardwareid {} ", originatorId, hardwareId);
+        if (originatorId.equals("mote_temp")) {
+            registeredTemp.setHardwareId(hardwareId);
+            LOGGER.info("received registration success for temp mote originator {} on hardwareid {} ", originatorId, hardwareId);
+        }
+
+        if (originatorId.equals("mote_current")) {
+            registeredCurrent.setHardwareId(hardwareId);
+            LOGGER.info("received registration success for current mote originator {} on hardwareid {} ", originatorId, hardwareId);
         }
 
         LOGGER.info("received registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
@@ -306,33 +327,15 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             return;
         }
 
-        if (registeredMote.getHardwareId() == null) {
-            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockMAC"), "mote_originatorid");
+        if (registeredTemp.getHardwareId() == null) {
+            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockTemperatureMAC", "mote_type", "temperature sensor"), "mote_temp");
             return;
         }
 
-        Map<String, String> meta = newHashMap();
-        Map<String, Double> measurement = newHashMap();
-        double pre = new Random().nextDouble();
-        double post = new Random().nextDouble();
-        measurement.put("0.4.0.0.0.0.1.1.0.0.0", pre); // pre-heat temp
-        measurement.put("0.4.0.0.1.0.1.1.0.0.0", post); // post-heat temp
-        meta.put("heat_delta", Double.toString(Math.abs(pre - post)));
-        meta.put("comment", "controller temp probes");
-
-        List<Event> events = newArrayList();
-        Event.Builder eb = Event.newBuilder();
-        eb.setEventOccuredTimestamp(new Date().getTime());
-        eb.setEventReceivedTimestamp(new Date().getTime());
-        eb.setEventType(EventType.MEASUREMENT);
-        eb.setDescription("this is a fake measurement");
-        for (Map.Entry<String, String> entry : meta.entrySet()) {
-            eb.addMetadata(Metadata.newBuilder().setName(entry.getKey()).setValue(entry.getValue()).build());
+        if (registeredCurrent.getHardwareId() == null) {
+            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockCurrentMAC", "mote_type", "current sensor"), "mote_current");
+            return;
         }
-
-        events.add(eb.build());
-
-        sendEvents(registeredMote.getHardwareId(), events);
 
         // send spa info
         LOGGER.info("Sending spa info");
@@ -447,20 +450,34 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private void sendMeasurementReadings() {
         if (!sendRandomMeasurementReadings) return;
 
+        if (registeredTemp.getHardwareId() == null) {
+            LOGGER.info("skipping measurement submittal, mote {} has not been registered yet with cloud", "temp_sensor_mac_1");
+            return;
+        }
+
+        if (registeredCurrent.getHardwareId() == null) {
+            LOGGER.info("skipping measurement submittal, mote {} has not been registered yet with cloud", "current_sensor_mac_2");
+            return;
+        }
+
         if (System.currentTimeMillis() > lastMeasurementReadingsSendTime + RANDOM_DATA_SEND_INTERVAL) {
-            sendMeasurements(registeredSpa.getHardwareId(), buildRandomMeasurementReadings());
+            sendMeasurements(registeredTemp.getHardwareId(), buildRandomMeasurementReadings(true));
+            sendMeasurements(registeredCurrent.getHardwareId(), buildRandomMeasurementReadings(false));
             lastMeasurementReadingsSendTime = System.currentTimeMillis();
         }
     }
 
-    private List<Bwg.Uplink.Model.Measurement> buildRandomMeasurementReadings() {
+    private List<Bwg.Uplink.Model.Measurement> buildRandomMeasurementReadings(boolean isTemp) {
         final List<Bwg.Uplink.Model.Measurement> list = new ArrayList<>();
-        list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.dataType.AMBIENT_TEMP, "celsius"));
-        list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.dataType.PUMP_AC_CURRENT, "milliamps"));
+        if (isTemp) {
+            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.AMBIENT_TEMP, "celsius"));
+        } else {
+            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.PUMP_AC_CURRENT, "milliamps"));
+        }
         return list;
     }
 
-    private Bwg.Uplink.Model.Measurement buildRandomMeasurementReading(final Bwg.Uplink.Model.Measurement.dataType dataType, final String uom) {
+    private Bwg.Uplink.Model.Measurement buildRandomMeasurementReading(final Bwg.Uplink.Model.Measurement.DataType dataType, final String uom) {
         final Bwg.Uplink.Model.Measurement.Builder builder = Bwg.Uplink.Model.Measurement.newBuilder();
         builder.setTimestamp(System.currentTimeMillis());
         builder.setType(dataType);

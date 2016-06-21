@@ -1,13 +1,32 @@
 package com.tritonsvc.model;
 
 /**
- * Created by holow on 4/26/2016.
+ * update interval settings and other various agent runtime settings that should be persistent
+ *
  */
 public class GenericSettings {
 
     private Integer updateInterval;
     private Integer wifiUpdateInterval;
+    private Integer ambientUpdateInterval;
+    private Integer pumpCurrentUpdateInterval;
     private String rs485ControllerType;
+
+    public Integer getAmbientUpdateInterval() {
+        return ambientUpdateInterval;
+    }
+
+    public void setAmbientUpdateInterval(Integer ambientUpdateInterval) {
+        this.ambientUpdateInterval = ambientUpdateInterval;
+    }
+
+    public Integer getPumpCurrentUpdateInterval() {
+        return pumpCurrentUpdateInterval;
+    }
+
+    public void setPumpCurrentUpdateInterval(Integer pumpCurrentUpdateInterval) {
+        this.pumpCurrentUpdateInterval = pumpCurrentUpdateInterval;
+    }
 
     public String getRs485ControllerType() {
         return rs485ControllerType;
