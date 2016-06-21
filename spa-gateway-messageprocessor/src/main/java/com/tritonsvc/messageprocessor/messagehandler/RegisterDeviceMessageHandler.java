@@ -23,8 +23,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static java.util.stream.Collectors.toList;
@@ -182,7 +185,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
     }
 
     private void handleMoteRegistration(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final RegisterDevice registerDeviceMessage) {
-        registerComponent(header, uplinkHeader, registerDeviceMessage, ComponentType.MOTE);
+        registerMoteComponent(header, registerDeviceMessage);
     }
 
     private void registerComponent(final Bwg.Header header, final Bwg.Uplink.UplinkHeader uplinkHeader, final RegisterDevice registerDeviceMessage, final ComponentType componentType) {
@@ -230,6 +233,82 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         } catch (Exception e) {
             log.error("Error while sending {} reg downlink message", componentType);
             log.error("Exception stacktrace", e);
+        }
+    }
+
+    private void registerMoteComponent(final Bwg.Header header, final RegisterDevice registerDeviceMessage) {
+        final String downlinkTopic = messageProcessorConfiguration.getDownlinkTopicName(registerDeviceMessage.getGatewaySerialNumber());
+        Spa spa = spaRepository.findOne(registerDeviceMessage.getParentDeviceHardwareId());
+
+        if (spa == null) {
+            try {
+                final RegistrationResponse registrationResponse = BwgHelper.buildComponentRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR);
+                mqttSendService.sendMessage(downlinkTopic, BwgHelper.buildDownlinkMessage(header.getOriginator(), "invalid", DownlinkCommandType.REGISTRATION_RESPONSE, registrationResponse));
+            } catch (Exception e) {
+                log.error("Error while sending downlink {} registration message", ComponentType.MOTE);
+                log.error("Exception stacktrace", e);
+            }
+            log.error("Received {} reg for spa id {}, which does not exist.", ComponentType.MOTE, registerDeviceMessage.getParentDeviceHardwareId());
+            return;
+        }
+
+        List<String> moteTypeValues = registerDeviceMessage.getMetadataList()
+                .stream()
+                .filter(metaEntry -> metaEntry.hasName() && metaEntry.getName().equals("mote_type") && metaEntry.hasValue())
+                .map(Metadata::getValue)
+                .collect(toList());
+
+        List<String> moteMacValues = registerDeviceMessage.getMetadataList()
+                .stream()
+                .filter(metaEntry -> metaEntry.hasName() && metaEntry.getName().equals("mac") && metaEntry.hasValue())
+                .map(Metadata::getValue)
+                .collect(toList());
+
+        if (moteTypeValues.isEmpty()) {
+            log.error("Received {} mote reg for spa id {}, did not include required mote_type metadata param, cannot register the mote", registerDeviceMessage.getParentDeviceHardwareId());
+            return;
+        }
+        if (moteMacValues.isEmpty()) {
+            log.error("Received {} mote reg for spa id {}, did not include required mac metadata param, cannot register the mote", registerDeviceMessage.getParentDeviceHardwareId());
+            return;
+        }
+        String registrationMoteType = moteTypeValues.get(0);
+        String registrationMac = moteMacValues.get(0);
+
+        boolean newComponent = false;
+        Page<com.bwg.iot.model.Component> page = componentRepository.findBySpaIdAndComponentType(spa.get_id(), ComponentType.MOTE.name(), new PageRequest(0, 200));
+        com.bwg.iot.model.Component component;
+
+        List<com.bwg.iot.model.Component> matchingComponents = page.getContent().stream().filter(mote ->
+            Objects.equals(mote.getMetaValues().get("mac"),registrationMac))
+                .collect(toList());
+
+        Map<String, String> metaValues = registerDeviceMessage.getMetadataList().stream().collect(
+                Collectors.toMap(Metadata::getName, Metadata::getValue));
+
+        if (matchingComponents.isEmpty()) {
+            log.info("Creating new mote object");
+            component = new com.bwg.iot.model.Component();
+            component.setName(ComponentType.MOTE.name() + " " + registrationMoteType);
+            component.setComponentType(ComponentType.MOTE.name());
+            component.setDealerId(spa.getDealerId());
+            component.setOemId(spa.getOemId());
+            component.setSpaId(spa.get_id());
+            component.setMetaValues(metaValues);
+            newComponent = true;
+        } else {
+            component = matchingComponents.get(0);
+        }
+
+        component.setRegistrationDate(new Date());
+        componentRepository.save(component);
+
+        try {
+            final RegistrationResponse registrationResponse = BwgHelper.buildComponentRegistrationResponse(newComponent ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED);
+            mqttSendService.sendMessage(downlinkTopic, BwgHelper.buildDownlinkMessage(header.getOriginator(), component.get_id(), DownlinkCommandType.REGISTRATION_RESPONSE, registrationResponse));
+            log.info("sent MOTE registration response for spaid {} moteId {}", spa.get_id(), component.get_id());
+        } catch (Exception e) {
+            log.error("Error while sending MOTE registration downlink message", e);
         }
     }
 }

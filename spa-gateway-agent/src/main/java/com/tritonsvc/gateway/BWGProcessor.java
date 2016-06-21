@@ -28,6 +28,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.PumpCom
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.DataType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStat;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
@@ -69,6 +70,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
     private static final long DEFAULT_UPDATE_INTERVAL = 15000; //0 is continuous, in ms
     private static final long DEFAULT_WIFIUPDATE_INTERVAL = 3600000; // 1 hour
+    private static final long DEFAULT_AMBIENT_INTERVAL = 3600000; // 1 hour
+    private static final long DEFAULT_PUMP_CURRENT_INTERVAL = 3600000; // 1 hour
     public static final String TS_IMX6 = "ts-imx6";
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
@@ -87,7 +90,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private AtomicLong lastPanelRequestSent = new AtomicLong(0);
     private AtomicLong updateInterval = new AtomicLong(DEFAULT_UPDATE_INTERVAL);
     private AtomicLong wifiStatUpdateInterval = new AtomicLong(DEFAULT_WIFIUPDATE_INTERVAL);
+    private AtomicLong ambientUpdateInterval = new AtomicLong(DEFAULT_AMBIENT_INTERVAL);
+    private AtomicLong pumpCurrentUpdateInterval = new AtomicLong(DEFAULT_PUMP_CURRENT_INTERVAL);
     private AtomicLong lastFaultLogsSent = new AtomicLong(0);
+    private AtomicLong lastAmbientSent = new AtomicLong(0);
+    private AtomicLong lastPumpCurrentSent = new AtomicLong(0);
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
     private String rs485ControllerType = null;
@@ -101,8 +108,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private boolean sentRebootEvent = false;
     private ButtonManager buttonManager;
     private String homePath;
+    private WSNDataHarvester wsnDataHarvester;
     private SoftwareUpgradeManager softwareUpgradeManager;
-
     /**
      * Constructor
      *
@@ -158,7 +165,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         setupAgentSettings();
         validateOidProperties();
         setUpRS485Processors();
-        executorService.execute(new WSNDataHarvester(this));
+        wsnDataHarvester = new WSNDataHarvester(this);
+        executorService.execute(wsnDataHarvester);
 
         LOGGER.info("finished startup.");
     }
@@ -426,6 +434,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         final Integer durationMinutes = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DURATION_MINUTES.name(), metadataList));
         final String rs485ControllerType = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.RS485_CONTROLLER_TYPE.name(), metadataList);
         final Integer wifiIntervalSeconds = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.WIFI_INTERVAL_SECONDS.name(), metadataList));
+        final Integer ambientIntervalSeconds = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.AMBIENT_INTERVAL_SECONDS.name(), metadataList));
+        final Integer pumpCurrentIntervalSeconds = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.PUMP_CURRENT_INTERVAL_SECONDS.name(), metadataList));
 
         if (intervalSeconds != null && durationMinutes != null) {
             updateInterval.set(1000L * intervalSeconds.longValue());
@@ -456,6 +466,28 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             } else {
                 wifiStatUpdateInterval.set(1000L * wifiIntervalSeconds.longValue());
                 saveCurrentWifiUpdateIntervalInAgentSettings();
+            }
+        }
+
+        if (ambientIntervalSeconds != null) {
+            if (ambientIntervalSeconds < 0)
+            {
+                ambientUpdateInterval.set(DEFAULT_AMBIENT_INTERVAL);
+                clearAmbientUpdateIntervalFromAgentSettings();
+            } else {
+                ambientUpdateInterval.set(1000L * ambientIntervalSeconds.longValue());
+                saveCurrentAmbientUpdateIntervalInAgentSettings();
+            }
+        }
+
+        if (pumpCurrentIntervalSeconds != null) {
+            if (pumpCurrentIntervalSeconds < 0)
+            {
+                pumpCurrentUpdateInterval.set(DEFAULT_PUMP_CURRENT_INTERVAL);
+                clearPumpCurrentUpdateIntervalFromAgentSettings();
+            } else {
+                pumpCurrentUpdateInterval.set(1000L * pumpCurrentIntervalSeconds.longValue());
+                saveCurrentPumpCurrentUpdateIntervalInAgentSettings();
             }
         }
 
@@ -675,6 +707,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             locked = false;
 
             processFaultLogs(registeredSpa.getHardwareId(), rs485Active);
+            processMeasurements(registeredSpa.getHardwareId());
         } catch (Exception ex) {
             LOGGER.error("error while processing data harvest", ex);
         } finally {
@@ -748,8 +781,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
      * @param macAddress
      * @return
      */
-    public DeviceRegistration obtainMoteRegistration(String spaHardwareId, String macAddress) {
-        return sendRegistration(spaHardwareId, gwSerialNumber, "mote", ImmutableMap.of("mac", macAddress), DEFAULT_EMPTY_MAP);
+    public DeviceRegistration obtainMoteRegistration(String spaHardwareId, String macAddress, String additionalName) {
+        return sendRegistration(spaHardwareId, gwSerialNumber, "mote", ImmutableMap.of("mac", macAddress), (additionalName != null ? ImmutableMap.of("mote_type", additionalName) : DEFAULT_EMPTY_MAP));
     }
 
     /**
@@ -798,8 +831,21 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.rs485MessagePublisher = rs485MessagePublisher;
     }
 
-    private void processFaultLogs(String hardwareId, boolean lastRs485Active) throws Exception {
-        // send when logs fetched from device become available
+    private void processMeasurements(String hardwareId) throws IOException {
+        if ( (ambientUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastAmbientSent.get() > 60000)) ||
+                (System.currentTimeMillis() - lastAmbientSent.get() > ambientUpdateInterval.get())) {
+            wsnDataHarvester.sendLatestWSNDataToCloud(newArrayList(DataType.AMBIENT_TEMP, DataType.AMBIENT_HUMIDITY), hardwareId);
+            lastAmbientSent.set(new Date().getTime());
+        }
+
+        if ( (pumpCurrentUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastPumpCurrentSent.get() > 60000)) ||
+                (System.currentTimeMillis() - lastPumpCurrentSent.get() > pumpCurrentUpdateInterval.get())) {
+            wsnDataHarvester.sendLatestWSNDataToCloud(newArrayList(DataType.PUMP_AC_CURRENT), hardwareId);
+            lastPumpCurrentSent.set(new Date().getTime());
+        }
+    }
+
+    private void processFaultLogs (String hardwareId, boolean lastRs485Active) throws Exception {        // send when logs fetched from device become available
         if (faultLogManager.hasUnsentFaultLogs()) {
             final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
             if (faultLogs != null) {
@@ -1166,6 +1212,34 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         saveAgentSettings(null);
     }
 
+    private void saveCurrentAmbientUpdateIntervalInAgentSettings() {
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setAmbientUpdateInterval(getAmbientUpdateIntervalSeconds());
+        }
+        saveAgentSettings(null);
+    }
+
+    private void clearAmbientUpdateIntervalFromAgentSettings() {
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setAmbientUpdateInterval(null);
+        }
+        saveAgentSettings(null);
+    }
+
+    private void saveCurrentPumpCurrentUpdateIntervalInAgentSettings() {
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setPumpCurrentUpdateInterval(getPumpCurrentUpdateIntervalSeconds());
+        }
+        saveAgentSettings(null);
+    }
+
+    private void clearPumpCurrentUpdateIntervalFromAgentSettings() {
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setPumpCurrentUpdateInterval(null);
+        }
+        saveAgentSettings(null);
+    }
+
 
     private void saveCurrentProcessorTypeInAgentSettings() {
         if (getAgentSettings() != null) {
@@ -1193,6 +1267,16 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             wifiStatUpdateInterval.set(agentSettings.getGenericSettings().getWifiUpdateInterval().longValue() * 1000L);
         }
 
+        if (agentSettings != null && agentSettings.getGenericSettings() != null && agentSettings.getGenericSettings().getAmbientUpdateInterval() != null) {
+            // translate seconds to milliseconds
+            ambientUpdateInterval.set(agentSettings.getGenericSettings().getAmbientUpdateInterval().longValue() * 1000L);
+        }
+
+        if (agentSettings != null && agentSettings.getGenericSettings() != null && agentSettings.getGenericSettings().getPumpCurrentUpdateInterval() != null) {
+            // translate seconds to milliseconds
+            pumpCurrentUpdateInterval.set(agentSettings.getGenericSettings().getPumpCurrentUpdateInterval().longValue() * 1000L);
+        }
+
         if (agentSettings != null && agentSettings.getGenericSettings() != null && !Strings.isNullOrEmpty(agentSettings.getGenericSettings().getRs485ControllerType())) {
             setRS485ControllerType(agentSettings.getGenericSettings().getRs485ControllerType());
         }
@@ -1204,6 +1288,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     public int getWifiUpdateIntervalSeconds() {
         return (int) (wifiStatUpdateInterval.get() / 1000L);
+    }
+
+    public int getAmbientUpdateIntervalSeconds() {
+        return (int) (ambientUpdateInterval.get() / 1000L);
+    }
+
+    public int getPumpCurrentUpdateIntervalSeconds() {
+        return (int) (pumpCurrentUpdateInterval.get() / 1000L);
     }
 
 }
