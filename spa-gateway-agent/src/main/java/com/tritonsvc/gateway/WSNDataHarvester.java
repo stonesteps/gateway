@@ -1,11 +1,11 @@
 package com.tritonsvc.gateway;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ArrayListMultimap;
 import com.tritonsvc.gateway.wsn.WsnData;
-import com.tritonsvc.gateway.wsn.WsnValue;
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.DataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.ZMQ;
@@ -14,12 +14,14 @@ import org.zeromq.ZMQ.Poller;
 import org.zeromq.ZMQ.Socket;
 
 import java.io.IOException;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Maps.newHashMap;
+import static java.util.stream.Collectors.toList;
 import static org.zeromq.ZMQ.poll;
 
 /**
@@ -30,7 +32,9 @@ public class WSNDataHarvester implements Runnable {
     private BWGProcessor processor;
     private ZMQ.Context context;
     private static final String DATA_HARVEST_SUBSCRIPTION_ADDRESS = "wsn.data.harvest.subscription.address";
-
+    private Map<String, WsnData> measurements = new ConcurrentHashMap();
+    private AtomicLong lastFetchPumpCurrent = new AtomicLong(0);
+    private AtomicLong lastFetchAmbient = new AtomicLong(0);
 
     /**
      * Constructor
@@ -51,13 +55,23 @@ public class WSNDataHarvester implements Runnable {
                     subscriber = createWSNSubscriberSocket();
                 }
 
-                while(true) {
-                    String data = waitForWSNData(subscriber, 10000);
+                long startTime = System.currentTimeMillis();
+                long timeLeft = 10000;
+                while(timeLeft > 0) {
+                    String data = waitForWSNData(subscriber, timeLeft);
                     if (data != null) {
-                        sendWSNDataToCloud(data);
-                        continue;
+                        updateMeasurements(data);
                     }
-                    break;
+                    timeLeft = 10000 - (System.currentTimeMillis() - startTime);
+                }
+
+                // temprorary hard wired sensors
+                if (System.currentTimeMillis() - lastFetchPumpCurrent.get() > 10000) {
+                    processWiredCurrentSensor();
+                }
+
+                if (System.currentTimeMillis() - lastFetchAmbient.get() > 10000) {
+                    processWiredTempSensor();
                 }
             }
             catch (Throwable ex) {
@@ -77,6 +91,12 @@ public class WSNDataHarvester implements Runnable {
         }
     }
 
+    private void updateMeasurements(String json) throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        WsnData wsnData = mapper.readValue(json, WsnData.class);
+        measurements.put(wsnData.getMac(), wsnData);
+    }
+
     private Socket createWSNSubscriberSocket() {
         Socket subscriber = context.socket(ZMQ.SUB);
         subscriber.setRcvHWM(0);
@@ -85,60 +105,76 @@ public class WSNDataHarvester implements Runnable {
         return subscriber;
     }
 
-    private void sendWSNDataToCloud(String json) throws IOException {
-        DeviceRegistration registeredSpa = processor.obtainSpaRegistration();
-        if (registeredSpa .getHardwareId() == null) {
-            LOGGER.info("skipping data harvest, spa gateway has not been registered");
-            return;
-        }
+    public void sendLatestWSNDataToCloud(List<DataType> dataTypes, String spaHardwareId) throws IOException {
+        ArrayListMultimap<String, WsnData> moteMac2Data = ArrayListMultimap.create();
+        for (DataType type : dataTypes) {
+            List<WsnData> wsnDatas = measurements.values()
+                    .stream()
+                    .filter(wsnData -> Objects.equals(wsnData.getDataType(), type))
+                    .collect(toList());
 
-        ObjectMapper mapper = new ObjectMapper();
-        WsnData wsnData = mapper.readValue(json, WsnData.class);
-
-        DeviceRegistration registeredMote = processor.obtainMoteRegistration(registeredSpa.getHardwareId(), wsnData.getMac());
-        if (registeredMote.getHardwareId() == null) {
-            LOGGER.info("skipping wsn data harvest, mote {} has not been registered", wsnData.getMac());
-            return;
-        }
-
-        // TODO send a 'pump registered' data in here once the NFC tag for the pump appears
-
-        List<Event> events = newArrayList();
-        String safeMacKey = wsnData.getMac().replaceAll(":","").toLowerCase();
-        for (WsnValue wsnValue : wsnData.getValues()) {
-            String oid = processor.getConfigProps().getProperty(BWGProcessor.DYNAMIC_DEVICE_OID_PROPERTY
-                    .replaceAll("MAC", safeMacKey)
-                    .replaceAll("DEVICE_NAME", wsnValue.getDeviceName()));
-
-            if (oid == null) {
-                LOGGER.info("Unable to send sensor data to cloud, no oid and specId properties for it's mac address " +
-                        safeMacKey + " and device name " + wsnValue.getDeviceName() + " were found in config.properties");
-                continue;
+            for (WsnData wsnData : wsnDatas) {
+                moteMac2Data.put(wsnData.getMac(), wsnData);
             }
-
-            Event.Builder eb = Event.newBuilder();
-            eb.setEventReceivedTimestamp(wsnData.getReceivedUnixTimestamp());
-            if (wsnData.getRssi() != null) {
-                eb.addMetadata(Metadata.newBuilder().setName("rssi_quality").setValue(Double.toString(wsnData.getRssi().getQuality())).build());
-                eb.addMetadata(Metadata.newBuilder().setName("rssi_ul").setValue(Double.toString(wsnData.getRssi().getUplink())).build());
-                eb.addMetadata(Metadata.newBuilder().setName("rssi_dl").setValue(Double.toString(wsnData.getRssi().getDownlink())).build());
-            }
-            eb.addOidData(Metadata.newBuilder().setName(oid).setValue(wsnValue.getValue().toString()).build());
-            long timestamp = wsnData.getRecordedUnixTimestamp() != null ? wsnData.getRecordedUnixTimestamp() * 1000 : wsnData.getReceivedUnixTimestamp() * 1000;
-
-            eb.setEventOccuredTimestamp(timestamp);
-            eb.setEventType(EventType.MEASUREMENT);
-            eb.setDescription("WSN sensor data acquisition");
-            events.add(eb.build());
-            LOGGER.info(" sent measurement for mote {}, registered id {} {} {}", wsnValue.getDeviceName(), registeredMote.getHardwareId(), oid, Double.toString(wsnValue.getValue()));
         }
+        sendLatestWSNDataToCloud(moteMac2Data, spaHardwareId);
+    }
 
-        if (events.size() > 0) {
-            processor.sendEvents(registeredMote.getHardwareId(), events);
+    private void sendLatestWSNDataToCloud(ArrayListMultimap<String, WsnData> moteMac2Data, String spaHardwareId) {
+        for (String mac : moteMac2Data.keySet()) {
+            List<WsnData> entries = moteMac2Data.get(mac);
+            if (entries == null || entries.isEmpty()) {
+                return;
+            }
+            DeviceRegistration registeredMote = processor.obtainMoteRegistration(spaHardwareId, entries.get(0).getMac(), entries.get(0).getDeviceName());
+            if (registeredMote.getHardwareId() == null) {
+                LOGGER.info("skipping wsn data harvest, mote mac {} has not been registered yet with cloud", entries.get(0).getMac());
+                return;
+            }
+            List<Measurement> measurements = newArrayList();
+            for (WsnData wsnData : entries) {
+                // TODO send a 'pump registered' data in here once the NFC tag for the pump appears
+                if (wsnData.getValue() != null) {
+                    /*
+                    //
+                    // If ever going to OID's ...
+                    //
+                    String safeMacKey = wsnData.getMac().replaceAll(":", "").toLowerCase();
+                    String oid = processor.getConfigProps().getProperty(BWGProcessor.DYNAMIC_DEVICE_OID_PROPERTY
+                            .replaceAll("MAC", safeMacKey)
+                            .replaceAll("DEVICE_NAME", wsnData.getDeviceName()));
+
+                    if (oid == null) {
+                        LOGGER.info("Unable to send sensor data to cloud, no oid and specId properties for it's mac address " +
+                                safeMacKey + " and device name " + wsnData.getDeviceName() + " were found in config.properties");
+                        return;
+                    }
+
+                    eb.addOidData(Metadata.newBuilder().setName(oid).setValue(wsnData.getValue().toString()).build());
+                    */
+                    Measurement.Builder eb = Measurement.newBuilder();
+                    if (wsnData.getRssi() != null) {
+                        eb.addMetadata(Metadata.newBuilder().setName("rssi_quality").setValue(Double.toString(wsnData.getRssi().getQuality())).build());
+                        eb.addMetadata(Metadata.newBuilder().setName("rssi_ul").setValue(Double.toString(wsnData.getRssi().getUplink())).build());
+                        eb.addMetadata(Metadata.newBuilder().setName("rssi_dl").setValue(Double.toString(wsnData.getRssi().getDownlink())).build());
+                    }
+                    long timestamp = wsnData.getRecordedUnixTimestamp() != null ? wsnData.getRecordedUnixTimestamp() * 1000 : wsnData.getReceivedUnixTimestamp() * 1000;
+
+                    eb.setTimestamp(timestamp);
+                    eb.setType(wsnData.getDataType());
+                    eb.setValue(wsnData.getValue());
+                    eb.setUom(wsnData.getUom());
+                    measurements.add(eb.build());
+                    LOGGER.info(" sent {} measurement for mote {}, registered id {} {}", wsnData.getDataType().name(), wsnData.getDeviceName(), registeredMote.getHardwareId(), Double.toString(wsnData.getValue()));
+                }
+            }
+            if (!measurements.isEmpty()) {
+                processor.sendMeasurements(registeredMote.getHardwareId(), measurements);
+            }
         }
     }
 
-    private String waitForWSNData(Socket client, int timeout) {
+    private String waitForWSNData(Socket client, long timeout) {
         PollItem items[] = {new PollItem(client, Poller.POLLIN)};
         int rc = poll(items, timeout);
         if (rc == -1) {
@@ -149,8 +185,17 @@ public class WSNDataHarvester implements Runnable {
             //  We got a msg from the ZeroMQ socket, it's a new WSN data message in json string format
             return client.recvStr();
         } else {
-            LOGGER.info("timed out waiting for wsn data");
             return null;
         }
+    }
+
+    private void processWiredTempSensor() {
+        // put the new measurment in latest
+        // measurements.put(wsnData.getMac(), wsnData);
+    }
+
+    private void processWiredCurrentSensor() {
+        // put the new measurment in latest
+        //measurements.put(wsnData.getMac(), wsnData);
     }
 }

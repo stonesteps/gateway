@@ -1,7 +1,6 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
 import com.bwg.iot.model.Event;
-import com.bwg.iot.model.FaultLogDescription;
 import com.bwg.iot.model.Spa;
 import com.tritonsvc.messageprocessor.mongo.repository.EventRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
@@ -14,9 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * process events from spa systems
@@ -25,8 +22,6 @@ import java.util.Map;
 public class EventsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Model.Events> {
 
     private static final Logger log = LoggerFactory.getLogger(EventsMessageHandler.class);
-
-    private final Map<String, FaultLogDescription> cache = new HashMap<>();
 
     @Autowired
     private SpaRepository spaRepository;

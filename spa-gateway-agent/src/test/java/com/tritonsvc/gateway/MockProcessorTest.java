@@ -3,6 +3,7 @@ package com.tritonsvc.gateway;
 import com.tritonsvc.agent.AgentSettingsPersister;
 import com.tritonsvc.agent.GatewayEventDispatcher;
 import com.tritonsvc.spa.communication.proto.Bwg;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.junit.After;
 import org.junit.Before;
@@ -32,6 +33,8 @@ public class MockProcessorTest {
         props.setProperty("mock.spaId", "1");
         props.setProperty("mock.controllerId", "2");
         props.setProperty("mock.moteId", "3");
+        props.setProperty("mock.tempMoteId", "4");
+        props.setProperty("mock.currentMoteId", "5");
 
         mockGatewayEventDispatcher = mock(GatewayEventDispatcher.class);
 
@@ -55,7 +58,8 @@ public class MockProcessorTest {
 
         mockProcessor.processDataHarvestIteration();
         verify(mockGatewayEventDispatcher, times(2)).sendUplink(eq("1"), eq("1"), eq(Bwg.Uplink.UplinkCommandType.ACKNOWLEDGEMENT), any(Bwg.Uplink.Model.DownlinkAcknowledge.class), anyBoolean());
-        verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("3"), any(), eq(Bwg.Uplink.UplinkCommandType.EVENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
+        verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("4"), any(), eq(UplinkCommandType.MEASUREMENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
+        verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("5"), any(), eq(UplinkCommandType.MEASUREMENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
         verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("1"), any(), eq(Bwg.Uplink.UplinkCommandType.SPA_STATE), argThat(new HasTempSetArgMatcher(78)), anyBoolean());
     }
 
@@ -68,7 +72,8 @@ public class MockProcessorTest {
 
         mockProcessor.processDataHarvestIteration();
         verify(mockGatewayEventDispatcher, times(2)).sendUplink(eq("1"), eq("1"), eq(Bwg.Uplink.UplinkCommandType.ACKNOWLEDGEMENT), any(Bwg.Uplink.Model.DownlinkAcknowledge.class), anyBoolean());
-        verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("3"), any(), eq(Bwg.Uplink.UplinkCommandType.EVENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
+        verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("4"), any(), eq(UplinkCommandType.MEASUREMENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
+        verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("5"), any(), eq(UplinkCommandType.MEASUREMENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
         verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("1"), any(), eq(Bwg.Uplink.UplinkCommandType.SPA_STATE), argThat(new HasCircPumpStateSetArgMatcher("LOW")), anyBoolean());
     }
 
