@@ -21,7 +21,7 @@ public final class SoftwareUpgradeManager {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SoftwareUpgradeManager.class);
 
-    private String softwareUpgradePackageFolder = "./";
+    private String softwareUpgradePackageFolder = "./upgrade";
     private String softwareUpgradePackageFilename = "upgradePackage.tar.gz";
     private String softwareUpgradeCommand = "service bwg-gateway-agent upgrade";
     private String softwareUpgradeCommandYocto = "sudo systemctl restart bwg-gateway-agent.service";
@@ -52,12 +52,13 @@ public final class SoftwareUpgradeManager {
         }
     }
 
-    public boolean checkSoftwareUpgradeAvailable(final String swUpgradeUrl) {
-        LOGGER.info("Checking url {} for software upgrades", swUpgradeUrl);
+    public boolean checkSoftwareUpgradeAvailable(final String swUpgradeUrl, final String currentVersion) {
+        final String fullUpgradeUrl = swUpgradeUrl + "?currentBuildNumber=" + currentVersion;
+        LOGGER.info("Checking url {} for software upgrades", fullUpgradeUrl);
         boolean upgradePackageDownloaded = false;
 
         try {
-            final URL url = new URL(swUpgradeUrl);
+            final URL url = new URL(fullUpgradeUrl);
             final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.connect();
             int code = connection.getResponseCode();

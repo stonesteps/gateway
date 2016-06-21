@@ -110,6 +110,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private String homePath;
     private WSNDataHarvester wsnDataHarvester;
     private SoftwareUpgradeManager softwareUpgradeManager;
+
     /**
      * Constructor
      *
@@ -240,7 +241,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private void checkSoftwareUpgrade(final String swUpgradeUrl) {
-        if (StringUtils.isNotBlank(swUpgradeUrl) && softwareUpgradeManager.checkSoftwareUpgradeAvailable(swUpgradeUrl)) {
+        final String buildNumber = getBuildParams().get("BWG-Agent-Build-Number");
+        if (StringUtils.isNotBlank(swUpgradeUrl) && softwareUpgradeManager.checkSoftwareUpgradeAvailable(swUpgradeUrl, buildNumber)) {
             softwareUpgradeManager.initiateSoftwareUpgradeProcedure();
         }
     }
@@ -470,8 +472,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         if (ambientIntervalSeconds != null) {
-            if (ambientIntervalSeconds < 0)
-            {
+            if (ambientIntervalSeconds < 0) {
                 ambientUpdateInterval.set(DEFAULT_AMBIENT_INTERVAL);
                 clearAmbientUpdateIntervalFromAgentSettings();
             } else {
@@ -481,8 +482,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         if (pumpCurrentIntervalSeconds != null) {
-            if (pumpCurrentIntervalSeconds < 0)
-            {
+            if (pumpCurrentIntervalSeconds < 0) {
                 pumpCurrentUpdateInterval.set(DEFAULT_PUMP_CURRENT_INTERVAL);
                 clearPumpCurrentUpdateIntervalFromAgentSettings();
             } else {
@@ -832,20 +832,20 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private void processMeasurements(String hardwareId) throws IOException {
-        if ( (ambientUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastAmbientSent.get() > 60000)) ||
+        if ((ambientUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastAmbientSent.get() > 60000)) ||
                 (System.currentTimeMillis() - lastAmbientSent.get() > ambientUpdateInterval.get())) {
             wsnDataHarvester.sendLatestWSNDataToCloud(newArrayList(DataType.AMBIENT_TEMP, DataType.AMBIENT_HUMIDITY), hardwareId);
             lastAmbientSent.set(new Date().getTime());
         }
 
-        if ( (pumpCurrentUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastPumpCurrentSent.get() > 60000)) ||
+        if ((pumpCurrentUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastPumpCurrentSent.get() > 60000)) ||
                 (System.currentTimeMillis() - lastPumpCurrentSent.get() > pumpCurrentUpdateInterval.get())) {
             wsnDataHarvester.sendLatestWSNDataToCloud(newArrayList(DataType.PUMP_AC_CURRENT), hardwareId);
             lastPumpCurrentSent.set(new Date().getTime());
         }
     }
 
-    private void processFaultLogs (String hardwareId, boolean lastRs485Active) throws Exception {        // send when logs fetched from device become available
+    private void processFaultLogs(String hardwareId, boolean lastRs485Active) throws Exception {        // send when logs fetched from device become available
         if (faultLogManager.hasUnsentFaultLogs()) {
             final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
             if (faultLogs != null) {

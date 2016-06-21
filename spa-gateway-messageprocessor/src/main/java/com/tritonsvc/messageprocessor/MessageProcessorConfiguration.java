@@ -33,7 +33,7 @@ public class MessageProcessorConfiguration {
     private String clientCertFilePem;
     @Value("${clientKeyFilePkcs8:donotfind}")
     private String clientKeyFilePkcs8;
-    @Value("${swUpgradeUrl:http://localhost:8080/sw_upgrade?currentBuildNumber=SNAPSHOT}")
+    @Value("${swUpgradeUrl:http://localhost:8080/sw_upgrade}")
     private String swUpgradeUrl;
 
     public String getDownlinkTopicName() {
