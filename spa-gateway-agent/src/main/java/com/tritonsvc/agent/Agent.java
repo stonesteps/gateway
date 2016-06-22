@@ -9,6 +9,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Header;
 import com.tritonsvc.spa.communication.proto.Bwg.Header.Builder;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkHeader;
+import org.fusesource.hawtdispatch.internal.DispatcherConfig;
 import org.fusesource.mqtt.client.Callback;
 import org.fusesource.mqtt.client.Future;
 import org.fusesource.mqtt.client.FutureConnection;
@@ -156,6 +157,7 @@ public class Agent {
             mqttSub.setCleanSession(true);
             mqttSub.setKeepAlive(mqttKeepaliveSeconds);
             mqttSub.setSslContext(sslContext);
+            mqttSub.setDispatchQueue(DispatcherConfig.create("sub_pool",1).createQueue("sub_queue"));
 
             // set up the mqtt broker connection health logger
             if (MQTT_TRACE_LOGGER.isDebugEnabled()) {
@@ -173,6 +175,7 @@ public class Agent {
             mqttPub.setSslContext(sslContext);
             mqttPub.setConnectAttemptsMax(1);
             mqttPub.setReconnectAttemptsMax(0);
+            mqttPub.setDispatchQueue(DispatcherConfig.create("pub_pool",1).createQueue("pub_queue"));
 
             // set up the mqtt broker connection health logger
             if (MQTT_TRACE_LOGGER.isDebugEnabled()) {
@@ -442,9 +445,9 @@ public class Agent {
                     if (retryOnFailure) {
                         addUplinkRetry(uplink);
                     }
-                    if (System.currentTimeMillis() - lastConnectAttempt.get() > 60000) {
+                    if (System.currentTimeMillis() - lastConnectAttempt.get() > 15000) {
                         try {
-                            cleanUp(60);
+                            cleanUp(10);
                             connection = mqttPub.futureConnection();
                             connection.connect();
                         } finally {
@@ -482,7 +485,6 @@ public class Agent {
 		private AgentMessageProcessor processor;
         boolean running;
         private int killAttempts;
-        private Thread currentThread;
 
 		public MQTTInbound(MQTT mqttSub, String topic,
                            AgentMessageProcessor processor) {
@@ -496,15 +498,14 @@ public class Agent {
 			// Subscribe to chosen topic.
 			Topic[] topics = {new Topic(topic, QoS.AT_LEAST_ONCE)};
             running = true;
-            currentThread = Thread.currentThread();
 
             while (!Thread.currentThread().isInterrupted() && running) {
                 if (connection != null) {
                     try {
-                        connection.kill().await(60, TimeUnit.SECONDS);
+                        connection.kill().await(10, TimeUnit.SECONDS);
                     } catch (Exception ex) {
                         LOGGER.info("unable to terminate stale old connection");
-                        try {Thread.sleep(10000);} catch(InterruptedException ie) {break;}
+                        try {Thread.sleep(5000);} catch(InterruptedException ie) {break;}
                         if (killAttempts++ < 5) {
                             continue;
                         }
@@ -513,10 +514,10 @@ public class Agent {
                 killAttempts = 0;
                 connection = mqtt.futureConnection();
                 try {
-                    connection.connect().await(45, TimeUnit.SECONDS);
-                    connection.subscribe(topics).await(45, TimeUnit.SECONDS);
+                    connection.connect().await(10, TimeUnit.SECONDS);
+                    connection.subscribe(topics).await(10, TimeUnit.SECONDS);
                 } catch (Exception ex) {
-                    LOGGER.info("unable to get connection and subscription set in 45 seconds, will try again");
+                    LOGGER.info("unable to get connection and subscription set in 10 seconds, will try again");
                     continue;
                 }
                 lastSubReceived.set(System.currentTimeMillis());
@@ -547,14 +548,13 @@ public class Agent {
 
             if (connection != null) {
                 try {
-                    connection.kill().await(20, TimeUnit.SECONDS);
+                    connection.kill().await(10, TimeUnit.SECONDS);
                 } catch (Exception ex) {}
             }
 		}
 
         public void stop() {
             running = false;
-            currentThread.interrupt();
         }
     }
 
@@ -568,7 +568,7 @@ public class Agent {
 
 				try {
                     inbound.stop();
-                    outbound.cleanUp(20);
+                    outbound.cleanUp(10);
 					LOGGER.info("Disconnected from MQTT broker.");
 				} catch (Exception e) {
 					LOGGER.warn("Shutdown initiated, exception disconnecting from MQTT broker.", e);

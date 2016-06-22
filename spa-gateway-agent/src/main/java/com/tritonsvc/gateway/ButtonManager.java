@@ -36,6 +36,7 @@ public class ButtonManager {
     private ConcurrentLinkedQueue<Event> events;
     private String ifConfigPath = null;
     private String iwConfigPath = null;
+    private boolean startedAP = false;
 
     private enum ButtonState {
         NOT_PRESSED,
@@ -112,16 +113,19 @@ public class ButtonManager {
      *
      */
     public void stopAPProcessIfPresent() {
+        if (!startedAP) {
+            return;
+        }
         try {
             executeUnixCommand("sudo pkill -9 udhcpd").waitFor(10, TimeUnit.SECONDS);
-            LOGGER.info("stopped udhcpd");
+            LOGGER.info("stopped udhcpd if present");
         } catch (Exception ex) {
             LOGGER.error("had error stopping udhcpd process", ex);
         }
 
         try {
             executeUnixCommand("sudo pkill -9 hostapd").waitFor(10, TimeUnit.SECONDS);
-            LOGGER.info("stopped hostapd");
+            LOGGER.info("stopped hostapd if present");
         } catch (Exception ex) {
             LOGGER.error("had error stopping hostapd process", ex);
         }
@@ -149,6 +153,7 @@ public class ButtonManager {
     }
 
     private void startWifiAP() throws Exception {
+        startedAP = true;
         File factoryApMod = new File(processor.getHomePath(), "factory_ap");
         FileBasedConfigurationBuilder<FileBasedConfiguration> builder = getHostApdConf();
         Configuration config = builder.getConfiguration();
@@ -196,6 +201,7 @@ public class ButtonManager {
 
     private void stopWifiAP(boolean restartNetwork) {
         stopAPProcessIfPresent();
+        startedAP = false;
         try {
             if (systemType.equals(BWGProcessor.TS_IMX6)) {
                 executeUnixCommand("sudo systemctl restart wpa_supplicant@" + processor.getWifiDeviceName()).waitFor(10, TimeUnit.SECONDS);

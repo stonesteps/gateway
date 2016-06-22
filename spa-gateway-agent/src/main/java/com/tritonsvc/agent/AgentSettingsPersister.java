@@ -160,7 +160,7 @@ public class AgentSettingsPersister {
         try {
             wifiProps = builder.getConfiguration();
         } catch (Exception ex) {
-            log.error("problem accessing wifi supplicant ", ex);
+            log.error("problem accessing wifi supplicant, skip loading it");
             wifiProps = new PropertiesConfiguration();
         }
         if (wifiProps.getString("disabled") == null || !wifiProps.getString("disabled").equals("1")) {
@@ -178,7 +178,7 @@ public class AgentSettingsPersister {
             networkSettings.setWifi(wifi);
         }
 
-        // always return ethernet whether it's plugged in or not
+        // try to load ethernet whether it's plugged in or not
         if (osType.equals(BWGProcessor.TS_IMX6)) {
             networkSettings.setEthernet(loadSystemDEthernet(ethDevice));
         } else {
@@ -289,7 +289,7 @@ public class AgentSettingsPersister {
                 }
             }
         } catch (Exception ex) {
-            log.error("unable to open ethernet config file", ex);
+            log.error("unable to open ethernet config file");
         }
         return null;
     }
