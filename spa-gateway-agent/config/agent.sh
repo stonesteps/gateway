@@ -15,8 +15,11 @@
 ### END INIT INFO
 
 JAR_PATH="$(readlink -f $0)"
+JAR_BACKUP="${JAR_PATH}_old"
 BASEDIR="$(dirname $JAR_PATH)"
 JAR_NAME="$(basename -- $0)"
+UPGRADE_PACKAGE="${BASEDIR}/upgrade/upgradePackage.tar.gz"
+
 cd "$BASEDIR"
 LOGS="$BASEDIR/logs"
 LOG_FILE="$LOGS/start.log"
@@ -90,6 +93,50 @@ status() {
     fi
 
 }
+
+require_file() {
+    if [ $# -ne 1 ]; then
+        echo 'Usage: require_file <FILENAME>'
+    else
+        if [ ! -f "${1}" ]; then
+            echo "Aborting: required file is not available at ${1}"
+            exit 1
+        fi
+    fi
+}
+
+upgrade() {
+    require_file "${UPGRADE_PACKAGE}"
+    require_file "${JAR_PATH}"
+
+    stop
+
+    echo 'Upgrading.'
+
+    # We are currently in ${BASEDIR}, file will be extracted to it.
+    mv "${JAR_PATH}" "${JAR_BACKUP}" && tar -xzf "${UPGRADE_PACKAGE}" "${JAR_NAME}"
+
+    if [ $? -ne 0 ]; then
+        echo 'Upgrade failed (could not back up current jar or unpack new one).'
+        exit 1
+    else
+        echo 'Upgrade completed'
+    fi
+
+    if start | grep 'started' ; then
+        echo 'Successfully started after upgrade'
+        status
+    else
+        echo 'Failed to start after upgrade, rolling back.'
+        mv "${JAR_BACKUP}" "${JAR_PATH}"
+        if [ $? -ne 0 ]; then
+            echo 'Rollback failed (could not restore from back-up).'
+            exit 1
+        fi
+        start
+    fi
+}
+
 case $1 in
     start)
         start
@@ -103,6 +150,9 @@ case $1 in
     ;;
     status)
         status
+    ;;
+    upgrade)
+        upgrade
     ;;
 esac
 

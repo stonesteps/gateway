@@ -25,7 +25,7 @@ public abstract class RS485MessagePublisher {
     protected byte POLL_FINAL_CONTROL_BYTE = (byte)0xBF;
     protected byte DELIMITER_BYTE = (byte)0x7E;
     protected byte LINKING_ADDRESS_BYTE = (byte)0xFE;
-    protected LinkedBlockingQueue<PendingRequest> pendingDownlinks = new LinkedBlockingQueue<>(100);
+    protected LinkedBlockingQueue<PendingRequest> pendingDownlinks = new LinkedBlockingQueue<>(15);
     protected AtomicLong lastLoggedDownlinkPoll = new AtomicLong(0);
     protected AtomicReference<FilterCycleRequest> filterCycleRequest = new AtomicReference<>();
     protected AtomicLong lastEmptyPollSent = new AtomicLong();
@@ -135,6 +135,63 @@ public abstract class RS485MessagePublisher {
             LOGGER.info("sent device query response {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
             LOGGER.info("rs485 sending device query response got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+    /**
+     * send the unassigned device response
+     *
+     * @param requestId
+     * @throws RS485Exception
+     */
+    public synchronized void sendUnassignedDeviceResponse(int requestId) throws RS485Exception {
+        try {
+            ByteBuffer bb = ByteBuffer.allocate(10);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte) 0x08); // length between flags
+            bb.put(LINKING_ADDRESS_BYTE); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte) 0x01); // the unassigned device reponse packet type
+            bb.put((byte) 0x00); // device type
+            bb.put((byte) (0xFF & (requestId >> 8))); // unique id 1
+            bb.put((byte) (requestId & 0xFF)); // unique id 2
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            bb.position(0);
+
+            pauseForBus();
+            processor.getRS485UART().write(bb);
+            LOGGER.info("sent unassigned device response {}", printHexBinary(bb.array()));
+        } catch (Throwable ex) {
+            LOGGER.info("rs485 sending unnassigned device response got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+    /**
+     * send the address assignemnt acknowledgent message back to controller when
+     *
+     * @param address
+     * @throws RS485Exception
+     */
+    public synchronized void sendAddressAssignmentAck(byte address) throws RS485Exception {
+        try {
+            ByteBuffer bb = ByteBuffer.allocate(7);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte) 0x05); // length between flags
+            bb.put(address); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte) 0x03); // the assigned device ack packet type
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            bb.position(0);
+
+            pauseForBus();
+            processor.getRS485UART().write(bb);
+            LOGGER.info("sent address assignment response for newly acquired address {} {}", address, printHexBinary(bb.array()));
+        } catch (Throwable ex) {
+            LOGGER.info("rs485 sending address assignment ack got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
     }

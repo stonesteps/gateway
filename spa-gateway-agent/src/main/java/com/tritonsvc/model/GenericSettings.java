@@ -11,6 +11,15 @@ public class GenericSettings {
     private Integer ambientUpdateInterval;
     private Integer pumpCurrentUpdateInterval;
     private String rs485ControllerType;
+    private Integer persistedRS485Address;
+
+    public Integer getPersistedRS485Address() {
+        return persistedRS485Address;
+    }
+
+    public void setPersistedRS485Address(Integer persistedRS485Address) {
+        this.persistedRS485Address = persistedRS485Address;
+    }
 
     public Integer getAmbientUpdateInterval() {
         return ambientUpdateInterval;
