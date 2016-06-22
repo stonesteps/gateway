@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -34,13 +33,14 @@ public class MockSpaStateHolder {
     private final Map<Integer, ScheduledFuture> filterCycleUpdateFutureMap = new HashMap<>();
 
     public MockSpaStateHolder() {
-        this(1, 1, 4, 3, 8, 1, 2, 4);
+        this(1, 1, 4, 3, 8, 1, 2, 4, 1);
     }
 
-    // ozone 0-1, microsilk 0-1, aux 0-4, mister 0-3, pump 0-8, circpump 0-1, blower 0-2, light 0-4
+    // ozone 0-1, microsilk 0-1, aux 0-4, mister 0-3, pump 0-8, circpump 0-1, blower 0-2, light 0-4, filter 0-2
     public MockSpaStateHolder(final int ozoneN, final int microsilkN, final int auxN, final int misterN,
-                              final int pumpN, final int circPumpN, final int blowerN, final int lightN) {
-        initBuilders(ozoneN, microsilkN, auxN, misterN, pumpN, circPumpN, blowerN, lightN);
+                              final int pumpN, final int circPumpN, final int blowerN, final int lightN,
+                              final int filterN) {
+        initBuilders(ozoneN, microsilkN, auxN, misterN, pumpN, circPumpN, blowerN, lightN, filterN);
     }
 
     public MockSpaStateHolder(final Properties props) {
@@ -52,15 +52,16 @@ public class MockSpaStateHolder {
         final int circPumpN = getInt(props, "mock.circulationPumpNumber", 1);
         final int blowerN = getInt(props, "mock.blowerNumber", 2);
         final int lightN = getInt(props, "mock.lightNumber", 4);
+        final int filterN = getInt(props, "mock.filterNumber", 1);
 
-        initBuilders(ozoneN, microsilkN, auxN, misterN, pumpN, circPumpN, blowerN, lightN);
+        initBuilders(ozoneN, microsilkN, auxN, misterN, pumpN, circPumpN, blowerN, lightN, filterN);
     }
 
-    private void initBuilders(int ozoneN, int microsilkN, int auxN, int misterN, int pumpN, int circPumpN, int blowerN, int lightN) {
+    private void initBuilders(int ozoneN, int microsilkN, int auxN, int misterN, int pumpN, int circPumpN, int blowerN, int lightN, int filterN) {
         initControllerBuilder();
         initSystemInfoBuilder();
         initSetupParamsBuilder();
-        initComponentBuilders(ozoneN, microsilkN, auxN, misterN, pumpN, circPumpN, blowerN, lightN);
+        initComponentBuilders(ozoneN, microsilkN, auxN, misterN, pumpN, circPumpN, blowerN, lightN, filterN);
     }
 
     public Bwg.Uplink.Model.SpaState buildSpaState() {
@@ -198,7 +199,7 @@ public class MockSpaStateHolder {
         setupParamsBuilder.setLastUpdateTimestamp(0);
     }
 
-    private void initComponentBuilders(int ozoneN, int microsilkN, int auxN, int misterN, int pumpN, int circPumpN, int blowerN, int lightN) {
+    private void initComponentBuilders(int ozoneN, int microsilkN, int auxN, int misterN, int pumpN, int circPumpN, int blowerN, int lightN, int filterN) {
         // ozone
         for (int i = 0; i < ozoneN; i++) {
             addToggleComponent(Bwg.Uplink.Model.Constants.ComponentType.OZONE, i);
@@ -219,8 +220,10 @@ public class MockSpaStateHolder {
             addToggleComponent(Bwg.Uplink.Model.Constants.ComponentType.MISTER, i);
         }
 
-        // filter cycle 1 only
-        addToggleComponent(Bwg.Uplink.Model.Constants.ComponentType.FILTER, 0);
+        // filter cycle
+        for (int i = 0; i < filterN; i++) {
+            addToggleComponent(Bwg.Uplink.Model.Constants.ComponentType.FILTER, i);
+        }
 
         // pump
         for (int i = 0; i < pumpN; i++) {
@@ -343,6 +346,11 @@ public class MockSpaStateHolder {
             componentsBuilder.setLight4((Bwg.Uplink.Model.Components.LightComponent.Builder) getBuilder(Bwg.Uplink.Model.Constants.ComponentType.LIGHT, 3));
     }
 
+    private Object getBuilder(final Bwg.Uplink.Model.Constants.ComponentType type, final Integer port) {
+        final Map<Integer, Object> builders = builderMap.get(type);
+        return builders != null ? builders.get(port) : null;
+    }
+
     private void addBuilder(Bwg.Uplink.Model.Constants.ComponentType type, Integer port, Object builder) {
         Map<Integer, Object> builders = builderMap.get(type);
         if (builders == null) {
@@ -371,11 +379,6 @@ public class MockSpaStateHolder {
         componentsBuilder.setLastUpdateTimestamp(timestamp);
         setupPeripherlalBuilders();
         return componentsBuilder.build();
-    }
-
-    private Object getBuilder(final Bwg.Uplink.Model.Constants.ComponentType type, final Integer port) {
-        final Map<Integer, Object> builders = builderMap.get(type);
-        return builders.get(port);
     }
 
     private void updateToggleComponent(final Object builderObject, final String desiredState) {
