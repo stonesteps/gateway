@@ -82,7 +82,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private static final long MAX_REG_LIFETIME = Agent.MAX_SUBSCRIPTION_INACTIVITY_TIME - 30000; // set this to the same value
                                                                                                  // this guarantees that at least one
                                                                                                  // mqtt downlink is due to arrive into agent via the reg ack in given time
-    private static final long MAX_PANEL_REQUEST_INTERIM = 30000;
+    private static final long MAX_PANEL_REQUEST_INTERIM = 10000;
     private static final long DEFAULT_UPDATE_INTERVAL = 15000; //0 is continuous, in ms
     private static final long DEFAULT_WIFIUPDATE_INTERVAL = 3600000; // 1 hour
     private static final long DEFAULT_AMBIENT_INTERVAL = 3600000; // 1 hour
@@ -107,6 +107,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private AtomicLong wifiStatUpdateInterval = new AtomicLong(DEFAULT_WIFIUPDATE_INTERVAL);
     private AtomicLong ambientUpdateInterval = new AtomicLong(DEFAULT_AMBIENT_INTERVAL);
     private AtomicLong pumpCurrentUpdateInterval = new AtomicLong(DEFAULT_PUMP_CURRENT_INTERVAL);
+    private Byte persistedRS485Address = null;
     private AtomicLong lastFaultLogsSent = new AtomicLong(0);
     private AtomicLong lastAmbientSent = new AtomicLong(0);
     private AtomicLong lastPumpCurrentSent = new AtomicLong(0);
@@ -151,6 +152,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
         if (es != null) {es.shutdown();}
         if (buttonManager != null) {buttonManager.stopAPProcessIfPresent();}
+        LOGGER.info("Agent shutdown complete");
     }
 
     @Override
@@ -849,6 +851,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     private void processFaultLogs (String hardwareId, boolean lastRs485Active) throws Exception {
         // send when logs fetched from device become available
+        long timestamp = System.currentTimeMillis();
         if (faultLogManager.hasUnsentFaultLogs()) {
             final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
             if (faultLogs != null) {
@@ -860,24 +863,24 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         // fault logs - check FaultLogsManager for default fetch interval
         // issue fetch logs command untill there are logs to collect from device
         final int nextLogNumberToFetch = faultLogManager.generateFetchNext();
-        if ((System.currentTimeMillis() - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || nextLogNumberToFetch > -1) {
+        if ((timestamp - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || nextLogNumberToFetch > -1) {
             // get latest fetch log entry or entry with number held by fault log manager
             Short logNumber = nextLogNumberToFetch > -1 ? Short.valueOf((short) nextLogNumberToFetch): null;
-            LOGGER.info("sending request for fault log number {}", logNumber != null ? logNumber.toString() : 255);
+            LOGGER.info("sending request for fault log number {}, address {}", logNumber != null ? logNumber.toString() : 255, getRS485DataHarvester().getRegisteredAddress());
 
             try {
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), true, logNumber);
             } catch (RS485Exception ex) {
                 LOGGER.error("unable to send request for fault log", ex);
             }
-            lastFaultLogsSent.set(System.currentTimeMillis());
+            lastFaultLogsSent.set(timestamp);
         }
 
-        boolean currentRs485Active = (faultLogManager.getLastLogReceived() + (4 * faultLogManager.getFetchInterval())) > lastFaultLogsSent.get();
+        boolean currentRs485Active = (faultLogManager.getLastLogReceived() + (5 * faultLogManager.getFetchInterval())) > lastFaultLogsSent.get();
         if (currentRs485Active != lastRs485Active) {
             LOGGER.info("rs 485 status change detected from {} to {}", lastRs485Active, currentRs485Active);
             boolean wLocked = false;
-            long timestamp = System.currentTimeMillis();
+
             try {
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
                 wLocked = true;
@@ -899,6 +902,12 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                     .addMetadata(Metadata.newBuilder().setName("newRS485Status").setValue(textualRS485Meaning(currentRs485Active)))
                     .build();
             sendEvents(hardwareId, newArrayList(event));
+        }
+
+        if (!currentRs485Active) {
+            rs485DataHarvester.rollAddressState();
+        } else {
+            rs485DataHarvester.confirmAddressState(timestamp);
         }
     }
 
@@ -1078,6 +1087,42 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         LOGGER.info("initialized rs 485 serial port {}", serialPort);
     }
 
+    public void saveDynamicRS485AddressInAgentSettings(byte address) {
+        persistedRS485Address = address;
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setPersistedRS485Address((int)address);
+        }
+        saveAgentSettings(null);
+    }
+
+    public void clearDynamicRS485AddressFromAgentSettings() {
+        persistedRS485Address = null;
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setPersistedRS485Address(null);
+        }
+        saveAgentSettings(null);
+    }
+
+    public int getUpdateIntervalSeconds() {
+        return (int) (updateInterval.get() / 1000L);
+    }
+
+    public int getWifiUpdateIntervalSeconds() {
+        return (int) (wifiStatUpdateInterval.get() / 1000L);
+    }
+
+    public int getAmbientUpdateIntervalSeconds() {
+        return (int) (ambientUpdateInterval.get() / 1000L);
+    }
+
+    public int getPumpCurrentUpdateIntervalSeconds() {
+        return (int) (pumpCurrentUpdateInterval.get() / 1000L);
+    }
+
+    public Byte getPersistedRS485Address() {
+        return persistedRS485Address;
+    }
+
     private String getGatewayMetaParam(final String paramName) {
         final DeviceRegistration gateway = getGatewayDeviceRegistration();
         final String value;
@@ -1242,7 +1287,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         saveAgentSettings(null);
     }
 
-
     private void saveCurrentProcessorTypeInAgentSettings() {
         if (getAgentSettings() != null) {
             validateGenericSettings().setRs485ControllerType(getRS485ControllerType());
@@ -1279,25 +1323,13 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             pumpCurrentUpdateInterval.set(agentSettings.getGenericSettings().getPumpCurrentUpdateInterval().longValue() * 1000L);
         }
 
+        if (agentSettings != null && agentSettings.getGenericSettings() != null && agentSettings.getGenericSettings().getPersistedRS485Address() != null) {
+            // translate seconds to milliseconds
+            persistedRS485Address = agentSettings.getGenericSettings().getPersistedRS485Address().byteValue();
+        }
+
         if (agentSettings != null && agentSettings.getGenericSettings() != null && !Strings.isNullOrEmpty(agentSettings.getGenericSettings().getRs485ControllerType())) {
             setRS485ControllerType(agentSettings.getGenericSettings().getRs485ControllerType());
         }
     }
-
-    public int getUpdateIntervalSeconds() {
-        return (int) (updateInterval.get() / 1000L);
-    }
-
-    public int getWifiUpdateIntervalSeconds() {
-        return (int) (wifiStatUpdateInterval.get() / 1000L);
-    }
-
-    public int getAmbientUpdateIntervalSeconds() {
-        return (int) (ambientUpdateInterval.get() / 1000L);
-    }
-
-    public int getPumpCurrentUpdateIntervalSeconds() {
-        return (int) (pumpCurrentUpdateInterval.get() / 1000L);
-    }
-
 }

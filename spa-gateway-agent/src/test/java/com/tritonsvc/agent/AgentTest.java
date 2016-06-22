@@ -1,6 +1,7 @@
 package com.tritonsvc.agent;
 
 import org.fusesource.mqtt.client.BlockingConnection;
+import org.fusesource.mqtt.client.Future;
 import org.fusesource.mqtt.client.FutureConnection;
 import org.fusesource.mqtt.client.MQTT;
 import org.junit.Before;
@@ -51,6 +52,7 @@ public class AgentTest {
         mqttPub = mock(MQTT.class);
         subConnection = mock(BlockingConnection.class);
         pubConnection = mock(FutureConnection.class);
+        when(pubConnection.kill()).thenReturn(mock(Future.class));
         doReturn(processor).when(agent).createProcessor();
         // do not want a real thread executor getting into Agent during test,
         // it will result in mqtt listener getting in tight loop and OOM
