@@ -1,6 +1,7 @@
 package com.tritonsvc.gateway.wsn;
 
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.DataType;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.QualityType;
 
 /**
  * WSN data message
@@ -14,6 +15,15 @@ public class WsnData {
     private Double value;
     private DataType dataType;
     private String uom;
+    private QualityType quality;
+
+    public QualityType getQuality() {
+        return quality;
+    }
+
+    public void setQuality(QualityType quality) {
+        this.quality = quality;
+    }
 
     public String getUom() {
         return uom;

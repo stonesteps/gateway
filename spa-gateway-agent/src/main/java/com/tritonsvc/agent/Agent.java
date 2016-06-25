@@ -157,7 +157,6 @@ public class Agent {
             mqttSub.setCleanSession(true);
             mqttSub.setKeepAlive(mqttKeepaliveSeconds);
             mqttSub.setSslContext(sslContext);
-            mqttSub.setDispatchQueue(DispatcherConfig.create("sub_pool",1).createQueue("sub_queue"));
 
             // set up the mqtt broker connection health logger
             if (MQTT_TRACE_LOGGER.isDebugEnabled()) {
@@ -175,7 +174,6 @@ public class Agent {
             mqttPub.setSslContext(sslContext);
             mqttPub.setConnectAttemptsMax(1);
             mqttPub.setReconnectAttemptsMax(0);
-            mqttPub.setDispatchQueue(DispatcherConfig.create("pub_pool",1).createQueue("pub_queue"));
 
             // set up the mqtt broker connection health logger
             if (MQTT_TRACE_LOGGER.isDebugEnabled()) {

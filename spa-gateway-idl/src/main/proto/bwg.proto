@@ -517,11 +517,17 @@ message Uplink {
                 AMBIENT_TEMP = 1;
                 AMBIENT_HUMIDITY = 2;
             }
+            enum QualityType {
+                INVALID = 0;
+                VALID = 1;
+                INVALID_SENSOR_NOT_PRESENT = 3;
+            }
             required uint64 timestamp =1;
             required DataType type = 2;
-            required double value = 3;
-            required string uom = 4;
+            optional double value = 3;
+            optional string uom = 4;
             repeated Metadata metadata = 5;
+            required QualityType quality = 6;
         }
     }
 }
