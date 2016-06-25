@@ -19,6 +19,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledg
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.QualityType;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -482,6 +483,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         builder.setTimestamp(System.currentTimeMillis());
         builder.setType(dataType);
         builder.setUom(uom);
+        builder.setQuality(QualityType.VALID);
         builder.setValue(ThreadLocalRandom.current().nextDouble(10.0d, 90.0d));
         return builder.build();
     }

@@ -6,6 +6,10 @@ import com.tritonsvc.gateway.wsn.WsnData;
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.DataType;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.QualityType;
+import jdk.dio.DeviceManager;
+import jdk.dio.i2cbus.I2CDevice;
+import jdk.dio.i2cbus.I2CDeviceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.ZMQ;
@@ -14,6 +18,7 @@ import org.zeromq.ZMQ.Poller;
 import org.zeromq.ZMQ.Socket;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,9 +37,9 @@ public class WSNDataHarvester implements Runnable {
     private BWGProcessor processor;
     private ZMQ.Context context;
     private static final String DATA_HARVEST_SUBSCRIPTION_ADDRESS = "wsn.data.harvest.subscription.address";
-    private Map<String, WsnData> measurements = new ConcurrentHashMap();
-    private AtomicLong lastFetchPumpCurrent = new AtomicLong(0);
-    private AtomicLong lastFetchAmbient = new AtomicLong(0);
+    private Map<String, WsnData> measurements = new ConcurrentHashMap<>();
+    private TS7970WiredCurrentSensor wiredCurrentSensor;
+    private static long WSN_POLL_TIME = 30000;
 
     /**
      * Constructor
@@ -43,6 +48,7 @@ public class WSNDataHarvester implements Runnable {
      */
     public WSNDataHarvester (BWGProcessor processor) {
         this.processor = processor;
+        wiredCurrentSensor = new TS7970WiredCurrentSensor(processor.getConfigProps());
     }
 
     @Override
@@ -56,22 +62,19 @@ public class WSNDataHarvester implements Runnable {
                 }
 
                 long startTime = System.currentTimeMillis();
-                long timeLeft = 10000;
+                long timeLeft = WSN_POLL_TIME;
                 while(timeLeft > 0) {
                     String data = waitForWSNData(subscriber, timeLeft);
                     if (data != null) {
                         updateMeasurements(data);
                     }
-                    timeLeft = 10000 - (System.currentTimeMillis() - startTime);
+                    timeLeft = WSN_POLL_TIME - (System.currentTimeMillis() - startTime);
                 }
 
                 // temprorary hard wired sensors
-                if (System.currentTimeMillis() - lastFetchPumpCurrent.get() > 10000) {
-                    processWiredCurrentSensor();
-                }
-
-                if (System.currentTimeMillis() - lastFetchAmbient.get() > 10000) {
-                    processWiredTempSensor();
+                List<WsnData> wsnDatas = wiredCurrentSensor.processWiredCurrentSensor();
+                for (WsnData wsnData : wsnDatas) {
+                    measurements.put(wsnData.getMac(), wsnData);
                 }
             }
             catch (Throwable ex) {
@@ -89,6 +92,29 @@ public class WSNDataHarvester implements Runnable {
         if (context != null) {
             context.close();
         }
+        wiredCurrentSensor.shutdown();
+    }
+
+    /**
+     * see if any new sensor data in memory and send to cloud if so
+     *
+     * @param dataTypes
+     * @param spaHardwareId
+     * @throws IOException
+     */
+    public void sendLatestWSNDataToCloud(List<DataType> dataTypes, String spaHardwareId) throws IOException {
+        ArrayListMultimap<String, WsnData> moteMac2Data = ArrayListMultimap.create();
+        for (DataType type : dataTypes) {
+            List<WsnData> wsnDatas = measurements.values()
+                    .stream()
+                    .filter(wsnData -> Objects.equals(wsnData.getDataType(), type))
+                    .collect(toList());
+
+            for (WsnData wsnData : wsnDatas) {
+                moteMac2Data.put(wsnData.getMac(), wsnData);
+            }
+        }
+        sendLatestWSNDataToCloud(moteMac2Data, spaHardwareId);
     }
 
     private void updateMeasurements(String json) throws Exception {
@@ -103,21 +129,6 @@ public class WSNDataHarvester implements Runnable {
         subscriber.connect("tcp://" + processor.getConfigProps().getProperty(DATA_HARVEST_SUBSCRIPTION_ADDRESS));
         subscriber.subscribe("".getBytes());
         return subscriber;
-    }
-
-    public void sendLatestWSNDataToCloud(List<DataType> dataTypes, String spaHardwareId) throws IOException {
-        ArrayListMultimap<String, WsnData> moteMac2Data = ArrayListMultimap.create();
-        for (DataType type : dataTypes) {
-            List<WsnData> wsnDatas = measurements.values()
-                    .stream()
-                    .filter(wsnData -> Objects.equals(wsnData.getDataType(), type))
-                    .collect(toList());
-
-            for (WsnData wsnData : wsnDatas) {
-                moteMac2Data.put(wsnData.getMac(), wsnData);
-            }
-        }
-        sendLatestWSNDataToCloud(moteMac2Data, spaHardwareId);
     }
 
     private void sendLatestWSNDataToCloud(ArrayListMultimap<String, WsnData> moteMac2Data, String spaHardwareId) {
@@ -164,6 +175,7 @@ public class WSNDataHarvester implements Runnable {
                     eb.setType(wsnData.getDataType());
                     eb.setValue(wsnData.getValue());
                     eb.setUom(wsnData.getUom());
+                    eb.setQuality(QualityType.VALID);
                     measurements.add(eb.build());
                     LOGGER.info(" sent {} measurement for mote {}, registered id {} {}", wsnData.getDataType().name(), wsnData.getDeviceName(), registeredMote.getHardwareId(), Double.toString(wsnData.getValue()));
                 }
@@ -187,15 +199,5 @@ public class WSNDataHarvester implements Runnable {
         } else {
             return null;
         }
-    }
-
-    private void processWiredTempSensor() {
-        // put the new measurment in latest
-        // measurements.put(wsnData.getMac(), wsnData);
-    }
-
-    private void processWiredCurrentSensor() {
-        // put the new measurment in latest
-        //measurements.put(wsnData.getMac(), wsnData);
     }
 }
