@@ -51,7 +51,7 @@ public class TS7970WiredCurrentSensor {
 
         // enable the i2c linux f/s to allow the bwg user to read/write
         try {
-            executeUnixCommand("sudo chmod 666 /dev/i2c*").waitFor(5, TimeUnit.SECONDS);
+            executeUnixCommand("sudo chmod 766 /dev/i2c-0").waitFor(5, TimeUnit.SECONDS);
         } catch (Exception ex) {
             LOGGER.error("unable to set file permissions in /dev/i2c-*, may be an issue or not.");
         }
