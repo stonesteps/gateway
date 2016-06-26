@@ -126,18 +126,14 @@ public class TS7970WiredCurrentSensor {
     }
 
     private Double calculateAmpsFrom420LoopADCValue(int adcValue) {
-        // zero amps readings come in at less than 4mA from the Senva C-2345 with 30Amp range
-        // it comes in around 175, whereas 204 should be the value at 4mA,
-        // this is a quick calibration hack to avoid non-sensical values, this is for demo purposes only
-        // real current sensor solution is TBD
-        if (adcValue < 176) {
+        // This is how the ts7970 silabs ADC 10 bit conversion scales
+        double sensorSignalAmps = (adcValue / 42.2) - 4.0; // adc measures 0-20 mA, expresses as 0-1024 value, ignore the first 4 mA becuase of 4-20mA output
+        if (sensorSignalAmps < 0.0) {
             return 0d;
-        } else {
-            adcValue = adcValue - 176;
         }
 
-        double amps = adcValue / (1024.0 * .8); // adc measures 0-20 mA, expresses as 0-1024 value, ignore the first 4 mA becuase of 4-20mA output
-        return amps * ampsMeasuredScale; // convert the adc value into amps measured based on amps range
+        double sensorSignalPercentage = sensorSignalAmps / 16.0; // in a 4-20, there are 16 mA of total range
+        return sensorSignalPercentage * ampsMeasuredScale; // convert the percentage of total range into measured amps
     }
 
     private void acquireBusDevice() {
