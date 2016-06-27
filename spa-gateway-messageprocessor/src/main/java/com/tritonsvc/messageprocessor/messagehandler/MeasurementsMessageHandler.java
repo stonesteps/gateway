@@ -85,6 +85,9 @@ public class MeasurementsMessageHandler extends AbstractMessageHandler<Bwg.Uplin
         if (measurement.hasQuality()) {
             reading.setQuality(measurement.getQuality().name());
         }
+        if (measurement.hasSensorIdentifier()) {
+            reading.setSensorIdentity(measurement.getSensorIdentifier());
+        }
 
         return reading;
     }

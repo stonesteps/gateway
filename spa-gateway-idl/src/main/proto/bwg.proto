@@ -528,6 +528,7 @@ message Uplink {
             optional string uom = 4;
             repeated Metadata metadata = 5;
             required QualityType quality = 6;
+            optional string sensorIdentifier = 7;
         }
     }
 }
