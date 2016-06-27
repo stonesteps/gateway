@@ -23,13 +23,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -88,7 +86,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
 
         if (StringUtils.isEmpty(serialNumber)) {
             try {
-                final SpaRegistrationResponse registrationResponse = BwgHelper.buildSpaRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR, null, null, null, null, null);
+                final SpaRegistrationResponse registrationResponse = BwgHelper.buildSpaRegistrationResponse(Bwg.Downlink.Model.RegistrationAckState.REGISTRATION_ERROR, null, null, null);
                 mqttSendService.sendMessage(downlinkTopic, BwgHelper.buildDownlinkMessage(header.getOriginator(), "invalid", DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
             } catch (Exception e) {
                 log.error("Error while sending downlink gateway registration message", e);
@@ -145,7 +143,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         try {
             final SpaRegistrationResponse registrationResponse = BwgHelper.buildSpaRegistrationResponse(
                     dirtyGateway ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED,
-                    spa.getP2pAPSSID(), spa.getP2pAPPassword(), spa.getRegKey(), spa.getOwner() != null ? spa.getOwner().get_id() : null, getSwUpgradeUrl());
+                    spa.getRegKey(), spa.getOwner() != null ? spa.getOwner().get_id() : null, getSwUpgradeUrl());
             mqttSendService.sendMessage(downlinkTopic, BwgHelper.buildDownlinkMessage(
                     header.getOriginator(), spa.get_id(), DownlinkCommandType.SPA_REGISTRATION_RESPONSE, registrationResponse));
             log.info("sent spa registration response {} {}", spa.get_id(), serialNumber);
@@ -165,7 +163,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
                 .map(Metadata::getValue)
                 .collect(toList());
 
-        if (values.size() > 0 ) {
+        if (values.size() > 0) {
             componentMeta.put(key, values.get(0));
         } else {
             componentMeta.remove(key);
@@ -280,7 +278,7 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         com.bwg.iot.model.Component component;
 
         List<com.bwg.iot.model.Component> matchingComponents = page.getContent().stream().filter(mote ->
-            Objects.equals(mote.getMetaValues().get("mac"),registrationMac))
+                Objects.equals(mote.getMetaValues().get("mac"), registrationMac))
                 .collect(toList());
 
         Map<String, String> metaValues = registerDeviceMessage.getMetadataList().stream().collect(

@@ -11,28 +11,18 @@ import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.spa.communication.proto.Bwg;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
-import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -95,7 +85,8 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     }
 
     @Override
-    public synchronized void processEventsHandler() {}
+    public synchronized void processEventsHandler() {
+    }
 
     private void init(final Properties props, String homePath) {
         spaStateHolder = new MockSpaStateHolder(props);
@@ -103,14 +94,6 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         final String spaId = props.getProperty("mock.spaId");
         if (spaId != null) {
             registeredSpa.setHardwareId(spaId);
-        }
-        final String apSSID = props.getProperty("mock.apSSID");
-        if (apSSID != null) {
-            registeredSpa.getMeta().put("apSSID", apSSID);
-        }
-        final String apPassword = props.getProperty("mock.apPassword");
-        if (apPassword != null) {
-            registeredSpa.getMeta().put("apPassword", apPassword);
         }
         final String regKey = props.getProperty("mock.regKey");
         if (regKey != null) {
@@ -193,8 +176,6 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
         if (originatorId.equals("spa_originatorid")) {
             registeredSpa.setHardwareId(hardwareId);
-            registeredSpa.getMeta().put("apSSID", response.hasP2PAPSSID() ? response.getP2PAPPassword() : null);
-            registeredSpa.getMeta().put("apPassword", response.hasP2PAPPassword() ? response.getP2PAPPassword() : null);
             registeredSpa.getMeta().put("regKey", response.hasRegKey() ? response.getRegKey() : null);
             registeredSpa.getMeta().put("regUserId", response.hasRegUserId() ? response.getRegUserId() : null);
             registeredSpa.getMeta().put("swUpgradeUrl", response.hasSwUpgradeUrl() ? response.getSwUpgradeUrl() : null);

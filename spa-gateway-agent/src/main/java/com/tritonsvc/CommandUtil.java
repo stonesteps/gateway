@@ -14,12 +14,17 @@ import java.util.concurrent.TimeUnit;
 public final class CommandUtil {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CommandUtil.class);
+    private static final String uname = unameCmd();
 
     private CommandUtil() {
         // utility class
     }
 
     public static String uname() {
+        return uname;
+    }
+
+    private static String unameCmd() {
         final StringBuilder sb = new StringBuilder();
         try {
             Process proc = executeUnixCommand("uname -a");

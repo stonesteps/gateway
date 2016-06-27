@@ -38,7 +38,6 @@ import com.tritonsvc.wifi.ParserIwconfig;
 import jdk.dio.DeviceManager;
 import jdk.dio.uart.UART;
 import jdk.dio.uart.UARTConfig;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -163,13 +162,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             timeoutMs *= 1000;
         }
         this.buttonManager = new ButtonManager(new WebServer(configProps, this, this, timeoutMs), timeoutMs, this, ifConfigPath, iwConfigPath);
-        this.softwareUpgradeManager = new SoftwareUpgradeManager(configProps);
 
         setupAgentSettings();
         validateOidProperties();
         setUpRS485Processors();
         wsnDataHarvester = new WSNDataHarvester(this);
         executorService.execute(wsnDataHarvester);
+
+        this.softwareUpgradeManager = new SoftwareUpgradeManager(configProps);
 
         LOGGER.info("finished startup.");
     }
@@ -218,6 +218,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             sentRebootEvent = true;
         }
 
+        checkIfStartupAfterUpgrade(hardwareId);
+        if (getRegisteredHWIds().containsKey(originatorId)) {
+            checkAndPerformSoftwareUpgrade(response.hasSwUpgradeUrl() ? response.getSwUpgradeUrl() : null, hardwareId);
+        }
+
         if (response.getState() == RegistrationAckState.ALREADY_REGISTERED &&
                 getRegisteredHWIds().containsKey(originatorId) &&
                 Objects.equals(getRegisteredHWIds().get(originatorId).getHardwareId(), hardwareId)) {
@@ -228,25 +233,36 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         if (getRegisteredHWIds().containsKey(originatorId)) {
             DeviceRegistration registered = getRegisteredHWIds().get(originatorId);
             registered.setHardwareId(hardwareId);
-            registered.getMeta().put("apSSID", response.hasP2PAPSSID() ? response.getP2PAPPassword() : null);
-            registered.getMeta().put("apPassword", response.hasP2PAPPassword() ? response.getP2PAPPassword() : null);
             registered.getMeta().put("regKey", response.hasRegKey() ? response.getRegKey() : null);
             registered.getMeta().put("regUserId", response.hasRegUserId() ? response.getRegUserId() : null);
             registered.getMeta().put("swUpgradeUrl", response.hasSwUpgradeUrl() ? response.getSwUpgradeUrl() : null);
             getRegisteredHWIds().put(originatorId, registered);
             LOGGER.info("received successful spa registration, originatorid {} for hardwareid {} ", originatorId, hardwareId);
-
-            checkSoftwareUpgrade(response.hasSwUpgradeUrl() ? response.getSwUpgradeUrl() : null);
         } else {
             LOGGER.info("received spa registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
         }
     }
 
-    private void checkSoftwareUpgrade(final String swUpgradeUrl) {
-        final String buildNumber = getBuildParams().get("BWG-Agent-Build-Number");
-        if (StringUtils.isNotBlank(swUpgradeUrl) && softwareUpgradeManager.checkSoftwareUpgradeAvailable(swUpgradeUrl, buildNumber)) {
-            softwareUpgradeManager.initiateSoftwareUpgradeProcedure();
+    private void checkIfStartupAfterUpgrade(final String hardwareId) {
+        final String oldVersionNumber = softwareUpgradeManager.readOldVersionNumber();
+        if (oldVersionNumber != null) {
+            // current version
+            final String buildNumber = getBuildParams().get("BWG-Agent-Build-Number");
+
+            final long timestamp = System.currentTimeMillis();
+            Event event = Event.newBuilder()
+                    .setEventOccuredTimestamp(timestamp)
+                    .setEventReceivedTimestamp(timestamp)
+                    .setEventType(EventType.NOTIFICATION)
+                    .setDescription("Software upgrade from version " + oldVersionNumber + " to " + buildNumber + " has completed successfully")
+                    .build();
+            sendEvents(hardwareId, newArrayList(event));
         }
+    }
+
+    private void checkAndPerformSoftwareUpgrade(final String swUpgradeUrl, final String hardwareId) {
+        final String buildNumber = getBuildParams().get("BWG-Agent-Build-Number");
+        softwareUpgradeManager.checkAndPerformSoftwareUpgrade(swUpgradeUrl, buildNumber, hardwareId, this);
     }
 
     @Override
@@ -1088,7 +1104,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     public void saveDynamicRS485AddressInAgentSettings(byte address) {
         persistedRS485Address = address;
         if (getAgentSettings() != null) {
-            validateGenericSettings().setPersistedRS485Address((int)address);
+            validateGenericSettings().setPersistedRS485Address((int) address);
         }
         saveAgentSettings(null);
     }

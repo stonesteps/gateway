@@ -1,17 +1,24 @@
 package com.tritonsvc.sw_upgrade;
 
 import com.tritonsvc.CommandUtil;
+import com.tritonsvc.gateway.BWGProcessor;
+import com.tritonsvc.httpd.util.SSLUtil;
+import com.tritonsvc.spa.communication.proto.Bwg;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.util.Arrays;
 import java.util.Properties;
 
 /**
@@ -19,12 +26,20 @@ import java.util.Properties;
  */
 public final class SoftwareUpgradeManager {
 
+    static {
+        // turns off ssl certificate checking
+        SSLUtil.turnOffSslVerification();
+    }
+
     private static final Logger LOGGER = LoggerFactory.getLogger(SoftwareUpgradeManager.class);
 
     private String softwareUpgradePackageFolder = "./upgrade";
     private String softwareUpgradePackageFilename = "upgradePackage.tar.gz";
     private String softwareUpgradeCommand = "service bwg-gateway-agent upgrade";
     private String softwareUpgradeCommandYocto = "sudo systemctl restart bwg-gateway-agent.service";
+    private String softwareUpgradeTempFile = ".upgr_last_version";
+
+    private Thread upgradeThread = null;
 
     public SoftwareUpgradeManager(final Properties properties) {
         init(properties);
@@ -50,18 +65,53 @@ public final class SoftwareUpgradeManager {
         if (softwareUpgradeCommandYocto != null) {
             this.softwareUpgradeCommandYocto = softwareUpgradeCommandYocto;
         }
+
+        final String softwareUpgradeTempFile = properties.getProperty("softwareUpgrade.tempFile");
+        if (softwareUpgradeTempFile != null) {
+            this.softwareUpgradeTempFile = softwareUpgradeTempFile;
+        }
     }
 
-    public boolean checkSoftwareUpgradeAvailable(final String swUpgradeUrl, final String currentVersion) {
+    /**
+     * Spawns new thread to check, downalod new software and call upgrade procedure.
+     *
+     * @param swUpgradeUrl
+     * @param currentVersion
+     * @param hardwareId
+     * @param bwgProcessor
+     */
+    public synchronized void checkAndPerformSoftwareUpgrade(final String swUpgradeUrl, final String currentVersion,
+                                                            final String hardwareId, final BWGProcessor bwgProcessor) {
+        // upgrade in progress, do not spawn new thread
+        if (upgradeThread != null) return;
+
+        upgradeThread = new Thread(() -> {
+            try {
+                final boolean newSoftwareAvailable = checkSoftwareUpgrade(swUpgradeUrl, currentVersion, hardwareId, bwgProcessor);
+                if (newSoftwareAvailable) {
+                    initiateSoftwareUpgradeProcedure();
+                }
+            } finally {
+                upgradeThread = null;
+            }
+        });
+        upgradeThread.start();
+    }
+
+    private boolean checkSoftwareUpgrade(final String swUpgradeUrl, final String currentVersion,
+                                         final String hardwareId, final BWGProcessor bwgProcessor) {
+
+        boolean newSoftwareDownloaded = false;
+
         final String fullUpgradeUrl = swUpgradeUrl + "?currentBuildNumber=" + currentVersion;
         LOGGER.info("Checking url {} for software upgrades", fullUpgradeUrl);
-        boolean upgradePackageDownloaded = false;
 
         try {
             final URL url = new URL(fullUpgradeUrl);
             final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.connect();
-            int code = connection.getResponseCode();
+            final int code = connection.getResponseCode();
+            final String upgradePackageName = connection.getHeaderField("UPGRADE_PACKAGE_NAME");
 
             if (code == 200) {
                 LOGGER.info("New software package available - downloading...");
@@ -69,16 +119,64 @@ public final class SoftwareUpgradeManager {
                 final FileOutputStream fos = new FileOutputStream(getSoftwareUpgradeDestination());
                 fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 
-                upgradePackageDownloaded = true;
+                newSoftwareDownloaded = true;
+                bwgProcessor.sendEvents(hardwareId, Arrays.asList(buildSoftwareUpgradeEvent(upgradePackageName)));
+
+                writeTempFile(currentVersion);
                 LOGGER.info("Software package obtained successfully - ready for upgrade");
+            } else if (code == 204) {
+                LOGGER.info("Software is up to date, upgrade url returned code 204");
             } else {
-                LOGGER.info("Software is up to date");
+                LOGGER.error("Error while invoking software upgrade url, the returned code is {}", code);
             }
         } catch (final Exception e) {
             LOGGER.error("Error while downloading software upgrade package", e);
         }
 
-        return upgradePackageDownloaded;
+        return newSoftwareDownloaded;
+    }
+
+    /**
+     * Wites current version to temp file. After upgrade and restart the file is read and event sent to mqtt with current and old version.
+     *
+     * @param currentVersion
+     */
+    private void writeTempFile(final String currentVersion) {
+        try {
+            IOUtils.write(currentVersion, new FileOutputStream(softwareUpgradeTempFile));
+        } catch (IOException e) {
+            LOGGER.error("Error while writing temp file", e);
+        }
+    }
+
+    public String readOldVersionNumber() {
+        String contents = null;
+        final File tempFile = new File(softwareUpgradeTempFile);
+        if (tempFile.exists()) {
+            try {
+                contents = IOUtils.toString(new FileInputStream(tempFile));
+            } catch (final IOException e) {
+                //ignore - the file usually will not be here
+                LOGGER.error("Error while reading temp file");
+            } finally {
+                FileUtils.deleteQuietly(new File(softwareUpgradeTempFile));
+            }
+        }
+        return contents;
+    }
+
+    private Bwg.Uplink.Model.Event buildSoftwareUpgradeEvent(final String upgradePackageName) {
+        final long timestamp = System.currentTimeMillis();
+        final Bwg.Uplink.Model.Event event = Bwg.Uplink.Model.Event.newBuilder()
+                .setEventOccuredTimestamp(timestamp)
+                .setEventReceivedTimestamp(timestamp)
+                .setEventType(Bwg.Uplink.Model.Constants.EventType.NOTIFICATION)
+                .setDescription(StringUtils.isNotBlank(upgradePackageName)
+                        ? "Downloaded software upgrade package " + upgradePackageName + ", initiating upgrade procedure"
+                        : "Downloaded software upgrade package, initiating upgrade procedure")
+                .build();
+
+        return event;
     }
 
     private File getSoftwareUpgradeDestination() {
@@ -89,7 +187,7 @@ public final class SoftwareUpgradeManager {
         return new File(swUpgradeDestinationFolder, softwareUpgradePackageFilename);
     }
 
-    public void initiateSoftwareUpgradeProcedure() {
+    private void initiateSoftwareUpgradeProcedure() {
         final String uname = CommandUtil.uname();
         final String upgradeCommand;
         if (StringUtils.isNotBlank(uname) && uname.toLowerCase().contains("yocto")) {

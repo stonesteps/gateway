@@ -1,0 +1,7 @@
+Release notes
+version 0.0.1 06-27-16
+ - removed p2pAPSSID and p2pAPPassword from bwg.proto model
+ - uname command output cached in util class
+ - events being sent after successful software upgrade package download and then after restart
+ - software upgrade package download and upgrade procedure call executed in separate thread
+ - ignoring ssl handshake errors (not checking if certificate is signed, not checking certificate host name) when downloading upgrade package
