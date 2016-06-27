@@ -1,7 +1,19 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
-import com.bwg.iot.model.*;
 import com.bwg.iot.model.Component.ComponentType;
+import com.bwg.iot.model.ComponentState;
+import com.bwg.iot.model.DipSwitch;
+import com.bwg.iot.model.FiltrationMode;
+import com.bwg.iot.model.PanelMode;
+import com.bwg.iot.model.ReminderCode;
+import com.bwg.iot.model.SetupParams;
+import com.bwg.iot.model.Spa;
+import com.bwg.iot.model.SpaRunState;
+import com.bwg.iot.model.SpaState;
+import com.bwg.iot.model.SwimSpaMode;
+import com.bwg.iot.model.SystemInfo;
+import com.bwg.iot.model.TempRange;
+import com.bwg.iot.model.WifiConnectionHealth;
 import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.spa.communication.proto.Bwg;
@@ -18,6 +30,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
@@ -29,6 +42,8 @@ import static java.util.stream.Collectors.toList;
 public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Model.SpaState> {
 
     private static final Logger log = LoggerFactory.getLogger(SpaStateMessageHandler.class);
+    private static final long MAX_REGISTRATION_INACTIVTY = 600000; // 10 minutes, all components attempt registration every 5 minutes
+                                                                   // so this allows for gap
 
     @Autowired
     private SpaRepository spaRepository;
@@ -94,6 +109,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         }
         updateComponentState(spa.get_id(), spaStateEntity, ComponentType.GATEWAY.toString(), null, newArrayList(), null);
         updateComponentState(spa.get_id(), spaStateEntity, ComponentType.CONTROLLER.toString(), null, newArrayList(), null);
+        updateMoteState(spa.get_id(), spaStateEntity);
 
         // wifi signal strength
         if (spaState.hasWifiState()) {
@@ -300,6 +316,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             }
             componentState.setName(component.getName());
             componentState.setSerialNumber(component.getSerialNumber());
+            componentState.setComponentId(component.get_id());
         }
 
         // replace old with new
@@ -341,6 +358,33 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         } else {
             componentStates.add(componentState);
         }
+    }
+
+    private void updateMoteState(final String spaId, final SpaState spaStateEntity) {
+        Page<com.bwg.iot.model.Component> componentResults = componentRepository.findBySpaIdAndComponentType(spaId, ComponentType.MOTE.name(), new PageRequest(0,100));
+
+        for (com.bwg.iot.model.Component mote : componentResults.getContent()) {
+            List<ComponentState> existing = spaStateEntity.getComponents().stream()
+                    .filter(state -> Objects.equals(state.getComponentId(), mote.get_id()))
+                    .collect(toList());
+
+            final ComponentState componentState;
+            if (!existing.isEmpty()) {
+                componentState = existing.get(0);
+            } else {
+                componentState = new ComponentState();
+                componentState.setName(mote.getName());
+                componentState.setComponentType(mote.getComponentType());
+                componentState.setSerialNumber(mote.getSerialNumber());
+                componentState.setComponentId(mote.get_id());
+                spaStateEntity.getComponents().add(componentState);
+            }
+
+            if (mote.getRegistrationDate() != null && System.currentTimeMillis() - mote.getRegistrationDate().getTime() < MAX_REGISTRATION_INACTIVTY) {
+                componentState.setRegisteredTimestamp(mote.getRegistrationDate());
+            }
+        }
+
     }
 
     private List<String> toStringList(final List<?> availableStatesList) {

@@ -7,9 +7,6 @@ import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.DataType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.QualityType;
-import jdk.dio.DeviceManager;
-import jdk.dio.i2cbus.I2CDevice;
-import jdk.dio.i2cbus.I2CDeviceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.ZMQ;
@@ -18,12 +15,10 @@ import org.zeromq.ZMQ.Poller;
 import org.zeromq.ZMQ.Socket;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
@@ -72,9 +67,9 @@ public class WSNDataHarvester implements Runnable {
                 }
 
                 // temprorary hard wired sensors
-                List<WsnData> wsnDatas = wiredCurrentSensor.processWiredCurrentSensor();
+                List<WsnData> wsnDatas = wiredCurrentSensor.processWiredSensors();
                 for (WsnData wsnData : wsnDatas) {
-                    measurements.put(wsnData.getMac(), wsnData);
+                    measurements.put(wsnData.getSensorMac(), wsnData);
                 }
             }
             catch (Throwable ex) {
@@ -111,7 +106,7 @@ public class WSNDataHarvester implements Runnable {
                     .collect(toList());
 
             for (WsnData wsnData : wsnDatas) {
-                moteMac2Data.put(wsnData.getMac(), wsnData);
+                moteMac2Data.put(wsnData.getMoteMac(), wsnData);
             }
         }
         sendLatestWSNDataToCloud(moteMac2Data, spaHardwareId);
@@ -120,7 +115,7 @@ public class WSNDataHarvester implements Runnable {
     private void updateMeasurements(String json) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         WsnData wsnData = mapper.readValue(json, WsnData.class);
-        measurements.put(wsnData.getMac(), wsnData);
+        measurements.put(wsnData.getSensorMac(), wsnData);
     }
 
     private Socket createWSNSubscriberSocket() {
@@ -135,12 +130,12 @@ public class WSNDataHarvester implements Runnable {
         for (String mac : moteMac2Data.keySet()) {
             List<WsnData> entries = moteMac2Data.get(mac);
             if (entries == null || entries.isEmpty()) {
-                return;
+                continue;
             }
-            DeviceRegistration registeredMote = processor.obtainMoteRegistration(spaHardwareId, entries.get(0).getMac(), entries.get(0).getDeviceName());
+            DeviceRegistration registeredMote = processor.obtainMoteRegistration(spaHardwareId, entries.get(0).getMoteMac(), entries.get(0).getDeviceName());
             if (registeredMote.getHardwareId() == null) {
-                LOGGER.info("skipping wsn data harvest, mote mac {} has not been registered yet with cloud", entries.get(0).getMac());
-                return;
+                LOGGER.info("skipping wsn data harvest for mote mac {}, has not been registered yet with cloud", entries.get(0).getMoteMac());
+                continue;
             }
             List<Measurement> measurements = newArrayList();
             for (WsnData wsnData : entries) {
@@ -150,7 +145,7 @@ public class WSNDataHarvester implements Runnable {
                     //
                     // If ever going to OID's ...
                     //
-                    String safeMacKey = wsnData.getMac().replaceAll(":", "").toLowerCase();
+                    String safeMacKey = wsnData.getMoteMac().replaceAll(":", "").toLowerCase();
                     String oid = processor.getConfigProps().getProperty(BWGProcessor.DYNAMIC_DEVICE_OID_PROPERTY
                             .replaceAll("MAC", safeMacKey)
                             .replaceAll("DEVICE_NAME", wsnData.getDeviceName()));
@@ -176,6 +171,9 @@ public class WSNDataHarvester implements Runnable {
                     eb.setValue(wsnData.getValue());
                     eb.setUom(wsnData.getUom());
                     eb.setQuality(QualityType.VALID);
+                    if (wsnData.getSensorIdentifier() != null) {
+                        eb.setSensorIdentifier(wsnData.getSensorIdentifier());
+                    }
                     measurements.add(eb.build());
                     LOGGER.info(" sent {} measurement for mote {}, registered id {} {}", wsnData.getDataType().name(), wsnData.getDeviceName(), registeredMote.getHardwareId(), Double.toString(wsnData.getValue()));
                 }

@@ -485,6 +485,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         builder.setUom(uom);
         builder.setQuality(QualityType.VALID);
         builder.setValue(ThreadLocalRandom.current().nextDouble(10.0d, 90.0d));
+        builder.setSensorIdentifier("1");
         return builder.build();
     }
 

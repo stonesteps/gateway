@@ -7,7 +7,7 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.Qualit
  * WSN data message
  */
 public class WsnData {
-    private String mac;
+    private String moteMac;
     private Long recordedUnixTimestamp;
     private long receivedUnixTimestamp;
     private WsnRssi rssi;
@@ -16,6 +16,15 @@ public class WsnData {
     private DataType dataType;
     private String uom;
     private QualityType quality;
+    private String sensorIdentifier;
+
+    public String getSensorIdentifier() {
+        return sensorIdentifier;
+    }
+
+    public void setSensorIdentifier(String sensorIdentifier) {
+        this.sensorIdentifier = sensorIdentifier;
+    }
 
     public QualityType getQuality() {
         return quality;
@@ -47,12 +56,12 @@ public class WsnData {
     public Double getValue() {return value;}
     public void setValue(Double value) {this.value = value;}
 
-    public String getMac() {
-        return mac;
+    public String getMoteMac() {
+        return moteMac;
     }
 
-    public void setMac(String mac) {
-        this.mac = mac;
+    public void setMoteMac(String moteMac) {
+        this.moteMac = moteMac;
     }
 
     public Long getRecordedUnixTimestamp() {
@@ -77,5 +86,9 @@ public class WsnData {
 
     public void setRssi(WsnRssi rssi) {
         this.rssi = rssi;
+    }
+
+    public String getSensorMac() {
+        return getMoteMac() + ":" + getSensorIdentifier();
     }
 }
