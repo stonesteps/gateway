@@ -18,7 +18,8 @@ JAR_PATH="$(readlink -f $0)"
 JAR_BACKUP="${JAR_PATH}_old"
 BASEDIR="$(dirname $JAR_PATH)"
 JAR_NAME="$(basename -- $0)"
-UPGRADE_PACKAGE="${BASEDIR}/upgrade/upgradePackage.tar.gz"
+UPGRADE_PACKAGE="$BASEDIR/upgrade/upgradePackage.tar.gz"
+UPGRADE_MARKER_FILE="$BASEDIR/upgrade/.upgr_marker"
 
 cd "$BASEDIR"
 LOGS="$BASEDIR/logs"
@@ -106,40 +107,56 @@ require_file() {
 }
 
 upgrade() {
-    require_file "${UPGRADE_PACKAGE}"
-    require_file "${JAR_PATH}"
+    require_file "$UPGRADE_PACKAGE"
+    require_file "$JAR_PATH"
 
-    stop
-
-    echo 'Upgrading.'
+    echo 'Upgrading.' >> $LOG_FILE
 
     # We are currently in ${BASEDIR}, file will be extracted to it.
-    mv "${JAR_PATH}" "${JAR_BACKUP}" && tar -xzf "${UPGRADE_PACKAGE}" "${JAR_NAME}"
+    cp "$JAR_PATH" "$JAR_BACKUP"
+    if [ $? -ne 0 ]; then
+        echo 'Upgrade failed (could not back up current jar).' >> $LOG_FILE
+        exit 1
+    fi
+
+    tar -xzf "$UPGRADE_PACKAGE" "$JAR_NAME"
 
     if [ $? -ne 0 ]; then
-        echo 'Upgrade failed (could not back up current jar or unpack new one).'
+        echo 'Upgrade failed (could not unpack new one).' >> $LOG_FILE
+        cp "$JAR_BACKUP" "$JAR_PATH" && rm "$JAR_BACKUP"
         exit 1
     else
-        echo 'Upgrade completed'
+        echo 'Upgrade completed' >> $LOG_FILE
     fi
 
-    if start | grep 'started' ; then
-        echo 'Successfully started after upgrade'
-        status
+    chown bwg:bwg "$JAR_NAME"
+    stop
+    start
+
+    PID=`pid_of_jvm`
+    if [ "x$PID" != "x" ]; then
+        echo 'Successfully started after upgrade' >> $LOG_FILE
+        rm -f "$UPGRADE_MARKER_FILE"
+        rm -f "$UPGRADE_PACKAGE"
     else
-        echo 'Failed to start after upgrade, rolling back.'
-        mv "${JAR_BACKUP}" "${JAR_PATH}"
+        echo 'Failed to start after upgrade, rolling back.' >> $LOG_FILE
+        cp "$JAR_BACKUP" "$JAR_PATH"
         if [ $? -ne 0 ]; then
-            echo 'Rollback failed (could not restore from back-up).'
-            exit 1
+            echo 'Rollback failed (could not restore from back-up).' >> $LOG_FILE
         fi
+        stop
         start
     fi
+    rm -f "$JAR_BACKUP"
 }
 
 case $1 in
     start)
-        start
+        if [ -f "$UPGRADE_MARKER_FILE" ]; then
+            upgrade
+        else
+            start
+        fi
     ;;
     stop)
         stop

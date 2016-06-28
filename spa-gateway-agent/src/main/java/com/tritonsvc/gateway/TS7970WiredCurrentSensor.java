@@ -65,13 +65,6 @@ public class TS7970WiredCurrentSensor {
                 .setAddress(HTU21DF_I2CADDR,I2CDeviceConfig.ADDR_SIZE_7)
                 .setClockFrequency(I2CDeviceConfig.UNASSIGNED)
                 .build();
-
-        // enable the i2c linux f/s to allow the bwg user to read/write
-        try {
-            executeUnixCommand("sudo chmod 666 /dev/i2c-0; sudo chmod 666 /dev/i2c-1").waitFor(5, TimeUnit.SECONDS);
-        } catch (Exception ex) {
-            LOGGER.error("unable to set file permissions in /dev/i2c-*, may be an issue or not.");
-        }
     }
 
     /**
@@ -274,10 +267,5 @@ public class TS7970WiredCurrentSensor {
                 }
             }
         }
-    }
-
-    @VisibleForTesting
-    Process executeUnixCommand(String command) throws IOException {
-        return Runtime.getRuntime().exec(command);
     }
 }

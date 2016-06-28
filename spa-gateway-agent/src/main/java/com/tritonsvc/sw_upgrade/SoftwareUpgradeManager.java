@@ -24,6 +24,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.google.common.collect.Lists.newArrayList;
+
 /**
  * Responsible for fetching software upgrade packages and initiating upgrade procedure (calling external script).
  */
@@ -38,13 +40,12 @@ public final class SoftwareUpgradeManager {
 
     private String softwareUpgradePackageFolder = "./upgrade";
     private String softwareUpgradePackageFilename = "upgradePackage.tar.gz";
-    private String softwareUpgradeCommand = "service bwg-gateway-agent upgrade";
+    private String softwareUpgradeCommand = "service bwg-gateway-agent restart";
     private String softwareUpgradeCommandYocto = "sudo systemctl restart bwg-gateway-agent.service";
     private String softwareUpgradeTempFile = ".upgr_last_version";
+    private String softwareUpgradeMarkerFile = ".upgr_marker";
     private ExecutorService es = Executors.newSingleThreadExecutor();
     private CheckSoftwareUpgrade checker = new CheckSoftwareUpgrade();
-
-    private Thread upgradeThread = null;
 
     public SoftwareUpgradeManager(final Properties properties) {
         init(properties);
@@ -110,24 +111,31 @@ public final class SoftwareUpgradeManager {
 
         public void run() {
             running = true;
+
             final String fullUpgradeUrl = swUpgradeUrl + "?currentBuildNumber=" + currentVersion;
             LOGGER.info("Checking url {} for software upgrades", fullUpgradeUrl);
+            HttpURLConnection connection = null;
             try {
                 final URL url = new URL(fullUpgradeUrl);
-                final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection = (HttpURLConnection) url.openConnection();
                 connection.connect();
                 final int code = connection.getResponseCode();
                 final String upgradePackageName = connection.getHeaderField("UPGRADE_PACKAGE_NAME");
+                long bytesSent = connection.getContentLengthLong();
 
                 if (code == 200) {
-                    LOGGER.info("New software package available - downloading...");
-                    final ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-                    final FileOutputStream fos = new FileOutputStream(getSoftwareUpgradeDestination());
-                    fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
-                    bwgProcessor.sendEvents(hardwareId, Arrays.asList(buildSoftwareUpgradeEvent(upgradePackageName)));
-                    writeTempFile(currentVersion);
-                    LOGGER.info("Software package obtained successfully - ready for upgrade");
-                    initiateSoftwareUpgradeProcedure();
+                    LOGGER.info("New software package available {} - downloading...", upgradePackageName);
+                    try (ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
+                         FileOutputStream fos = new FileOutputStream(getSoftwareUpgradeDestination())) {
+                        long bytesCopied = fos.getChannel().transferFrom(rbc, 0, bytesSent);
+                        if (bytesCopied != bytesSent) {
+                            throw new Exception("invalid upgrade file download, bytes sent was " + bytesSent +", but bytes copied was " + bytesCopied);
+                        }
+                        bwgProcessor.sendEvents(hardwareId, newArrayList(buildSoftwareUpgradeEvent(upgradePackageName)));
+                        writeTempFile(currentVersion);
+                        LOGGER.info("Software package obtained successfully {} - ready for upgrade", upgradePackageName);
+                        initiateSoftwareUpgradeProcedure();
+                    }
                 } else if (code == 204) {
                     LOGGER.info("Software is up to date, upgrade url returned code 204");
                 } else {
@@ -135,6 +143,10 @@ public final class SoftwareUpgradeManager {
                 }
             } catch (final Exception e) {
                 LOGGER.error("Error while downloading software upgrade package", e);
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
             running = false;
         }
@@ -151,15 +163,23 @@ public final class SoftwareUpgradeManager {
      */
     private void writeTempFile(final String currentVersion) {
         try {
-            IOUtils.write(currentVersion, new FileOutputStream(softwareUpgradeTempFile));
+            IOUtils.write(currentVersion, new FileOutputStream(new File(softwareUpgradePackageFolder, softwareUpgradeTempFile)));
         } catch (IOException e) {
             LOGGER.error("Error while writing temp file", e);
         }
     }
 
+    private void writeUpgradeMarkerFile() {
+        try {
+            FileUtils.touch(new File(softwareUpgradePackageFolder, softwareUpgradeMarkerFile));
+        } catch (IOException e) {
+            LOGGER.error("Error while writing marker file", e);
+        }
+    }
+
     public String readOldVersionNumber() {
         String contents = null;
-        final File tempFile = new File(softwareUpgradeTempFile);
+        final File tempFile = new File(softwareUpgradePackageFolder, softwareUpgradeTempFile);
         if (tempFile.exists()) {
             try {
                 contents = IOUtils.toString(new FileInputStream(tempFile));
@@ -198,7 +218,8 @@ public final class SoftwareUpgradeManager {
     private void initiateSoftwareUpgradeProcedure() {
         final String uname = CommandUtil.uname();
         final String upgradeCommand;
-        if (StringUtils.isNotBlank(uname) && uname.toLowerCase().contains("yocto")) {
+        writeUpgradeMarkerFile();
+        if (StringUtils.isNotBlank(uname) && uname.toLowerCase().contains("ts-imx6")) {
             upgradeCommand = softwareUpgradeCommandYocto;
         } else {
             upgradeCommand = softwareUpgradeCommand;

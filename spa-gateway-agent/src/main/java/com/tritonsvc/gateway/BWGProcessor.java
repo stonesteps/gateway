@@ -219,8 +219,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         checkIfStartupAfterUpgrade(hardwareId);
-        if (getRegisteredHWIds().containsKey(originatorId)) {
-            checkAndPerformSoftwareUpgrade(response.hasSwUpgradeUrl() ? response.getSwUpgradeUrl() : null, hardwareId);
+        if (getRegisteredHWIds().containsKey(originatorId) && response.hasSwUpgradeUrl()) {
+            checkAndPerformSoftwareUpgrade(response.getSwUpgradeUrl(), hardwareId);
         }
 
         if (response.getState() == RegistrationAckState.ALREADY_REGISTERED &&
