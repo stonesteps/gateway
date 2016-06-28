@@ -67,10 +67,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     // this guarantees that at least one
     // mqtt downlink is due to arrive into agent via the reg ack in given time
     private static final long MAX_PANEL_REQUEST_INTERIM = 10000;
-    private static final long DEFAULT_UPDATE_INTERVAL = 15000; //0 is continuous, in ms
+    private static final long DEFAULT_UPDATE_INTERVAL = 60000; //0 is continuous, in ms
     private static final long DEFAULT_WIFIUPDATE_INTERVAL = 3600000; // 1 hour
-    private static final long DEFAULT_AMBIENT_INTERVAL = 3600000; // 1 hour
-    private static final long DEFAULT_PUMP_CURRENT_INTERVAL = 3600000; // 1 hour
+    private static final long DEFAULT_AMBIENT_INTERVAL = 300000; // 5 mins
+    private static final long DEFAULT_PUMP_CURRENT_INTERVAL = 300000; // 5 mins
     public static final String TS_IMX6 = "ts-imx6";
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
@@ -699,6 +699,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 LOGGER.info("skipping data harvest, spa gateway has not been registered");
                 return;
             }
+            long timestamp = System.currentTimeMillis();
 
             // make sure the controller is registered as a compoenent to cloud
             obtainControllerRegistration(registeredSpa.getHardwareId());
@@ -709,14 +710,22 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
             if (!getRS485DataHarvester().hasAllConfigState() &&
-                    (System.currentTimeMillis() - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM)) {
+                    (timestamp - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM)) {
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
-                lastPanelRequestSent.set(System.currentTimeMillis());
+                lastPanelRequestSent.set(timestamp);
             }
             rs485Active = getRS485DataHarvester().getLatestSpaInfo().getRs485AddressActive();
             // this loop runs often(once every 3 seconds), but only send up to cloud when timestamps on state data change
-            if (lastSpaDetailsSent.get() != getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp() &&
-                    System.currentTimeMillis() - lastSpaDetailsSent.get() > updateInterval.get()) {
+            // or at least the update interval has passed since last cloud update was sent
+            if (timestamp - lastSpaDetailsSent.get() > updateInterval.get()) {
+                getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
+                locked = false;
+                updateSpaInfoStateForLatestCloudUpdate(timestamp);
+                getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
+                locked = true;
+            }
+
+            if (lastSpaDetailsSent.get() != getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp()) {
                 getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, getRS485DataHarvester().getLatestSpaInfo(), false);
                 lastSpaDetailsSent.set(getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp());
                 LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
@@ -849,14 +858,30 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.rs485MessagePublisher = rs485MessagePublisher;
     }
 
+    private void updateSpaInfoStateForLatestCloudUpdate(long timestamp) throws Exception {
+        boolean wLocked = false;
+
+        try {
+            getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
+            wLocked = true;
+            SpaState.Builder stateBuilder = SpaState.newBuilder(getRS485DataHarvester().getLatestSpaInfo());
+            stateBuilder.setLastUpdateTimestamp(timestamp);
+            getRS485DataHarvester().setLatestSpaInfo(stateBuilder.build());
+        } finally {
+            if (wLocked) {
+                getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
+            }
+        }
+    }
+
     private void processMeasurements(String hardwareId) throws IOException {
-        if ((ambientUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastAmbientSent.get() > 60000)) ||
+        if ( (ambientUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastAmbientSent.get() > DEFAULT_AMBIENT_INTERVAL)) ||
                 (System.currentTimeMillis() - lastAmbientSent.get() > ambientUpdateInterval.get())) {
             wsnDataHarvester.sendLatestWSNDataToCloud(newArrayList(DataType.AMBIENT_TEMP, DataType.AMBIENT_HUMIDITY), hardwareId);
             lastAmbientSent.set(new Date().getTime());
         }
 
-        if ((pumpCurrentUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastPumpCurrentSent.get() > 60000)) ||
+        if ( (pumpCurrentUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastPumpCurrentSent.get() > DEFAULT_PUMP_CURRENT_INTERVAL)) ||
                 (System.currentTimeMillis() - lastPumpCurrentSent.get() > pumpCurrentUpdateInterval.get())) {
             wsnDataHarvester.sendLatestWSNDataToCloud(newArrayList(DataType.PUMP_AC_CURRENT), hardwareId);
             lastPumpCurrentSent.set(new Date().getTime());
