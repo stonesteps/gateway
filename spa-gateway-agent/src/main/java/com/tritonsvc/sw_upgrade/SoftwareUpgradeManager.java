@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -87,7 +86,7 @@ public final class SoftwareUpgradeManager {
      * @param bwgProcessor
      */
     public void checkAndPerformSoftwareUpgrade(final String swUpgradeUrl, final String currentVersion,
-                                                            final String hardwareId, final BWGProcessor bwgProcessor) {
+                                               final String hardwareId, final BWGProcessor bwgProcessor) {
         // upgrade in progress, do not spawn new thread
         if (checker.isRunning()) return;
         checker.setupParams(swUpgradeUrl, currentVersion, hardwareId, bwgProcessor);
@@ -102,7 +101,7 @@ public final class SoftwareUpgradeManager {
         private boolean running;
 
         public void setupParams(final String swUpgradeUrl, final String currentVersion,
-        final String hardwareId, final BWGProcessor bwgProcessor) {
+                                final String hardwareId, final BWGProcessor bwgProcessor) {
             this.swUpgradeUrl = swUpgradeUrl;
             this.currentVersion = currentVersion;
             this.hardwareId = hardwareId;
