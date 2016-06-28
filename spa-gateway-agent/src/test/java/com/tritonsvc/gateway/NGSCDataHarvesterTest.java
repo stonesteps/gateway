@@ -115,6 +115,9 @@ public class NGSCDataHarvesterTest {
 
         // wait at most 5 seconds for the message to be read, should really be under one second.
         cdl.await(5, TimeUnit.SECONDS);
+        // there's a separate thread that processes 485 messages off the bus, this helps the test wait
+        // for that thread to process message
+        Thread.sleep(1000);
 
         verify(processor).setRS485ControllerType(eq("JACUZZI"));
         verify(processor).setUpRS485Processors();
