@@ -1,12 +1,13 @@
 package com.tritonsvc.gateway.wsn;
 
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.DataType;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.QualityType;
 
 /**
  * WSN data message
  */
 public class WsnData {
-    private String mac;
+    private String moteMac;
     private Long recordedUnixTimestamp;
     private long receivedUnixTimestamp;
     private WsnRssi rssi;
@@ -14,6 +15,24 @@ public class WsnData {
     private Double value;
     private DataType dataType;
     private String uom;
+    private QualityType quality;
+    private String sensorIdentifier;
+
+    public String getSensorIdentifier() {
+        return sensorIdentifier;
+    }
+
+    public void setSensorIdentifier(String sensorIdentifier) {
+        this.sensorIdentifier = sensorIdentifier;
+    }
+
+    public QualityType getQuality() {
+        return quality;
+    }
+
+    public void setQuality(QualityType quality) {
+        this.quality = quality;
+    }
 
     public String getUom() {
         return uom;
@@ -37,12 +56,12 @@ public class WsnData {
     public Double getValue() {return value;}
     public void setValue(Double value) {this.value = value;}
 
-    public String getMac() {
-        return mac;
+    public String getMoteMac() {
+        return moteMac;
     }
 
-    public void setMac(String mac) {
-        this.mac = mac;
+    public void setMoteMac(String moteMac) {
+        this.moteMac = moteMac;
     }
 
     public Long getRecordedUnixTimestamp() {
@@ -67,5 +86,9 @@ public class WsnData {
 
     public void setRssi(WsnRssi rssi) {
         this.rssi = rssi;
+    }
+
+    public String getSensorMac() {
+        return getMoteMac() + ":" + getSensorIdentifier();
     }
 }

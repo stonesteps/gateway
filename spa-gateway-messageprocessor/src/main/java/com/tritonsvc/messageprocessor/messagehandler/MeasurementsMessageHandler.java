@@ -79,9 +79,15 @@ public class MeasurementsMessageHandler extends AbstractMessageHandler<Bwg.Uplin
         if (measurement.hasUom())
             reading.setUnitOfMeasure(measurement.getUom());
         if (measurement.hasValue())
-            reading.setValue(Double.valueOf(measurement.getValue()));
+            reading.setValue(measurement.getValue());
         if (measurement.getMetadataCount() > 0)
             reading.setMetadata(BwgHelper.getMetadataAsMap(measurement.getMetadataList()));
+        if (measurement.hasQuality()) {
+            reading.setQuality(measurement.getQuality().name());
+        }
+        if (measurement.hasSensorIdentifier()) {
+            reading.setSensorIdentity(measurement.getSensorIdentifier());
+        }
 
         return reading;
     }
