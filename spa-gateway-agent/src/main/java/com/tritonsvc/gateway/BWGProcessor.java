@@ -141,6 +141,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         if (buttonManager != null) {
             buttonManager.stopAPProcessIfPresent();
         }
+        if (softwareUpgradeManager != null) {
+            softwareUpgradeManager.shutdown();
+        }
         LOGGER.info("Agent shutdown complete");
     }
 

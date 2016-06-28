@@ -50,6 +50,10 @@ public final class SoftwareUpgradeManager {
         init(properties);
     }
 
+    public void shutdown() {
+        es.shutdownNow();
+    }
+
     private void init(final Properties properties) {
         final String softwareUpgradePackageFolder = properties.getProperty("softwareUpgrade.packageFolder");
         if (softwareUpgradePackageFolder != null) {
