@@ -119,30 +119,37 @@ public final class SoftwareUpgradeManager {
             LOGGER.info("Checking url {} for software upgrades", fullUpgradeUrl);
             HttpURLConnection connection = null;
             try {
-                final URL url = new URL(fullUpgradeUrl);
-                connection = (HttpURLConnection) url.openConnection();
-                connection.connect();
-                final int code = connection.getResponseCode();
-                final String upgradePackageName = connection.getHeaderField("UPGRADE_PACKAGE_NAME");
-                long bytesSent = connection.getContentLengthLong();
+                try {
+                    final URL url = new URL(fullUpgradeUrl);
+                    connection = (HttpURLConnection) url.openConnection();
+                    connection.connect();
+                } catch (Exception ex) {
+                    LOGGER.info("skip sw upgrade, url {} was not reachable", fullUpgradeUrl);
+                    connection = null;
+                }
 
-                if (code == 200) {
-                    LOGGER.info("New software package available {} - downloading...", upgradePackageName);
-                    try (ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-                         FileOutputStream fos = new FileOutputStream(getSoftwareUpgradeDestination())) {
-                        long bytesCopied = fos.getChannel().transferFrom(rbc, 0, bytesSent);
-                        if (bytesCopied != bytesSent) {
-                            throw new Exception("invalid upgrade file download, bytes sent was " + bytesSent +", but bytes copied was " + bytesCopied);
+                if (connection != null) {
+                    int code = connection.getResponseCode();
+                    if ( code == 200) {
+                        final String upgradePackageName = connection.getHeaderField("UPGRADE_PACKAGE_NAME");
+                        long bytesSent = connection.getContentLengthLong();
+                        LOGGER.info("New software package available {} - downloading...", upgradePackageName);
+                        try (ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
+                             FileOutputStream fos = new FileOutputStream(getSoftwareUpgradeDestination())) {
+                            long bytesCopied = fos.getChannel().transferFrom(rbc, 0, bytesSent);
+                            if (bytesCopied != bytesSent) {
+                                throw new Exception("invalid upgrade file download, bytes sent was " + bytesSent + ", but bytes copied was " + bytesCopied);
+                            }
+                            bwgProcessor.sendEvents(hardwareId, newArrayList(buildSoftwareUpgradeEvent(upgradePackageName)));
+                            writeTempFile(currentVersion);
+                            LOGGER.info("Software package obtained successfully {} - ready for upgrade", upgradePackageName);
+                            initiateSoftwareUpgradeProcedure();
                         }
-                        bwgProcessor.sendEvents(hardwareId, newArrayList(buildSoftwareUpgradeEvent(upgradePackageName)));
-                        writeTempFile(currentVersion);
-                        LOGGER.info("Software package obtained successfully {} - ready for upgrade", upgradePackageName);
-                        initiateSoftwareUpgradeProcedure();
+                    } else if (code == 204) {
+                        LOGGER.info("Software is up to date, upgrade url returned code 204");
+                    } else {
+                        LOGGER.error("Error while invoking software upgrade url, the returned code is {}", code);
                     }
-                } else if (code == 204) {
-                    LOGGER.info("Software is up to date, upgrade url returned code 204");
-                } else {
-                    LOGGER.error("Error while invoking software upgrade url, the returned code is {}", code);
                 }
             } catch (final Exception e) {
                 LOGGER.error("Error while downloading software upgrade package", e);
