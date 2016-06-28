@@ -20,6 +20,9 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Arrays;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Responsible for fetching software upgrade packages and initiating upgrade procedure (calling external script).
@@ -38,6 +41,8 @@ public final class SoftwareUpgradeManager {
     private String softwareUpgradeCommand = "service bwg-gateway-agent upgrade";
     private String softwareUpgradeCommandYocto = "sudo systemctl restart bwg-gateway-agent.service";
     private String softwareUpgradeTempFile = ".upgr_last_version";
+    private ExecutorService es = Executors.newSingleThreadExecutor();
+    private CheckSoftwareUpgrade checker = new CheckSoftwareUpgrade();
 
     private Thread upgradeThread = null;
 
@@ -80,60 +85,63 @@ public final class SoftwareUpgradeManager {
      * @param hardwareId
      * @param bwgProcessor
      */
-    public synchronized void checkAndPerformSoftwareUpgrade(final String swUpgradeUrl, final String currentVersion,
+    public void checkAndPerformSoftwareUpgrade(final String swUpgradeUrl, final String currentVersion,
                                                             final String hardwareId, final BWGProcessor bwgProcessor) {
         // upgrade in progress, do not spawn new thread
-        if (upgradeThread != null) return;
-
-        upgradeThread = new Thread(() -> {
-            try {
-                final boolean newSoftwareAvailable = checkSoftwareUpgrade(swUpgradeUrl, currentVersion, hardwareId, bwgProcessor);
-                if (newSoftwareAvailable) {
-                    initiateSoftwareUpgradeProcedure();
-                }
-            } finally {
-                upgradeThread = null;
-            }
-        });
-        upgradeThread.start();
+        if (checker.isRunning()) return;
+        checker.setupParams(swUpgradeUrl, currentVersion, hardwareId, bwgProcessor);
+        es.execute(checker);
     }
 
-    private boolean checkSoftwareUpgrade(final String swUpgradeUrl, final String currentVersion,
-                                         final String hardwareId, final BWGProcessor bwgProcessor) {
+    private class CheckSoftwareUpgrade implements Runnable {
+        private String swUpgradeUrl;
+        private String currentVersion;
+        private String hardwareId;
+        private BWGProcessor bwgProcessor;
+        private boolean running;
 
-        boolean newSoftwareDownloaded = false;
-
-        final String fullUpgradeUrl = swUpgradeUrl + "?currentBuildNumber=" + currentVersion;
-        LOGGER.info("Checking url {} for software upgrades", fullUpgradeUrl);
-
-        try {
-            final URL url = new URL(fullUpgradeUrl);
-            final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.connect();
-            final int code = connection.getResponseCode();
-            final String upgradePackageName = connection.getHeaderField("UPGRADE_PACKAGE_NAME");
-
-            if (code == 200) {
-                LOGGER.info("New software package available - downloading...");
-                final ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
-                final FileOutputStream fos = new FileOutputStream(getSoftwareUpgradeDestination());
-                fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
-
-                newSoftwareDownloaded = true;
-                bwgProcessor.sendEvents(hardwareId, Arrays.asList(buildSoftwareUpgradeEvent(upgradePackageName)));
-
-                writeTempFile(currentVersion);
-                LOGGER.info("Software package obtained successfully - ready for upgrade");
-            } else if (code == 204) {
-                LOGGER.info("Software is up to date, upgrade url returned code 204");
-            } else {
-                LOGGER.error("Error while invoking software upgrade url, the returned code is {}", code);
-            }
-        } catch (final Exception e) {
-            LOGGER.error("Error while downloading software upgrade package", e);
+        public void setupParams(final String swUpgradeUrl, final String currentVersion,
+        final String hardwareId, final BWGProcessor bwgProcessor) {
+            this.swUpgradeUrl = swUpgradeUrl;
+            this.currentVersion = currentVersion;
+            this.hardwareId = hardwareId;
+            this.bwgProcessor = bwgProcessor;
         }
 
-        return newSoftwareDownloaded;
+        public void run() {
+            running = true;
+            final String fullUpgradeUrl = swUpgradeUrl + "?currentBuildNumber=" + currentVersion;
+            LOGGER.info("Checking url {} for software upgrades", fullUpgradeUrl);
+            try {
+                final URL url = new URL(fullUpgradeUrl);
+                final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.connect();
+                final int code = connection.getResponseCode();
+                final String upgradePackageName = connection.getHeaderField("UPGRADE_PACKAGE_NAME");
+
+                if (code == 200) {
+                    LOGGER.info("New software package available - downloading...");
+                    final ReadableByteChannel rbc = Channels.newChannel(connection.getInputStream());
+                    final FileOutputStream fos = new FileOutputStream(getSoftwareUpgradeDestination());
+                    fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+                    bwgProcessor.sendEvents(hardwareId, Arrays.asList(buildSoftwareUpgradeEvent(upgradePackageName)));
+                    writeTempFile(currentVersion);
+                    LOGGER.info("Software package obtained successfully - ready for upgrade");
+                    initiateSoftwareUpgradeProcedure();
+                } else if (code == 204) {
+                    LOGGER.info("Software is up to date, upgrade url returned code 204");
+                } else {
+                    LOGGER.error("Error while invoking software upgrade url, the returned code is {}", code);
+                }
+            } catch (final Exception e) {
+                LOGGER.error("Error while downloading software upgrade package", e);
+            }
+            running = false;
+        }
+
+        private boolean isRunning() {
+            return running;
+        }
     }
 
     /**
