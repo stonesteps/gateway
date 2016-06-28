@@ -580,9 +580,9 @@ message Downlink {
             required RegistrationAckState state = 1;
             optional RegistrationAckError errorType = 2;
             optional string errorMessage = 3;
-            optional string regKey = 4;
-            optional string regUserId = 5;
-            optional string swUpgradeUrl = 6;
+            optional string regKey = 6;
+            optional string regUserId = 7;
+            optional string swUpgradeUrl = 8;
         }
 
         enum RequestType {
