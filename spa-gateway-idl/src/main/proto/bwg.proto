@@ -580,10 +580,9 @@ message Downlink {
             required RegistrationAckState state = 1;
             optional RegistrationAckError errorType = 2;
             optional string errorMessage = 3;
-            optional string p2pAPSSID = 4;
-            optional string p2pAPPassword = 5;
             optional string regKey = 6;
             optional string regUserId = 7;
+            optional string swUpgradeUrl = 8;
         }
 
         enum RequestType {

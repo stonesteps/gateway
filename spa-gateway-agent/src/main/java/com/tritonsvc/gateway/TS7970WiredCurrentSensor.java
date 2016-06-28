@@ -43,6 +43,15 @@ public class TS7970WiredCurrentSensor {
     private int HTU21DF_RESET = 0xFE;
     private int HTU21DF_RESET_STATE = 0x2;
 
+    // adc measures 0 - 4000mv range
+    // shunt resistor of 166
+    // adc is 1-1024
+    // 4-20 mA results in voltage range of .670 to 3.32, starting with 4.04 mA for senva
+    private double mvPerAdcTick = 4000 / 1024.0;
+    private double lowerBoundTicks = 670 / mvPerAdcTick;
+    private double uppoerBoundTicks = 3320 / mvPerAdcTick;
+    private double measurableTickRange = uppoerBoundTicks - lowerBoundTicks;
+
     /**
      * Constructor
      *
@@ -65,13 +74,6 @@ public class TS7970WiredCurrentSensor {
                 .setAddress(HTU21DF_I2CADDR,I2CDeviceConfig.ADDR_SIZE_7)
                 .setClockFrequency(I2CDeviceConfig.UNASSIGNED)
                 .build();
-
-        // enable the i2c linux f/s to allow the bwg user to read/write
-        try {
-            executeUnixCommand("sudo chmod 666 /dev/i2c-0; sudo chmod 666 /dev/i2c-1").waitFor(5, TimeUnit.SECONDS);
-        } catch (Exception ex) {
-            LOGGER.error("unable to set file permissions in /dev/i2c-*, may be an issue or not.");
-        }
     }
 
     /**
@@ -143,7 +145,8 @@ public class TS7970WiredCurrentSensor {
         ByteBuffer tempBuf = ByteBuffer.allocateDirect(READ_ADC_REGISTER_BYTES);
         acCurrentDevice.read(8 + (adcNum * READ_ADC_REGISTER_BYTES), tempBuf); // 8 is offset - http://wiki.embeddedarm.com/wiki/TS-7970#Silabs_Microcontroller
         tempBuf.flip();
-        int adcValue = tempBuf.getShort();
+        int adcValue = (0xFF & tempBuf.get()) << 8;
+        adcValue = adcValue | (0xFF & tempBuf.get());
         if (adcValue == 0) {
             return null;
         }
@@ -194,7 +197,8 @@ public class TS7970WiredCurrentSensor {
         tempBuf.clear();
         tempHumidityDevice.read(tempBuf);
         tempBuf.flip();
-        int reading = tempBuf.getShort();
+        int reading = (0xFF & tempBuf.get()) << 8;
+        reading = reading | (0xFF & tempBuf.get());
         double tempFahr = reading * 175.72;
         tempFahr /= 65536;
         tempFahr -= 46.85;
@@ -220,7 +224,8 @@ public class TS7970WiredCurrentSensor {
         tempBuf.clear();
         tempHumidityDevice.read(tempBuf);
         tempBuf.flip();
-        int reading = tempBuf.getShort();
+        int reading = (0xFF & tempBuf.get()) << 8;
+        reading = reading | (0xFF & tempBuf.get());
         double relativeHumidity =  reading * 125;
         relativeHumidity /= 65536;
         relativeHumidity -= 6;
@@ -240,14 +245,12 @@ public class TS7970WiredCurrentSensor {
 
     private Double calculateAmpsFrom420LoopADCValue(int adcValue) {
         // This is how the ts7970 silabs ADC 10 bit conversion scales
-        double sensorSignalAmps = (adcValue / 42.0) - 4.05; // adc measures 0-20 mA, expresses as 0-1024 value,
-                                                            // ignore the first 4.04 mA becuase of 4-20mA output, the Senva C3245puts out 4.05 at no current
-        if (sensorSignalAmps < 0.0) {
+        double ampsPercentage = (adcValue - lowerBoundTicks) / measurableTickRange;
+
+        if (ampsPercentage < 0.0) {
             return 0d;
         }
-
-        double sensorSignalPercentage = sensorSignalAmps / 16.0; // in a 4-20, there are 16 mA of total range
-        return sensorSignalPercentage * ampsMeasuredScale; // convert the percentage of total range into measured amps
+        return ampsPercentage * ampsMeasuredScale; // convert the percentage of total range into measured amps
     }
 
     private void acquireCurrentSensorBusDevice() {
@@ -274,10 +277,5 @@ public class TS7970WiredCurrentSensor {
                 }
             }
         }
-    }
-
-    @VisibleForTesting
-    Process executeUnixCommand(String command) throws IOException {
-        return Runtime.getRuntime().exec(command);
     }
 }

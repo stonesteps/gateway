@@ -25,19 +25,12 @@ import java.io.IOException;
 import java.net.URL;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Properties;
-import java.util.concurrent.RejectedExecutionHandler;
+import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.Manifest;
 
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -56,17 +49,16 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
     private int controllerUpdateInterval = 3;
     private int realTimeEventsCheckInterval = 3;
     private final ScheduledExecutorService scheduledExecutorService = new ScheduledThreadPoolExecutor(5);
-                                                                          // 1 = rs485 harvester
-                                                                          // 2 = wsn harvester
-                                                                          // 3 = update interval expiration watcher
-                                                                          // 4 = data harvest iterator
-                                                                          // 5 = real time events
+    // 1 = rs485 harvester
+    // 2 = wsn harvester
+    // 3 = update interval expiration watcher
+    // 4 = data harvest iterator
+    // 5 = real time events
     private X509Certificate publicCert;
     private PrivateKey privateKey;
     private AgentSettings agentSettings;
     private Map<String, String> buildParams = newHashMap();
     private AgentSettingsPersister persister;
-
 
     protected abstract void handleRegistrationAck(RegistrationResponse response, String originatorId, String hardwareId);
 
@@ -267,7 +259,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
      * @param hardwareId
      * @param events
      */
-    public void sendEvents(String hardwareId, List<Event> events ) {
+    public void sendEvents(String hardwareId, List<Event> events) {
         Events.Builder eb = Events.newBuilder();
         eb.addAllEvents(events);
         eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.EVENT, eb.build(), true);
@@ -279,7 +271,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
      * @param hardwareId
      * @param stats
      */
-    public void sendWifiStats(String hardwareId, List<WifiStat> stats ) {
+    public void sendWifiStats(String hardwareId, List<WifiStat> stats) {
         WifiStats.Builder report = WifiStats.newBuilder();
         report.addAllWifiStats(stats);
         eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.WIFI_STATS, report.build(), true);
@@ -291,7 +283,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
      * @param hardwareId
      * @param measurements
      */
-    public void sendMeasurements(String hardwareId, List<Measurement> measurements ) {
+    public void sendMeasurements(String hardwareId, List<Measurement> measurements) {
         Measurements.Builder builder = Measurements.newBuilder();
         builder.addAllMeasurements(measurements);
         eventDispatcher.sendUplink(hardwareId, null, UplinkCommandType.MEASUREMENT, builder.build(), true);
@@ -355,7 +347,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
             Ethernet defaultEthernet = new Ethernet();
             defaultEthernet.setDhcp(true);
             networkSettings.setEthernet(defaultEthernet);
-        } else if (!networkSettings.getEthernet().isDhcp()){
+        } else if (!networkSettings.getEthernet().isDhcp()) {
             if (networkSettings.getEthernet().getIpAddress() == null || networkSettings.getEthernet().getGateway() == null) {
                 throw new Exception("invalid ethernet credentials, need ip address");
             }
@@ -382,7 +374,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     protected synchronized void saveAgentSettings(NetworkSettings networkSettings) {
         final File networkSettingFile = new File(dataPath, AGENT_SETTINGS_PROPERTIES_FILENAME);
-        persister.save(networkSettingFile, this.agentSettings, getOsType(), getEthernetDeviceName(), homePath, getWifiDeviceName(), networkSettings );
+        persister.save(networkSettingFile, this.agentSettings, getOsType(), getEthernetDeviceName(), homePath, getWifiDeviceName(), networkSettings);
         loadAgentSettings(getEthernetDeviceName(), getWifiDeviceName());
     }
 
@@ -391,7 +383,7 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
             Enumeration<URL> resources = getClass().getClassLoader().getResources("META-INF/MANIFEST.MF");
             while (resources.hasMoreElements()) {
                 Manifest manifest = new Manifest(resources.nextElement().openStream());
-                if (manifest.getMainAttributes().getValue("BWG-Version") != null ) {
+                if (manifest.getMainAttributes().getValue("BWG-Version") != null) {
                     buildParams.put("BWG-Agent-Version", manifest.getMainAttributes().getValue("BWG-Version"));
                     buildParams.put("BWG-Agent-Build-Number", manifest.getMainAttributes().getValue("BWG-Build-Number"));
                     buildParams.put("BWG-Agent-SCM-Revision", manifest.getMainAttributes().getValue("BWG-SCM-Revision"));

@@ -41,10 +41,22 @@ public class MockSpaStateHolderTest {
 
     @Test
     public void nonCompleteSpa() throws Exception {
-        final MockSpaStateHolder stateHolder = new MockSpaStateHolder(1, 1, 1, 1, 1, 1, 1, 1);
+        final MockSpaStateHolder stateHolder = new MockSpaStateHolder(0, 1, 1, 1, 1, 1, 1, 1, 1);
 
         final Bwg.Uplink.Model.SpaState spaState = stateHolder.buildSpaState();
         Assert.assertEquals(true, spaState.getComponents().hasLight1());
         Assert.assertEquals(false, spaState.getComponents().hasLight2());
+        Assert.assertEquals(false, spaState.getComponents().hasOzone());
+        Assert.assertEquals(true, spaState.getComponents().hasFilterCycle1());
+        Assert.assertEquals(false, spaState.getComponents().hasFilterCycle2());
+    }
+
+    @Test
+    public void twoFilterCycles() throws Exception {
+        final MockSpaStateHolder stateHolder = new MockSpaStateHolder(0, 1, 1, 1, 1, 1, 1, 1, 2);
+
+        final Bwg.Uplink.Model.SpaState spaState = stateHolder.buildSpaState();
+        Assert.assertEquals(true, spaState.getComponents().hasFilterCycle1());
+        Assert.assertEquals(true, spaState.getComponents().hasFilterCycle2());
     }
 }
