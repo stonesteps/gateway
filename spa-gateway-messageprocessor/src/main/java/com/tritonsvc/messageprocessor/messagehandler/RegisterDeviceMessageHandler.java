@@ -274,37 +274,34 @@ public class RegisterDeviceMessageHandler extends AbstractMessageHandler<Registe
         String registrationMac = moteMacValues.get(0);
 
         boolean newComponent = false;
-        Page<com.bwg.iot.model.Component> page = componentRepository.findBySpaIdAndComponentType(spa.get_id(), ComponentType.MOTE.name(), new PageRequest(0, 200));
-        com.bwg.iot.model.Component component;
-
-        List<com.bwg.iot.model.Component> matchingComponents = page.getContent().stream().filter(mote ->
-                Objects.equals(mote.getMetaValues().get("mac"), registrationMac))
-                .collect(toList());
+        com.bwg.iot.model.Component mote = componentRepository.findOneBySpaIdAndComponentTypeAndSerialNumber(spa.get_id(), ComponentType.MOTE.name(), registrationMac);
 
         Map<String, String> metaValues = registerDeviceMessage.getMetadataList().stream().collect(
                 Collectors.toMap(Metadata::getName, Metadata::getValue));
 
-        if (matchingComponents.isEmpty()) {
+        if (mote == null) {
+            // this spa system never had a sensor planner invoked on it, i.e. there was no sensor component
+            // found that matched up to the a sensor that the gateway is reporting, so add a compoent
+            // for this sensor on the fly here
             log.info("Creating new mote object");
-            component = new com.bwg.iot.model.Component();
-            component.setName(ComponentType.MOTE.name() + " " + registrationMoteType);
-            component.setComponentType(ComponentType.MOTE.name());
-            component.setDealerId(spa.getDealerId());
-            component.setOemId(spa.getOemId());
-            component.setSpaId(spa.get_id());
-            component.setMetaValues(metaValues);
+            mote = new com.bwg.iot.model.Component();
+            mote.setName(ComponentType.MOTE.name() + " " + registrationMoteType);
+            mote.setComponentType(ComponentType.MOTE.name());
+            mote.setDealerId(spa.getDealerId());
+            mote.setOemId(spa.getOemId());
+            mote.setSpaId(spa.get_id());
+            mote.setMetaValues(metaValues);
+            mote.setSerialNumber(registrationMac);
             newComponent = true;
-        } else {
-            component = matchingComponents.get(0);
         }
 
-        component.setRegistrationDate(new Date());
-        componentRepository.save(component);
+        mote.setRegistrationDate(new Date());
+        componentRepository.save(mote);
 
         try {
             final RegistrationResponse registrationResponse = BwgHelper.buildComponentRegistrationResponse(newComponent ? Bwg.Downlink.Model.RegistrationAckState.NEW_REGISTRATION : Bwg.Downlink.Model.RegistrationAckState.ALREADY_REGISTERED);
-            mqttSendService.sendMessage(downlinkTopic, BwgHelper.buildDownlinkMessage(header.getOriginator(), component.get_id(), DownlinkCommandType.REGISTRATION_RESPONSE, registrationResponse));
-            log.info("sent MOTE registration response for spaid {} moteId {}", spa.get_id(), component.get_id());
+            mqttSendService.sendMessage(downlinkTopic, BwgHelper.buildDownlinkMessage(header.getOriginator(), mote.get_id(), DownlinkCommandType.REGISTRATION_RESPONSE, registrationResponse));
+            log.info("sent MOTE registration response for spaid {} moteId {} mote mac/serial {}", spa.get_id(), mote.get_id(), registrationMac);
         } catch (Exception e) {
             log.error("Error while sending MOTE registration downlink message", e);
         }
