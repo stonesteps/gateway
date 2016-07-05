@@ -59,4 +59,10 @@ public interface AgentConfiguration {
 
 	/** Optioal Property web service idle timeout **/
 	public static final String AP_MODE_WEB_SERVER_TIMEOUT_SECONDS = "webserver.timeout.seconds";
+
+	/** Optioal Property skip sw upgrade **/
+	public static final String SKIP_UPGARDE = "software.upgrade.skip";
+
+	/** Optioal Property gen fake sensor data **/
+	public static final String GENERATE_FAKE_SENSOR = "software.generate.fake_sensor_data";
 }

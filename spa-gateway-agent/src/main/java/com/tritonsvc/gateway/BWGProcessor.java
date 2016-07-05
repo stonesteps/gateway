@@ -110,6 +110,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private String homePath;
     private WSNDataHarvester wsnDataHarvester;
     private SoftwareUpgradeManager softwareUpgradeManager;
+    private boolean skipSoftwareUpgrade = false;
 
     /**
      * Constructor
@@ -156,6 +157,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.iwConfigPath = configProps.getProperty(AgentConfiguration.WIFI_IWCONFIG_PATH, "/sbin/iwconfig");
         this.ifConfigPath = configProps.getProperty(AgentConfiguration.WIFI_IFCONFIG_PATH, "/sbin/ifconfig");
         this.ethernetDevice = configProps.getProperty(AgentConfiguration.ETHERNET_DEVICE_NAME, "eth0");
+        this.skipSoftwareUpgrade = Boolean.parseBoolean(configProps.getProperty(AgentConfiguration.SKIP_UPGARDE, "false"));
         this.es = executorService;
         this.homePath = homePath;
         Long timeoutMs = Longs.tryParse(configProps.getProperty(AgentConfiguration.AP_MODE_WEB_SERVER_TIMEOUT_SECONDS, "300"));
@@ -221,9 +223,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             sentRebootEvent = true;
         }
 
-        checkIfStartupAfterUpgrade(hardwareId);
-        if (getRegisteredHWIds().containsKey(originatorId) && response.hasSwUpgradeUrl()) {
-            checkAndPerformSoftwareUpgrade(response.getSwUpgradeUrl(), hardwareId);
+        if (!skipSoftwareUpgrade) {
+            checkIfStartupAfterUpgrade(hardwareId);
+            if (getRegisteredHWIds().containsKey(originatorId) && response.hasSwUpgradeUrl()) {
+                checkAndPerformSoftwareUpgrade(response.getSwUpgradeUrl(), hardwareId);
+            }
         }
 
         if (response.getState() == RegistrationAckState.ALREADY_REGISTERED &&
