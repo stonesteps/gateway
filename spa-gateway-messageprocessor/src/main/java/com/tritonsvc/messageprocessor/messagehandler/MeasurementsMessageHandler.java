@@ -67,7 +67,7 @@ public class MeasurementsMessageHandler extends AbstractMessageHandler<Bwg.Uplin
                 .collect(toMap(Measurement::getSensorIdentifier, measurement -> measurement.getType().name()));
 
         Map<String, com.bwg.iot.model.Component> lookup =
-                componentRepository.findByParentComponentIdAndSerialNumberIn(sensorParent.get_id(), newArrayList(sensorIdentifiers.keySet())).stream()
+                componentRepository.findByParentComponentIdAndComponentTypeAndSerialNumberIn(sensorParent.get_id(), ComponentType.SENSOR.name(), newArrayList(sensorIdentifiers.keySet())).stream()
                         .collect(toMap(com.bwg.iot.model.Component::getSerialNumber, Function.identity()));
 
         sensorIdentifiers.keySet().removeAll(lookup.keySet());
