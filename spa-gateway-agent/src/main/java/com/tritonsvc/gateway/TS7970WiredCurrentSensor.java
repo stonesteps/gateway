@@ -1,7 +1,7 @@
 package com.tritonsvc.gateway;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Doubles;
+import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.gateway.wsn.WsnData;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.DataType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.QualityType;
@@ -13,9 +13,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Date;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -51,6 +51,7 @@ public class TS7970WiredCurrentSensor {
     private double lowerBoundTicks = 670 / mvPerAdcTick;
     private double uppoerBoundTicks = 3320 / mvPerAdcTick;
     private double measurableTickRange = uppoerBoundTicks - lowerBoundTicks;
+    private boolean generateFake = false;
 
     /**
      * Constructor
@@ -74,6 +75,8 @@ public class TS7970WiredCurrentSensor {
                 .setAddress(HTU21DF_I2CADDR,I2CDeviceConfig.ADDR_SIZE_7)
                 .setClockFrequency(I2CDeviceConfig.UNASSIGNED)
                 .build();
+        this.generateFake = Boolean.parseBoolean(props.getProperty(AgentConfiguration.GENERATE_FAKE_SENSOR, "false"));
+
     }
 
     /**
@@ -123,7 +126,12 @@ public class TS7970WiredCurrentSensor {
                     datas.add(data);
                 }
             } catch (Exception ex) {
-                LOGGER.info("error when attempting to process ac current reading from i2c bus", ex);
+                if (!printedError) {
+                    LOGGER.info("error when attempting to process ac current reading from i2c bus", ex);
+                    printedError = true;
+                } else {
+                    LOGGER.info("error when attempting to process ac current reading from i2c bus");
+                }
             }
         }
 
@@ -133,10 +141,55 @@ public class TS7970WiredCurrentSensor {
             try {
                 datas.addAll(getTempHumiditySensorValue());
             } catch (Exception ex) {
-                LOGGER.info("error when attempting to process ac current reading from i2c bus", ex);
+                if (!printedErrorTempHumidity) {
+                    LOGGER.info("error when attempting to process temp humidity from i2c bus, sensor must not be connected", ex);
+                    printedErrorTempHumidity = true;
+                } else {
+                    LOGGER.info("error when attempting to process temp humidity from i2c bus, sensor must not be connected");
+                }
             }
         }
 
+        if (generateFake) {
+            WsnData wsnData = new WsnData();
+            wsnData.setValue(5d);
+            wsnData.setQuality(QualityType.VALID);
+            wsnData.setDataType(DataType.PUMP_AC_CURRENT);
+            wsnData.setReceivedUnixTimestamp(new Date().getTime() / 1000);
+            wsnData.setRecordedUnixTimestamp(new Date().getTime() / 1000);
+            wsnData.setSensorIdentifier("1");
+            wsnData.setUom("amps");
+            wsnData.setMoteMac("wired_ac_current_adc_fake1");
+            wsnData.setDeviceName("ac current sensor fake1");
+            LOGGER.info("sent fake pump current sensor");
+            datas.add(wsnData);
+
+            wsnData = new WsnData();
+            wsnData.setValue(7d);
+            wsnData.setQuality(QualityType.VALID);
+            wsnData.setDataType(DataType.AMBIENT_TEMP);
+            wsnData.setReceivedUnixTimestamp(new Date().getTime() / 1000);
+            wsnData.setRecordedUnixTimestamp(new Date().getTime() / 1000);
+            wsnData.setSensorIdentifier("1");
+            wsnData.setUom("celcius");
+            wsnData.setMoteMac("wired_temp_humidity_sensor");
+            wsnData.setDeviceName("wired temp sensor");
+            LOGGER.info("sent fake temp");
+            datas.add(wsnData);
+
+            wsnData = new WsnData();
+            wsnData.setValue(7d);
+            wsnData.setQuality(QualityType.VALID);
+            wsnData.setDataType(DataType.AMBIENT_HUMIDITY);
+            wsnData.setReceivedUnixTimestamp(new Date().getTime() / 1000);
+            wsnData.setRecordedUnixTimestamp(new Date().getTime() / 1000);
+            wsnData.setSensorIdentifier("2");
+            wsnData.setUom("percentage");
+            wsnData.setMoteMac("wired_temp_humidity_sensor");
+            wsnData.setDeviceName("wired humidity sensor");
+            LOGGER.info("sent fake humidity");
+            datas.add(wsnData);
+        }
         return datas;
     }
 
