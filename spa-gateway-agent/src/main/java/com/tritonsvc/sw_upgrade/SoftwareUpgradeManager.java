@@ -197,7 +197,7 @@ public final class SoftwareUpgradeManager {
                 //ignore - the file usually will not be here
                 LOGGER.error("Error while reading temp file");
             } finally {
-                FileUtils.deleteQuietly(new File(softwareUpgradeTempFile));
+                FileUtils.deleteQuietly(tempFile);
             }
         }
         return contents;
