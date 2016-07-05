@@ -16,6 +16,6 @@ public interface ComponentRepository extends MongoRepository<Component, String> 
     Page<Component> findBySpaIdAndComponentType(@Param("spaId") String spaId, @Param("componentType") String type, Pageable p);
     Component findOneBySpaIdAndComponentTypeAndSerialNumber(@Param("spaId") String spaId, @Param("componentType") String type, @Param("serialNumber") String serialNumber);
     Page<Component> findByComponentTypeAndSerialNumber(@Param("componentType") String type, @Param("serialNumber") String serialNumber, Pageable p);
-    List<Component> findByParentComponentIdAndSerialNumberIn(@Param("parentComponentId") String parentComponentId, @Param("serialNumbers") List<String> serialNumbers);
+    List<Component> findByParentComponentIdAndComponentTypeAndSerialNumberIn(@Param("parentComponentId") String parentComponentId,  @Param("componentType") String componentType, @Param("serialNumbers") List<String> serialNumbers);
     Component findOneBySpaIdAndComponentTypeAndPort(@Param("spaId") String spaId, @Param("componentType") String type, @Param("port") String port);
 }
