@@ -356,6 +356,8 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             targetState.setValue(componentState.getValue());
             targetState.setAvailableValues(componentState.getAvailableValues());
             targetState.setRegisteredTimestamp(componentState.getRegisteredTimestamp());
+            targetState.setMaterialType(componentState.getMaterialType() != null ? componentState.getMaterialType() : componentState.getComponentType());
+            targetState.setComponentType(componentState.getComponentType());
 
         } else {
             componentStates.add(componentState);
