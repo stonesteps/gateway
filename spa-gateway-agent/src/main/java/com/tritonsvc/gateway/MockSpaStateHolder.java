@@ -72,6 +72,7 @@ public class MockSpaStateHolder {
         builder.setSetupParams(buildSetupParams(timestamp));
         builder.setComponents(buildComponents(timestamp));
         builder.setLastUpdateTimestamp(timestamp);
+        builder.setUpdateInterval(60);
 
         final Bwg.Uplink.Model.SpaState state = builder.build();
         return state;

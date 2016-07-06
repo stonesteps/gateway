@@ -6,6 +6,7 @@ package com.tritonsvc.gateway;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
+import com.tritonsvc.agent.Agent;
 import com.tritonsvc.agent.AgentSettingsPersister;
 import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
@@ -37,11 +38,13 @@ import static com.google.common.collect.Maps.newHashMap;
 public class MockProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
     private static final long RANDOM_DATA_SEND_INTERVAL = 3600000; // 1 hour in milliseconds
+    private static final long MAX_REG_LIFETIME = Agent.MAX_SUBSCRIPTION_INACTIVITY_TIME - 30000; // set this to the same value
     private static Logger LOGGER = LoggerFactory.getLogger(MockProcessor.class);
     private DeviceRegistration registeredSpa = new DeviceRegistration();
     private DeviceRegistration registeredController = new DeviceRegistration();
     private DeviceRegistration registeredTemp = new DeviceRegistration();
     private DeviceRegistration registeredCurrent = new DeviceRegistration();
+    private long lastRegSendTime = System.currentTimeMillis();
 
     private String gwSerialNumber;
 
@@ -51,6 +54,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     // enabled by default
     private boolean sendRandomFaultLogs = true;
     private long lastFaultLogsSendTime = 0L;
+    private long lastSpaSendTime = 0L;
 
     private boolean sendRandomWifiStats = true;
     private long lastWifiStatsSendTime = 0L;
@@ -303,8 +307,9 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     @Override
     public void processDataHarvestIteration() {
 
-        if (registeredSpa.getHardwareId() == null) {
+        if (registeredSpa.getHardwareId() == null || (System.currentTimeMillis() > lastRegSendTime + MAX_REG_LIFETIME)) {
             sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
+            lastRegSendTime = System.currentTimeMillis();
             return;
         }
 
@@ -323,17 +328,16 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             return;
         }
 
-        // send spa info
-        LOGGER.info("Sending spa info");
-        sendSpaState(registeredSpa.getHardwareId(), spaStateHolder.buildSpaState());
-
-        sendFaultLogs();
-
-        sendWifiStats();
-
-        sendMeasurementReadings();
-
-        LOGGER.info("Sent harvest periodic reports");
+        if (System.currentTimeMillis() > lastSpaSendTime + 60000) {
+            // send spa info
+            LOGGER.info("Sending spa info");
+            sendSpaState(registeredSpa.getHardwareId(), spaStateHolder.buildSpaState());
+            sendFaultLogs();
+            sendWifiStats();
+            sendMeasurementReadings();
+            LOGGER.info("Sent harvest periodic reports");
+            lastSpaSendTime = System.currentTimeMillis();
+        }
     }
 
     @Override
