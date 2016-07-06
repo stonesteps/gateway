@@ -309,7 +309,6 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             }
         }
         if (component != null) {
-            // FIXME just to fix db, can be removed with one of next iterations
             if (StringUtils.isBlank(component.getName())) {
                 component.setName(component.getComponentType());
                 componentRepository.save(component);
@@ -317,6 +316,9 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
             componentState.setName(component.getName());
             componentState.setSerialNumber(component.getSerialNumber());
             componentState.setComponentId(component.get_id());
+            componentState.setMaterialType(component.getMaterialType() != null ? component.getMaterialType() : component.getComponentType());
+        } else {
+            componentState.setMaterialType(componentType);
         }
 
         // replace old with new
@@ -380,6 +382,7 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
                 spaStateEntity.getComponents().add(componentState);
             }
 
+            componentState.setMaterialType(mote.getComponentType());
             if (mote.getRegistrationDate() != null && System.currentTimeMillis() - mote.getRegistrationDate().getTime() < MAX_REGISTRATION_INACTIVTY) {
                 componentState.setRegisteredTimestamp(mote.getRegistrationDate());
             }
