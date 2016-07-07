@@ -396,7 +396,9 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
         final Random rnd = new Random();
 
-        int randomCode = rnd.nextInt(50);
+        int randomCode;
+
+        while((randomCode = rnd.nextInt(20)) < 1) {}
         int targetTemp = rnd.nextInt(100) + 20;
         int tempA = rnd.nextInt(100) + 20;
         int tempB = rnd.nextInt(100) + 20;
