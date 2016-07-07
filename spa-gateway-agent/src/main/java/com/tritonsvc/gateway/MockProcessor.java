@@ -37,7 +37,7 @@ import static com.google.common.collect.Maps.newHashMap;
  */
 public class MockProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
-    private static final long RANDOM_DATA_SEND_INTERVAL = 3600000; // 1 hour in milliseconds
+    private static final long RANDOM_DATA_SEND_INTERVAL = 1800000; // .5 hour in milliseconds
     private static final long MAX_REG_LIFETIME = Agent.MAX_SUBSCRIPTION_INACTIVITY_TIME - 30000; // set this to the same value
     private static Logger LOGGER = LoggerFactory.getLogger(MockProcessor.class);
     private DeviceRegistration registeredSpa = new DeviceRegistration();
@@ -313,17 +313,17 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             return;
         }
 
-        if (registeredController.getHardwareId() == null) {
+        if (registeredController.getHardwareId() == null || (System.currentTimeMillis() > lastRegSendTime + MAX_REG_LIFETIME)) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "controller", newHashMap(), "controller_originatorid");
             return;
         }
 
-        if (registeredTemp.getHardwareId() == null) {
+        if (registeredTemp.getHardwareId() == null || (System.currentTimeMillis() > lastRegSendTime + MAX_REG_LIFETIME)) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockTemperatureMAC", "mote_type", "temperature sensor"), "mote_temp");
             return;
         }
 
-        if (registeredCurrent.getHardwareId() == null) {
+        if (registeredCurrent.getHardwareId() == null || (System.currentTimeMillis() > lastRegSendTime + MAX_REG_LIFETIME)) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockCurrentMAC", "mote_type", "current sensor"), "mote_current");
             return;
         }
