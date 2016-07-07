@@ -15,20 +15,28 @@ import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
 import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.DataType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement.QualityType;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -37,14 +45,14 @@ import static com.google.common.collect.Maps.newHashMap;
  */
 public class MockProcessor extends MQTTCommandProcessor implements RegistrationInfoHolder {
 
-    private static final long RANDOM_DATA_SEND_INTERVAL = 3600000; // 1 hour in milliseconds
+    private static final long RANDOM_DATA_SEND_INTERVAL = 1800000; // .5 hour in milliseconds
     private static final long MAX_REG_LIFETIME = Agent.MAX_SUBSCRIPTION_INACTIVITY_TIME - 30000; // set this to the same value
     private static Logger LOGGER = LoggerFactory.getLogger(MockProcessor.class);
     private DeviceRegistration registeredSpa = new DeviceRegistration();
     private DeviceRegistration registeredController = new DeviceRegistration();
     private DeviceRegistration registeredTemp = new DeviceRegistration();
     private DeviceRegistration registeredCurrent = new DeviceRegistration();
-    private long lastRegSendTime = System.currentTimeMillis();
+    private long lastRegSendTime = 0L;
 
     private String gwSerialNumber;
 
@@ -160,19 +168,15 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         if (originatorId.equals("controller_originatorid")) {
             registeredController.setHardwareId(hardwareId);
             LOGGER.info("received registration success for controller originator {} on hardwareid {} ", originatorId, hardwareId);
-        }
-
-        if (originatorId.equals("mote_temp")) {
+        } else if (originatorId.equals("mote_temp")) {
             registeredTemp.setHardwareId(hardwareId);
             LOGGER.info("received registration success for temp mote originator {} on hardwareid {} ", originatorId, hardwareId);
-        }
-
-        if (originatorId.equals("mote_current")) {
+        } else if (originatorId.equals("mote_current")) {
             registeredCurrent.setHardwareId(hardwareId);
             LOGGER.info("received registration success for current mote originator {} on hardwareid {} ", originatorId, hardwareId);
+        } else {
+            LOGGER.info("received registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
         }
-
-        LOGGER.info("received registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
     }
 
     @Override
@@ -209,6 +213,17 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
         LOGGER.info("received downlink command from cloud {}, originatorid = {}", request.getRequestType().name(), originatorId);
         sendAck(hardwareId, originatorId, Bwg.AckResponseCode.RECEIVED, null);
+        long receivedTime = System.currentTimeMillis();
+        Event event = Event.newBuilder()
+                .setEventOccuredTimestamp(receivedTime)
+                .setEventReceivedTimestamp(receivedTime)
+                .setEventType(EventType.REQUEST)
+                .setDescription("Received " + request.getRequestType().name() + " request")
+                .addAllMetadata(convertRequestToMetaData(request.getMetadataList()))
+                .addMetadata(Metadata.newBuilder().setName("originatorId").setValue(originatorId))
+                .build();
+
+        sendEvents(hardwareId, newArrayList(event));
 
         try {
             if (request.getRequestType().equals(Bwg.Downlink.Model.RequestType.HEATER)) {
@@ -251,6 +266,12 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             sendAck(hardwareId, originatorId, Bwg.AckResponseCode.ERROR, ex.getMessage());
             return;
         }
+    }
+
+    private List<Metadata> convertRequestToMetaData(Collection<RequestMetadata> requestMetadata) {
+        return requestMetadata.stream()
+                .map(request -> Metadata.newBuilder().setName(request.getName().name()).setValue(request.getValue()).build())
+                .collect(Collectors.toList());
     }
 
     private void updateHeater(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId) {
@@ -307,24 +328,29 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     @Override
     public void processDataHarvestIteration() {
 
-        if (registeredSpa.getHardwareId() == null || (System.currentTimeMillis() > lastRegSendTime + MAX_REG_LIFETIME)) {
-            sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
+        boolean sendReg = false;
+        if (System.currentTimeMillis() > lastRegSendTime + MAX_REG_LIFETIME) {
             lastRegSendTime = System.currentTimeMillis();
-            return;
+            sendReg = true;
         }
 
-        if (registeredController.getHardwareId() == null) {
+        if ( sendReg) {
+            sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
+        }
+
+        if ( sendReg) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "controller", newHashMap(), "controller_originatorid");
-            return;
         }
 
-        if (registeredTemp.getHardwareId() == null) {
+        if ( sendReg) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockTemperatureMAC", "mote_type", "temperature sensor"), "mote_temp");
-            return;
         }
 
-        if (registeredCurrent.getHardwareId() == null) {
+        if ( sendReg) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockCurrentMAC", "mote_type", "current sensor"), "mote_current");
+        }
+
+        if (registeredSpa.getHardwareId() == null || registeredController.getHardwareId() == null || registeredTemp.getHardwareId() == null || registeredCurrent.getHardwareId() == null) {
             return;
         }
 
@@ -370,7 +396,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
         final Random rnd = new Random();
 
-        int randomCode = rnd.nextInt(25);
+        int randomCode = rnd.nextInt(50);
         int targetTemp = rnd.nextInt(100) + 20;
         int tempA = rnd.nextInt(100) + 20;
         int tempB = rnd.nextInt(100) + 20;
@@ -460,21 +486,22 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private List<Bwg.Uplink.Model.Measurement> buildRandomMeasurementReadings(boolean isTemp) {
         final List<Bwg.Uplink.Model.Measurement> list = new ArrayList<>();
         if (isTemp) {
-            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.AMBIENT_TEMP, "celsius"));
+            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.AMBIENT_TEMP, "celsius","1"));
+            list.add(buildRandomMeasurementReading(DataType.AMBIENT_HUMIDITY, "percentage","2"));
         } else {
-            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.PUMP_AC_CURRENT, "milliamps"));
+            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.PUMP_AC_CURRENT, "milliamps","1"));
         }
         return list;
     }
 
-    private Bwg.Uplink.Model.Measurement buildRandomMeasurementReading(final Bwg.Uplink.Model.Measurement.DataType dataType, final String uom) {
+    private Bwg.Uplink.Model.Measurement buildRandomMeasurementReading(final Bwg.Uplink.Model.Measurement.DataType dataType, final String uom, String identifier) {
         final Bwg.Uplink.Model.Measurement.Builder builder = Bwg.Uplink.Model.Measurement.newBuilder();
         builder.setTimestamp(System.currentTimeMillis());
         builder.setType(dataType);
         builder.setUom(uom);
         builder.setQuality(QualityType.VALID);
         builder.setValue(ThreadLocalRandom.current().nextDouble(10.0d, 90.0d));
-        builder.setSensorIdentifier("1");
+        builder.setSensorIdentifier(identifier);
         return builder.build();
     }
 

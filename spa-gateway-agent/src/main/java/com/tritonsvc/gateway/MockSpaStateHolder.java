@@ -4,6 +4,7 @@ import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BluetoothStatus;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.WifiConnectionHealth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,6 +73,8 @@ public class MockSpaStateHolder {
         builder.setSetupParams(buildSetupParams(timestamp));
         builder.setComponents(buildComponents(timestamp));
         builder.setLastUpdateTimestamp(timestamp);
+        builder.setWifiState(WifiConnectionHealth.AVG);
+        builder.setEthernetPluggedIn(false);
         builder.setUpdateInterval(60);
 
         final Bwg.Uplink.Model.SpaState state = builder.build();
