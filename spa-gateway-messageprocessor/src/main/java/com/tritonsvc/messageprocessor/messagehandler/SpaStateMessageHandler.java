@@ -377,12 +377,13 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
                 componentState = existing.get(0);
             } else {
                 componentState = new ComponentState();
-                componentState.setName(mote.getName());
-                componentState.setComponentType(mote.getComponentType());
-                componentState.setSerialNumber(mote.getSerialNumber());
-                componentState.setComponentId(mote.get_id());
                 spaStateEntity.getComponents().add(componentState);
             }
+
+            componentState.setName(mote.getName());
+            componentState.setComponentType(mote.getComponentType());
+            componentState.setSerialNumber(mote.getSerialNumber());
+            componentState.setComponentId(mote.get_id());
 
             componentState.setMaterialType(mote.getComponentType());
             if (mote.getRegistrationDate() != null && System.currentTimeMillis() - mote.getRegistrationDate().getTime() < MAX_REGISTRATION_INACTIVTY) {
