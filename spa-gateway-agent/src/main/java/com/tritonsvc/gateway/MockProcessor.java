@@ -419,26 +419,31 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private List<Bwg.Uplink.Model.WifiStat> buildRandomWifiStats() {
         Bwg.Uplink.Model.WifiStat.Builder builder = Bwg.Uplink.Model.WifiStat.newBuilder();
 
+        Random random = new Random();
+        int newValue;
         Bwg.Uplink.Model.WifiStat.WifiConnectionDiagnostics.Builder diagBuilder = Bwg.Uplink.Model.WifiStat.WifiConnectionDiagnostics.newBuilder();
         diagBuilder.setFrequency("2.437 GHz");
         diagBuilder.setRawDataRate("11 Mb/s");
         diagBuilder.setDataRate(1100000);
         diagBuilder.setDeltaDataRate(0);
-        diagBuilder.setLinkQualityPercentage(100);
+        while ((newValue = random.nextInt(100)) < 30){}
+        diagBuilder.setLinkQualityPercentage(random.nextInt(newValue));
         diagBuilder.setDeltaLinkQualityPercentage(0);
         diagBuilder.setLinkQualityRaw("88/100");
-        diagBuilder.setSignalLevelUnits(40);
+
+        while ((newValue = random.nextInt(80)) < 30){}
+        diagBuilder.setSignalLevelUnits(newValue);
         diagBuilder.setSignalLevelUnitsRaw("40/100");
         diagBuilder.setDeltaSignalLevelUnits(0);
-        diagBuilder.setRxOtherAPPacketCount(0);
+        diagBuilder.setRxOtherAPPacketCount(random.nextInt(5));
         diagBuilder.setDeltaRxOtherAPPacketCount(0);
-        diagBuilder.setRxInvalidCryptPacketCount(0);
+        diagBuilder.setRxInvalidCryptPacketCount(random.nextInt(10));
         diagBuilder.setDeltaRxInvalidCryptPacketCount(0);
-        diagBuilder.setRxInvalidFragPacketCount(0);
+        diagBuilder.setRxInvalidFragPacketCount(random.nextInt(10));
         diagBuilder.setDeltaRxInvalidFragPacketCount(0);
-        diagBuilder.setTxExcessiveRetries(0);
+        diagBuilder.setTxExcessiveRetries(random.nextInt(10));
         diagBuilder.setDeltaTxExcessiveRetries(0);
-        diagBuilder.setLostBeaconCount(0);
+        diagBuilder.setLostBeaconCount(random.nextInt(5));
         diagBuilder.setDeltaLostBeaconCount(0);
         diagBuilder.setNoiseLevel(10);
         diagBuilder.setNoiseLevelRaw("10/100");
