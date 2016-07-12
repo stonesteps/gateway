@@ -432,7 +432,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         diagBuilder.setLinkQualityRaw("88/100");
 
         while ((newValue = random.nextInt(80)) < 30){}
-        diagBuilder.setSignalLevelUnits(newValue);
+        diagBuilder.setSignalLevelUnits(newValue * -1);
         diagBuilder.setSignalLevelUnitsRaw("40/100");
         diagBuilder.setDeltaSignalLevelUnits(0);
         diagBuilder.setRxOtherAPPacketCount(random.nextInt(5));
@@ -493,10 +493,10 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private List<Bwg.Uplink.Model.Measurement> buildRandomMeasurementReadings(boolean isTemp) {
         final List<Bwg.Uplink.Model.Measurement> list = new ArrayList<>();
         if (isTemp) {
-            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.AMBIENT_TEMP, "celsius","1"));
+            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.AMBIENT_TEMP, "fahrenheit","1"));
             list.add(buildRandomMeasurementReading(DataType.AMBIENT_HUMIDITY, "percentage","2"));
         } else {
-            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.PUMP_AC_CURRENT, "milliamps","1"));
+            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.PUMP_AC_CURRENT, "amps","1"));
         }
         return list;
     }
