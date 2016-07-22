@@ -1,5 +1,6 @@
 package com.tritonsvc.gateway;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.primitives.Ints;
 import com.tritonsvc.agent.AgentConfiguration;
@@ -15,13 +16,16 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SystemInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -219,6 +223,15 @@ public abstract class RS485DataHarvester implements Runnable {
             LOGGER.info("changing address state from {} to static for address of {}", addressState.get().name(),  rs485PreferredStaticAddress);
             setAddressState(ADDRESS_STATE.STATIC_ADDRESS);
             rs485RegisrationAddress = rs485PreferredStaticAddress;
+        }
+
+        if ( Objects.equals(processor.getOsType(), BWGProcessor.TS_IMX6)) {
+            try {
+                LOGGER.info("performing TS-7970 rs485 RX reset fix");
+                executeUnixCommand("echo test > /dev/" + processor.getSerialPort()).waitFor(10, TimeUnit.SECONDS);
+            } catch (Exception ex) {
+                LOGGER.error("unable to perform 7970 rs485 reset", ex);
+            }
         }
     }
 
@@ -776,5 +789,10 @@ public abstract class RS485DataHarvester implements Runnable {
 
     protected FaultLogManager getFaultLogManager() {
         return this.faultLogManager;
+    }
+
+    @VisibleForTesting
+    Process executeUnixCommand(String command) throws IOException {
+        return Runtime.getRuntime().exec(command);
     }
   }

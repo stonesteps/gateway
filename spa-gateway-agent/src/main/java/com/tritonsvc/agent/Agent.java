@@ -9,8 +9,6 @@ import com.tritonsvc.spa.communication.proto.Bwg.Header;
 import com.tritonsvc.spa.communication.proto.Bwg.Header.Builder;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkHeader;
-import org.fusesource.hawtdispatch.internal.DispatcherConfig;
-import org.fusesource.mqtt.client.Callback;
 import org.fusesource.mqtt.client.Future;
 import org.fusesource.mqtt.client.FutureConnection;
 import org.fusesource.mqtt.client.MQTT;
@@ -44,7 +42,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.stream.Collectors.toList;
@@ -390,6 +387,7 @@ public class Agent {
 		/** MQTT connection */
 		private FutureConnection connection;
         private MQTT mqttPub;
+        private int killAttempts;
 
 		public MQTTOutbound(MQTT mqttPub, String topic) {
             this.mqttPub = mqttPub;
@@ -438,18 +436,27 @@ public class Agent {
                         removeUplinkRetry(uplink);
                         LOGGER.info("resent and removed cached uplink for {}", uplink.getUplinkCommandType().name());
                     }
+                    killAttempts = 0;
                 } catch (Exception te) {
                     LOGGER.info("Unable to publish message {}, retry={}, cannot connect to broker", uplink.getUplinkCommandType().name(), uplink.getAttempts());
                     if (retryOnFailure) {
                         addUplinkRetry(uplink);
                     }
                     if (System.currentTimeMillis() - lastConnectAttempt.get() > 15000) {
-                        try {
-                            cleanUp(10);
+                        lastConnectAttempt.set(System.currentTimeMillis());
+                        if (killAttempts > 4) {
+                            killAttempts = 0;
                             connection = mqttPub.futureConnection();
                             connection.connect();
-                        } finally {
-                            lastConnectAttempt.set(System.currentTimeMillis());
+                        } else {
+                            try {
+                                cleanUp(10);
+                                killAttempts = 0;
+                                connection = mqttPub.futureConnection();
+                                connection.connect();
+                            } catch (Exception ex) {
+                                killAttempts++;
+                            }
                         }
                     }
                 }
