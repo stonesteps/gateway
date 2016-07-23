@@ -8,3 +8,7 @@ version 0.0.1 06-27-16
  - software upgrade feature added
  - temperature sensor data harvesting from gateway wired connection for TS7970 added
  - ac current sensor data harvesting from gateway wired connection for TS7970 added
+
+ 0.0.1 07-22-16
+ - added fix to manually trigger reset of RX on serial port of TS-7970 only(ttyMAX0) when too much time has elapsed and no rs485 received,
+   due to bug on TS-7970 uart interrupt handler getting stuck

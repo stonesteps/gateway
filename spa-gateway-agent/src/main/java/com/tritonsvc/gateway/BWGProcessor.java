@@ -111,6 +111,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private WSNDataHarvester wsnDataHarvester;
     private SoftwareUpgradeManager softwareUpgradeManager;
     private boolean skipSoftwareUpgrade = false;
+    private String serialPort;
 
     /**
      * Constructor
@@ -158,6 +159,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.ifConfigPath = configProps.getProperty(AgentConfiguration.WIFI_IFCONFIG_PATH, "/sbin/ifconfig");
         this.ethernetDevice = configProps.getProperty(AgentConfiguration.ETHERNET_DEVICE_NAME, "eth0");
         this.skipSoftwareUpgrade = Boolean.parseBoolean(configProps.getProperty(AgentConfiguration.SKIP_UPGARDE, "false"));
+        this.serialPort = configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT, "ttys0");
         this.es = executorService;
         this.homePath = homePath;
         Long timeoutMs = Longs.tryParse(configProps.getProperty(AgentConfiguration.AP_MODE_WEB_SERVER_TIMEOUT_SECONDS, "300"));
@@ -248,28 +250,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         } else {
             LOGGER.info("received spa registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
         }
-    }
-
-    private void checkIfStartupAfterUpgrade(final String hardwareId) {
-        final String oldVersionNumber = softwareUpgradeManager.readOldVersionNumber();
-        if (oldVersionNumber != null) {
-            // current version
-            final String buildNumber = getBuildParams().get("BWG-Agent-Build-Number");
-
-            final long timestamp = System.currentTimeMillis();
-            Event event = Event.newBuilder()
-                    .setEventOccuredTimestamp(timestamp)
-                    .setEventReceivedTimestamp(timestamp)
-                    .setEventType(EventType.NOTIFICATION)
-                    .setDescription("Software upgrade from version " + oldVersionNumber + " to " + buildNumber + " has completed successfully")
-                    .build();
-            sendEvents(hardwareId, newArrayList(event));
-        }
-    }
-
-    private void checkAndPerformSoftwareUpgrade(final String swUpgradeUrl, final String hardwareId) {
-        final String buildNumber = getBuildParams().get("BWG-Agent-Build-Number");
-        softwareUpgradeManager.checkAndPerformSoftwareUpgrade(swUpgradeUrl, buildNumber, hardwareId, this);
     }
 
     @Override
@@ -369,6 +349,91 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         return wifiDevice;
     }
 
+    @Override
+    public void handleUplinkAck(UplinkAcknowledge ack, String originatorId) {
+        //TODO - check if ack.NOT_REGISTERED and send up a registration if so
+    }
+
+    @Override
+    public void processEventsHandler() {
+        buttonManager.finish();
+        buttonManager.mark();
+    }
+
+    @Override
+    public synchronized void processDataHarvestIteration() {
+        boolean locked = false;
+        try {
+            DeviceRegistration registeredSpa = obtainSpaRegistration();
+            if (registeredSpa.getHardwareId() == null) {
+                LOGGER.info("skipping data harvest, spa gateway has not been registered");
+                return;
+            }
+            long timestamp = System.currentTimeMillis();
+
+            // make sure the controller is registered as a compoenent to cloud
+            obtainControllerRegistration(registeredSpa.getHardwareId());
+            processWifiDiag(registeredSpa.getHardwareId());
+            buttonManager.sendPendingEventIfAvailable();
+
+            boolean rs485Active;
+            getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
+            locked = true;
+            if (!getRS485DataHarvester().hasAllConfigState() &&
+                    (timestamp - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM)) {
+                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
+                lastPanelRequestSent.set(timestamp);
+            }
+            rs485Active = getRS485DataHarvester().getLatestSpaInfo().getRs485AddressActive();
+            // this loop runs often(once every 3 seconds), but only send up to cloud when timestamps on state data change
+            // or at least the update interval has passed since last cloud update was sent
+            if (timestamp - lastSpaDetailsSent.get() > updateInterval.get()) {
+                getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
+                locked = false;
+                updateSpaInfoStateForLatestCloudUpdate(timestamp);
+                getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
+                locked = true;
+            }
+
+            if (lastSpaDetailsSent.get() != getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp()) {
+                getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, getRS485DataHarvester().getLatestSpaInfo(), false);
+                lastSpaDetailsSent.set(getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp());
+                LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
+            }
+            getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
+            locked = false;
+
+            processFaultLogs(registeredSpa.getHardwareId(), rs485Active);
+            processMeasurements(registeredSpa.getHardwareId());
+        } catch (Exception ex) {
+            LOGGER.error("error while processing data harvest", ex);
+        } finally {
+            if (locked) {
+                getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
+            }
+        }
+    }
+
+    @Override
+    public String getRegKey() {
+        return getGatewayMetaParam("regKey");
+    }
+
+    @Override
+    public String getRegUserId() {
+        return getGatewayMetaParam("regUserId");
+    }
+
+    @Override
+    public String getSpaId() {
+        return getGatewayHardwareId();
+    }
+
+    @Override
+    public String getSerialNumber() {
+        return this.gwSerialNumber;
+    }
+
     public synchronized void setUpRS485Processors() {
         this.faultLogManager = new FaultLogManager(getConfigProps());
         if (Objects.equals(getRS485ControllerType(), "JACUZZI")) {
@@ -393,6 +458,201 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     public String getHomePath() {
         return homePath;
+    }
+
+    /**
+     * get the oid properties mapping in config file
+     *
+     * @return
+     */
+    public OidProperties getOidProperties() {
+        return oidProperties;
+    }
+
+    /**
+     * get all the config file props
+     *
+     * @return
+     */
+    public Properties getConfigProps() {
+        return configProps;
+    }
+
+    /**
+     * get the handle to the rs 485 serial port
+     *
+     * @return
+     */
+    public UART getRS485UART() {
+        return rs485Uart;
+    }
+
+    /**
+     * retreive the cloud registrations that have been sent for local devices
+     *
+     * @return
+     */
+    public Map<String, DeviceRegistration> getRegisteredHWIds() {
+        return registeredHwIds;
+    }
+
+    /**
+     * initiate a cloud registration for spa system as whole based on gateway serial number
+     *
+     * @return
+     */
+    public DeviceRegistration obtainSpaRegistration() {
+        Map<String, String> metaParams = newHashMap(getBuildParams());
+        metaParams.put("BWG-Agent-RS485-Controller-Type", getRS485ControllerType() == null ? "NGSC" : getRS485ControllerType());
+        return sendRegistration(null, gwSerialNumber, "gateway", DEFAULT_EMPTY_MAP, metaParams);
+    }
+
+    /**
+     * initiate a cloud reg for the spa controller
+     *
+     * @param spaHardwareId
+     * @return
+     */
+    public DeviceRegistration obtainControllerRegistration(String spaHardwareId) {
+        return sendRegistration(spaHardwareId, gwSerialNumber, "controller", DEFAULT_EMPTY_MAP, DEFAULT_EMPTY_MAP);
+    }
+
+    /**
+     * initiate a cloud reg for a mote
+     *
+     * @param spaHardwareId
+     * @param macAddress
+     * @return
+     */
+    public DeviceRegistration obtainMoteRegistration(String spaHardwareId, String macAddress, String additionalName) {
+        return sendRegistration(spaHardwareId, gwSerialNumber, "mote", ImmutableMap.of("mac", macAddress), (additionalName != null ? ImmutableMap.of("mote_type", additionalName) : DEFAULT_EMPTY_MAP));
+    }
+
+    /**
+     * retrieve the last known state of the a light component
+     *
+     * @param port
+     * @return
+     * @throws Exception
+     */
+    public LightComponent.State getLatestLightState(int port) throws Exception {
+        boolean locked = false;
+        try {
+            getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
+            locked = true;
+            SpaState spaState = getRS485DataHarvester().getLatestSpaInfo();
+            if (spaState.hasController() && spaState.hasComponents()) {
+                switch (port) {
+                    case 1:
+                        if (spaState.getComponents().hasLight1()) {
+                            return spaState.getComponents().getLight1().getCurrentState();
+                        }
+                    case 2:
+                        if (spaState.getComponents().hasLight2()) {
+                            return spaState.getComponents().getLight2().getCurrentState();
+                        }
+                    case 3:
+                        if (spaState.getComponents().hasLight3()) {
+                            return spaState.getComponents().getLight3().getCurrentState();
+                        }
+                    case 4:
+                        if (spaState.getComponents().hasLight4()) {
+                            return spaState.getComponents().getLight4().getCurrentState();
+                        }
+                }
+            }
+            return null;
+        } finally {
+            if (locked) {
+                getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
+            }
+        }
+    }
+
+    public void setUpRS485() {
+        int baudRate = Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD, "")) != null ?
+                Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD)) : 115200;
+
+        UARTConfig config = new UARTConfig.Builder()
+                .setControllerName(serialPort)
+                .setBaudRate(baudRate)
+                .setDataBits(UARTConfig.DATABITS_8)
+                .setParity(UARTConfig.PARITY_NONE)
+                .setStopBits(UARTConfig.STOPBITS_1)
+                .setFlowControlMode(UARTConfig.FLOWCONTROL_NONE)
+                .build();
+        try {
+            setRS485(DeviceManager.open(config));
+        } catch (Throwable ex) {
+            throw Throwables.propagate(ex);
+        }
+
+        LOGGER.info("initialized rs 485 serial port {}", serialPort);
+    }
+
+    public void saveDynamicRS485AddressInAgentSettings(byte address) {
+        persistedRS485Address = address;
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setPersistedRS485Address((int) address);
+        }
+        saveAgentSettings(null);
+    }
+
+    public void clearDynamicRS485AddressFromAgentSettings() {
+        persistedRS485Address = null;
+        if (getAgentSettings() != null) {
+            validateGenericSettings().setPersistedRS485Address(null);
+        }
+        saveAgentSettings(null);
+    }
+
+    public int getUpdateIntervalSeconds() {
+        return (int) (updateInterval.get() / 1000L);
+    }
+
+    public int getWifiUpdateIntervalSeconds() {
+        return (int) (wifiStatUpdateInterval.get() / 1000L);
+    }
+
+    public int getAmbientUpdateIntervalSeconds() {
+        return (int) (ambientUpdateInterval.get() / 1000L);
+    }
+
+    public int getPumpCurrentUpdateIntervalSeconds() {
+        return (int) (pumpCurrentUpdateInterval.get() / 1000L);
+    }
+
+    public Byte getPersistedRS485Address() {
+        return persistedRS485Address;
+    }
+
+    public String getSerialPort() {
+        return serialPort;
+    }
+
+    @VisibleForTesting
+    void setRS485MessagePublisher(RS485MessagePublisher rs485MessagePublisher) {
+        this.rs485MessagePublisher = rs485MessagePublisher;
+    }
+
+    @VisibleForTesting
+    void setRS485DataHarvester(RS485DataHarvester rs485DataHarvester) {
+        this.rs485DataHarvester = rs485DataHarvester;
+    }
+
+    @VisibleForTesting
+    void setRS485(UART uart) {
+        this.rs485Uart = uart;
+    }
+
+    @VisibleForTesting
+    void setFaultLogManager(FaultLogManager faultLogManager) {
+        this.faultLogManager = faultLogManager;
+    }
+
+    @VisibleForTesting
+    Process executeUnixCommand(String command) throws IOException {
+        return Runtime.getRuntime().exec(command);
     }
 
     private List<Metadata> convertRequestToMetaData(Collection<RequestMetadata> requestMetadata) {
@@ -686,183 +946,26 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
     }
 
-    @Override
-    public void handleUplinkAck(UplinkAcknowledge ack, String originatorId) {
-        //TODO - check if ack.NOT_REGISTERED and send up a registration if so
-    }
+    private void checkIfStartupAfterUpgrade(final String hardwareId) {
+        final String oldVersionNumber = softwareUpgradeManager.readOldVersionNumber();
+        if (oldVersionNumber != null) {
+            // current version
+            final String buildNumber = getBuildParams().get("BWG-Agent-Build-Number");
 
-    @Override
-    public void processEventsHandler() {
-        buttonManager.finish();
-        buttonManager.mark();
-    }
-
-    @Override
-    public synchronized void processDataHarvestIteration() {
-        boolean locked = false;
-        try {
-            DeviceRegistration registeredSpa = obtainSpaRegistration();
-            if (registeredSpa.getHardwareId() == null) {
-                LOGGER.info("skipping data harvest, spa gateway has not been registered");
-                return;
-            }
-            long timestamp = System.currentTimeMillis();
-
-            // make sure the controller is registered as a compoenent to cloud
-            obtainControllerRegistration(registeredSpa.getHardwareId());
-            processWifiDiag(registeredSpa.getHardwareId());
-            buttonManager.sendPendingEventIfAvailable();
-
-            boolean rs485Active;
-            getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
-            locked = true;
-            if (!getRS485DataHarvester().hasAllConfigState() &&
-                    (timestamp - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM)) {
-                getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
-                lastPanelRequestSent.set(timestamp);
-            }
-            rs485Active = getRS485DataHarvester().getLatestSpaInfo().getRs485AddressActive();
-            // this loop runs often(once every 3 seconds), but only send up to cloud when timestamps on state data change
-            // or at least the update interval has passed since last cloud update was sent
-            if (timestamp - lastSpaDetailsSent.get() > updateInterval.get()) {
-                getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
-                locked = false;
-                updateSpaInfoStateForLatestCloudUpdate(timestamp);
-                getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
-                locked = true;
-            }
-
-            if (lastSpaDetailsSent.get() != getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp()) {
-                getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, getRS485DataHarvester().getLatestSpaInfo(), false);
-                lastSpaDetailsSent.set(getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp());
-                LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
-            }
-            getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
-            locked = false;
-
-            processFaultLogs(registeredSpa.getHardwareId(), rs485Active);
-            processMeasurements(registeredSpa.getHardwareId());
-        } catch (Exception ex) {
-            LOGGER.error("error while processing data harvest", ex);
-        } finally {
-            if (locked) {
-                getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
-            }
+            final long timestamp = System.currentTimeMillis();
+            Event event = Event.newBuilder()
+                    .setEventOccuredTimestamp(timestamp)
+                    .setEventReceivedTimestamp(timestamp)
+                    .setEventType(EventType.NOTIFICATION)
+                    .setDescription("Software upgrade from version " + oldVersionNumber + " to " + buildNumber + " has completed successfully")
+                    .build();
+            sendEvents(hardwareId, newArrayList(event));
         }
     }
 
-    /**
-     * get the oid properties mapping in config file
-     *
-     * @return
-     */
-    public OidProperties getOidProperties() {
-        return oidProperties;
-    }
-
-    /**
-     * get all the config file props
-     *
-     * @return
-     */
-    public Properties getConfigProps() {
-        return configProps;
-    }
-
-    /**
-     * get the handle to the rs 485 serial port
-     *
-     * @return
-     */
-    public UART getRS485UART() {
-        return rs485Uart;
-    }
-
-    /**
-     * retreive the cloud registrations that have been sent for local devices
-     *
-     * @return
-     */
-    public Map<String, DeviceRegistration> getRegisteredHWIds() {
-        return registeredHwIds;
-    }
-
-    /**
-     * initiate a cloud registration for spa system as whole based on gateway serial number
-     *
-     * @return
-     */
-    public DeviceRegistration obtainSpaRegistration() {
-        Map<String, String> metaParams = newHashMap(getBuildParams());
-        metaParams.put("BWG-Agent-RS485-Controller-Type", getRS485ControllerType() == null ? "NGSC" : getRS485ControllerType());
-        return sendRegistration(null, gwSerialNumber, "gateway", DEFAULT_EMPTY_MAP, metaParams);
-    }
-
-    /**
-     * initiate a cloud reg for the spa controller
-     *
-     * @param spaHardwareId
-     * @return
-     */
-    public DeviceRegistration obtainControllerRegistration(String spaHardwareId) {
-        return sendRegistration(spaHardwareId, gwSerialNumber, "controller", DEFAULT_EMPTY_MAP, DEFAULT_EMPTY_MAP);
-    }
-
-    /**
-     * initiate a cloud reg for a mote
-     *
-     * @param spaHardwareId
-     * @param macAddress
-     * @return
-     */
-    public DeviceRegistration obtainMoteRegistration(String spaHardwareId, String macAddress, String additionalName) {
-        return sendRegistration(spaHardwareId, gwSerialNumber, "mote", ImmutableMap.of("mac", macAddress), (additionalName != null ? ImmutableMap.of("mote_type", additionalName) : DEFAULT_EMPTY_MAP));
-    }
-
-    /**
-     * retrieve the last known state of the a light component
-     *
-     * @param port
-     * @return
-     * @throws Exception
-     */
-    public LightComponent.State getLatestLightState(int port) throws Exception {
-        boolean locked = false;
-        try {
-            getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
-            locked = true;
-            SpaState spaState = getRS485DataHarvester().getLatestSpaInfo();
-            if (spaState.hasController() && spaState.hasComponents()) {
-                switch (port) {
-                    case 1:
-                        if (spaState.getComponents().hasLight1()) {
-                            return spaState.getComponents().getLight1().getCurrentState();
-                        }
-                    case 2:
-                        if (spaState.getComponents().hasLight2()) {
-                            return spaState.getComponents().getLight2().getCurrentState();
-                        }
-                    case 3:
-                        if (spaState.getComponents().hasLight3()) {
-                            return spaState.getComponents().getLight3().getCurrentState();
-                        }
-                    case 4:
-                        if (spaState.getComponents().hasLight4()) {
-                            return spaState.getComponents().getLight4().getCurrentState();
-                        }
-                }
-            }
-            return null;
-        } finally {
-            if (locked) {
-                getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
-            }
-        }
-    }
-
-    @VisibleForTesting
-    void setRS485MessagePublisher(RS485MessagePublisher rs485MessagePublisher) {
-        this.rs485MessagePublisher = rs485MessagePublisher;
+    private void checkAndPerformSoftwareUpgrade(final String swUpgradeUrl, final String hardwareId) {
+        final String buildNumber = getBuildParams().get("BWG-Agent-Build-Number");
+        softwareUpgradeManager.checkAndPerformSoftwareUpgrade(swUpgradeUrl, buildNumber, hardwareId, this);
     }
 
     private void updateSpaInfoStateForLatestCloudUpdate(long timestamp) throws Exception {
@@ -1026,28 +1129,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         return this.rs485MessagePublisher;
     }
 
-    @VisibleForTesting
-    void setRS485DataHarvester(RS485DataHarvester rs485DataHarvester) {
-        this.rs485DataHarvester = rs485DataHarvester;
-    }
-
     private RS485DataHarvester getRS485DataHarvester() {
         return this.rs485DataHarvester;
-    }
-
-    @VisibleForTesting
-    void setRS485(UART uart) {
-        this.rs485Uart = uart;
-    }
-
-    @VisibleForTesting
-    void setFaultLogManager(FaultLogManager faultLogManager) {
-        this.faultLogManager = faultLogManager;
-    }
-
-    @VisibleForTesting
-    Process executeUnixCommand(String command) throws IOException {
-        return Runtime.getRuntime().exec(command);
     }
 
     private void validateOidProperties() {
@@ -1089,84 +1172,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         }
 
         return new RequiredParams(port, desiredState);
-    }
-
-    @Override
-    public String getRegKey() {
-        return getGatewayMetaParam("regKey");
-    }
-
-    @Override
-    public String getRegUserId() {
-        return getGatewayMetaParam("regUserId");
-    }
-
-    @Override
-    public String getSpaId() {
-        return getGatewayHardwareId();
-    }
-
-    @Override
-    public String getSerialNumber() {
-        return this.gwSerialNumber;
-    }
-
-    public void setUpRS485() {
-        String serialPort = configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT, "/dev/ttys0");
-        int baudRate = Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD, "")) != null ?
-                Ints.tryParse(configProps.getProperty(AgentConfiguration.RS485_LINUX_SERIAL_PORT_BAUD)) : 115200;
-
-        UARTConfig config = new UARTConfig.Builder()
-                .setControllerName(serialPort)
-                .setBaudRate(baudRate)
-                .setDataBits(UARTConfig.DATABITS_8)
-                .setParity(UARTConfig.PARITY_NONE)
-                .setStopBits(UARTConfig.STOPBITS_1)
-                .setFlowControlMode(UARTConfig.FLOWCONTROL_NONE)
-                .build();
-        try {
-            setRS485(DeviceManager.open(config));
-        } catch (Throwable ex) {
-            throw Throwables.propagate(ex);
-        }
-
-        LOGGER.info("initialized rs 485 serial port {}", serialPort);
-    }
-
-    public void saveDynamicRS485AddressInAgentSettings(byte address) {
-        persistedRS485Address = address;
-        if (getAgentSettings() != null) {
-            validateGenericSettings().setPersistedRS485Address((int) address);
-        }
-        saveAgentSettings(null);
-    }
-
-    public void clearDynamicRS485AddressFromAgentSettings() {
-        persistedRS485Address = null;
-        if (getAgentSettings() != null) {
-            validateGenericSettings().setPersistedRS485Address(null);
-        }
-        saveAgentSettings(null);
-    }
-
-    public int getUpdateIntervalSeconds() {
-        return (int) (updateInterval.get() / 1000L);
-    }
-
-    public int getWifiUpdateIntervalSeconds() {
-        return (int) (wifiStatUpdateInterval.get() / 1000L);
-    }
-
-    public int getAmbientUpdateIntervalSeconds() {
-        return (int) (ambientUpdateInterval.get() / 1000L);
-    }
-
-    public int getPumpCurrentUpdateIntervalSeconds() {
-        return (int) (pumpCurrentUpdateInterval.get() / 1000L);
-    }
-
-    public Byte getPersistedRS485Address() {
-        return persistedRS485Address;
     }
 
     private String getGatewayMetaParam(final String paramName) {
