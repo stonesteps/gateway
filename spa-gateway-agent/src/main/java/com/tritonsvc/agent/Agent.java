@@ -427,7 +427,7 @@ public class Agent {
 
                 Future<Void> attempt = connection.publish(topic, out.toByteArray(), QoS.EXACTLY_ONCE, false);
                 try {
-                    attempt.await(10, TimeUnit.SECONDS);
+                    attempt.await(15, TimeUnit.SECONDS);
                     if (!uplink.isCached()) {
                         if (retryUplinks.size() > 0) {
                             drainRetry();
@@ -442,7 +442,7 @@ public class Agent {
                     if (retryOnFailure) {
                         addUplinkRetry(uplink);
                     }
-                    if (System.currentTimeMillis() - lastConnectAttempt.get() > 15000) {
+                    if (System.currentTimeMillis() - lastConnectAttempt.get() > 20000) {
                         lastConnectAttempt.set(System.currentTimeMillis());
                         if (killAttempts > 4) {
                             killAttempts = 0;
@@ -519,10 +519,10 @@ public class Agent {
                 killAttempts = 0;
                 connection = mqtt.futureConnection();
                 try {
-                    connection.connect().await(10, TimeUnit.SECONDS);
-                    connection.subscribe(topics).await(10, TimeUnit.SECONDS);
+                    connection.connect().await(15, TimeUnit.SECONDS);
+                    connection.subscribe(topics).await(15, TimeUnit.SECONDS);
                 } catch (Exception ex) {
-                    LOGGER.info("unable to get connection and subscription set in 10 seconds, will try again");
+                    LOGGER.info("unable to get connection and subscription set in 15 seconds, will try again");
                     continue;
                 }
                 lastSubReceived.set(System.currentTimeMillis());
