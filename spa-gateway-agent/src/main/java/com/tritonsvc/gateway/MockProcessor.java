@@ -367,17 +367,17 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     }
 
     @Override
-    protected String getOsType() {
+    public String getOsType() {
         return "standard";
     }
 
     @Override
-    protected String getEthernetDeviceName() {
+    public String getEthernetDeviceName() {
         return "eth0";
     }
 
     @Override
-    protected String getWifiDeviceName() {
+    public String getWifiDeviceName() {
         return "wlan0";
     }
 

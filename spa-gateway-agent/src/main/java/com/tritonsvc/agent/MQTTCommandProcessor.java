@@ -76,12 +76,6 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     protected abstract void processEventsHandler();
 
-    protected abstract String getOsType();
-
-    protected abstract String getEthernetDeviceName();
-
-    protected abstract String getWifiDeviceName();
-
     /**
      * Constructor
      */

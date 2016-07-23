@@ -4,6 +4,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.primitives.Ints;
 import com.google.protobuf.AbstractMessageLite;
+import com.tritonsvc.gateway.BWGProcessor;
 import com.tritonsvc.spa.communication.proto.Bwg.CommandType;
 import com.tritonsvc.spa.communication.proto.Bwg.Header;
 import com.tritonsvc.spa.communication.proto.Bwg.Header.Builder;
@@ -28,6 +29,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.security.KeyFactory;
 import java.security.KeyStore;
@@ -37,6 +39,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.List;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -117,6 +120,7 @@ public class Agent {
 
     /** BWGProcessor instance **/
     private AgentMessageProcessor processor;
+    private String systemType;
 
     /** pki **/
     private SSLContext sslContext;
@@ -210,6 +214,7 @@ public class Agent {
         processor.setDataPath(dataPath);
         processor.setEventDispatcher(outbound);
         processor.setPKI(gatewayPublic, gatewayPrivate);
+        systemType = processor.getOsType();
 
 		// Create inbound message processing thread.
 		inbound = new MQTTInbound(mqttSub, inboundTopic, processor);
@@ -446,12 +451,12 @@ public class Agent {
                         lastConnectAttempt.set(System.currentTimeMillis());
                         if (killAttempts > 4) {
                             killAttempts = 0;
+                            restartLinuxWPA();
                             connection = mqttPub.futureConnection();
                             connection.connect();
                         } else {
                             try {
                                 cleanUp(10);
-                                killAttempts = 0;
                                 connection = mqttPub.futureConnection();
                                 connection.connect();
                             } catch (Exception ex) {
@@ -649,4 +654,21 @@ public class Agent {
 	private String calculateInboundTopic(String inboundPrefix) {
 		return inboundPrefix + "/" + gwSerialNumber;
 	}
+
+    private Process executeUnixCommand(String command) throws IOException {
+        return Runtime.getRuntime().exec(command);
+    }
+
+    private void restartLinuxWPA() {
+        if (Objects.equals(systemType, BWGProcessor.TS_IMX6)) {
+            //TS7970 exhibited behavior where the wifi ip becomes potentially stale in some cases
+            // when wifi drops and comes back online, this is a best effort to get reset
+            try {
+                executeUnixCommand("sudo systemctl restart wpa_supplicant@" + processor.getWifiDeviceName()).waitFor(10, TimeUnit.SECONDS);
+                LOGGER.info("restarted wpa_supplicant for {}", processor.getWifiDeviceName());
+            } catch (Exception ex) {
+                LOGGER.error("tried to restart wpa_supplicant", ex);
+            }
+        }
+    }
 }
