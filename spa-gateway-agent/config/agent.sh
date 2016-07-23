@@ -130,6 +130,7 @@ upgrade() {
     fi
 
     chown bwg:bwg "$JAR_NAME"
+    chmod 755 "$JAR_NAME"
     stop
     start
 
