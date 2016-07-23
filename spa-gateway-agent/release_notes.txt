@@ -12,3 +12,6 @@ version 0.0.1 06-27-16
  0.0.1 07-22-16
  - added fix to manually trigger reset of RX on serial port of TS-7970 only(ttyMAX0) when too much time has elapsed and no rs485 received,
    due to bug on TS-7970 uart interrupt handler getting stuck
+ - added fix to trigger reset of Linux WPA on Wifi for TS-7970 only. The Wifi/WPA stack on TS7970 has tendency
+   to have wifi network device get stuck in unassociated ap mode when the ap goes offline and then comes back
+   restarting wpa forces the wifi to physically reconnect to ap which gets it out of stuck unassociated state.
