@@ -451,12 +451,12 @@ public class Agent {
                         lastConnectAttempt.set(System.currentTimeMillis());
                         if (killAttempts > 4) {
                             killAttempts = 0;
-                            restartLinuxWPA();
                             connection = mqttPub.futureConnection();
                             connection.connect();
                         } else {
                             try {
                                 cleanUp(10);
+                                killAttempts = 0;
                                 connection = mqttPub.futureConnection();
                                 connection.connect();
                             } catch (Exception ex) {
@@ -523,13 +523,8 @@ public class Agent {
                 }
                 killAttempts = 0;
                 connection = mqtt.futureConnection();
-                try {
-                    connection.connect().await(15, TimeUnit.SECONDS);
-                    connection.subscribe(topics).await(15, TimeUnit.SECONDS);
-                } catch (Exception ex) {
-                    LOGGER.info("unable to get connection and subscription set in 15 seconds, will try again");
-                    continue;
-                }
+                connection.connect();
+                connection.subscribe(topics);
                 lastSubReceived.set(System.currentTimeMillis());
 
                 Future<Message> receive = connection.receive();
@@ -550,6 +545,7 @@ public class Agent {
                     } catch (Throwable e) {
                         if (System.currentTimeMillis() - lastSubReceived.get() > MAX_SUBSCRIPTION_INACTIVITY_TIME) {
                             LOGGER.error("Have not received a downlink in {} seconds, recreating mqtt session", MAX_SUBSCRIPTION_INACTIVITY_TIME / 1000);
+                            restartLinuxWPA();
                             break;
                         }
                     }
