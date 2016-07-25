@@ -8,12 +8,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.System.arraycopy;
+import static java.util.stream.Collectors.toList;
 import static javax.xml.bind.DatatypeConverter.printHexBinary;
 
 /**
@@ -25,10 +27,9 @@ public abstract class RS485MessagePublisher {
     protected byte POLL_FINAL_CONTROL_BYTE = (byte)0xBF;
     protected byte DELIMITER_BYTE = (byte)0x7E;
     protected byte LINKING_ADDRESS_BYTE = (byte)0xFE;
-    protected LinkedBlockingQueue<PendingRequest> pendingDownlinks = new LinkedBlockingQueue<>(15);
-    protected AtomicLong lastLoggedDownlinkPoll = new AtomicLong(0);
+    protected LinkedBlockingQueue<PendingRequest> pendingDownlinks = new LinkedBlockingQueue<>(8);
     protected AtomicReference<FilterCycleRequest> filterCycleRequest = new AtomicReference<>();
-    protected AtomicLong lastEmptyPollSent = new AtomicLong();
+    protected long lastEmptyPollSent = 0;
 
     /**
      * Constructor
@@ -115,7 +116,7 @@ public abstract class RS485MessagePublisher {
      * @param address
      * @throws RS485Exception
      */
-    public synchronized void sendDeviceQueryResponse(byte address) throws RS485Exception {
+    public void sendDeviceQueryResponse(byte address) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(10);
             bb.put(DELIMITER_BYTE); // start flag
@@ -130,11 +131,10 @@ public abstract class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
-            pauseForBus();
             processor.getRS485UART().write(bb);
-            LOGGER.info("sent device query response {}", printHexBinary(bb.array()));
+            if (LOGGER.isDebugEnabled()) LOGGER.debug("sent device query response {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
-            LOGGER.info("rs485 sending device query response got exception " + ex.getMessage());
+            LOGGER.warn("rs485 sending device query response got exception ", ex);
             throw new RS485Exception(new Exception(ex));
         }
     }
@@ -145,7 +145,7 @@ public abstract class RS485MessagePublisher {
      * @param requestId
      * @throws RS485Exception
      */
-    public synchronized void sendUnassignedDeviceResponse(int requestId) throws RS485Exception {
+    public void sendUnassignedDeviceResponse(int requestId) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(10);
             bb.put(DELIMITER_BYTE); // start flag
@@ -160,11 +160,10 @@ public abstract class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
-            pauseForBus();
             processor.getRS485UART().write(bb);
-            LOGGER.info("sent unassigned device response {}", printHexBinary(bb.array()));
+            if (LOGGER.isDebugEnabled()) LOGGER.debug("sent unassigned device response {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
-            LOGGER.info("rs485 sending unnassigned device response got exception " + ex.getMessage());
+            LOGGER.warn("rs485 sending unnassigned device response got exception ", ex);
             throw new RS485Exception(new Exception(ex));
         }
     }
@@ -175,7 +174,7 @@ public abstract class RS485MessagePublisher {
      * @param address
      * @throws RS485Exception
      */
-    public synchronized void sendAddressAssignmentAck(byte address) throws RS485Exception {
+    public void sendAddressAssignmentAck(byte address) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(7);
             bb.put(DELIMITER_BYTE); // start flag
@@ -187,11 +186,10 @@ public abstract class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
-            pauseForBus();
             processor.getRS485UART().write(bb);
-            LOGGER.info("sent address assignment response for newly acquired address {} {}", address, printHexBinary(bb.array()));
+            if (LOGGER.isDebugEnabled()) LOGGER.debug("sent address assignment response for newly acquired address {} {}", address, printHexBinary(bb.array()));
         } catch (Throwable ex) {
-            LOGGER.info("rs485 sending address assignment ack got exception " + ex.getMessage());
+            LOGGER.warn("rs485 sending address assignment ack got exception ", ex);
             throw new RS485Exception(new Exception(ex));
         }
     }
@@ -202,7 +200,7 @@ public abstract class RS485MessagePublisher {
      * @param address
      * @throws RS485Exception
      */
-    public synchronized void sendWifiMacAddress(byte address) throws RS485Exception {
+    public void sendWifiMacAddress(byte address) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(16);
             bb.put(DELIMITER_BYTE); // start flag
@@ -223,11 +221,10 @@ public abstract class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
-            pauseForBus();
             processor.getRS485UART().write(bb);
-            LOGGER.info("sent wifi mac response {}", printHexBinary(bb.array()));
+            if (LOGGER.isDebugEnabled()) LOGGER.debug("sent wifi mac response {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
-            LOGGER.info("rs485 sending wifi mac response got exception " + ex.getMessage());
+            LOGGER.warn("rs485 sending wifi mac response got exception ", ex);
             throw new RS485Exception(new Exception(ex));
         }
     }
@@ -238,7 +235,7 @@ public abstract class RS485MessagePublisher {
      * @param address
      * @throws RS485Exception
      */
-    public synchronized void sendWifiPollResponse(byte address) throws RS485Exception {
+    public void sendWifiPollResponse(byte address) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(12);
             bb.put(DELIMITER_BYTE); // start flag
@@ -255,17 +252,13 @@ public abstract class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
-            pauseForBus();
             processor.getRS485UART().write(bb);
-            // dont log this one, will take up too much
-            //LOGGER.info("sent wifi poll default response {}", printHexBinary(bb.array()));
+            if (LOGGER.isDebugEnabled()) LOGGER.debug("sent wifi poll response {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
-            LOGGER.info("rs485 sending wifi poll default response got exception " + ex.getMessage());
+            LOGGER.warn("rs485 sending wifi poll default response got exception ", ex);
             throw new RS485Exception(new Exception(ex));
         }
     }
-
-
 
     /**
      * sends a pending downlink message if one is queued
@@ -273,48 +266,56 @@ public abstract class RS485MessagePublisher {
      * @param address
      * @throws RS485Exception
      */
-    public synchronized void sendPendingDownlinkIfAvailable(byte address) throws RS485Exception {
+    public void sendPendingDownlinkIfAvailable(byte address) throws RS485Exception {
         try {
             PendingRequest requestMessage = pendingDownlinks.poll();
             if (requestMessage != null) {
                 ByteBuffer bb = ByteBuffer.wrap(requestMessage.getPayload());
                 try {
-                    pauseForBus();
                     processor.getRS485UART().write(bb);
                     if (requestMessage.getHardwareId() != null) {
                         // if hardwareid is not present, this was a message initiated by the agent not the cloud, don't send an ack up to cloud in this case
                         processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.OK, null);
                     }
-                    LOGGER.info("sent queued downlink message, originator {}, as 485 poll response, payload {}, there are {} remaining", requestMessage.getOriginatorId(), printHexBinary(bb.array()), pendingDownlinks.size());
+                    if (LOGGER.isDebugEnabled()) LOGGER.debug("sent queued downlink message, originator {}, as 485 poll response, payload {}, there are {} remaining", requestMessage.getOriginatorId(), printHexBinary(bb.array()), pendingDownlinks.size());
                 } catch (Exception ex) {
                     if (requestMessage.getHardwareId() != null) {
                         // if hardwareid is not present, this was a message initiated by the agent not the cloud, don't send an ack up to cloud in this case
                         processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.ERROR, "485 communication problem");
                     }
-                    LOGGER.info("failed sending downlink message, originator {}, as 485 poll response, payload {}", requestMessage.getOriginatorId(), printHexBinary(bb.array()));
+                    LOGGER.warn("failed sending downlink message, originator {}, as 485 poll response, payload {}", requestMessage.getOriginatorId(), printHexBinary(bb.array()));
                     throw ex;
-                } finally {
-                    lastLoggedDownlinkPoll.set(System.currentTimeMillis());
                 }
-            } else if (System.currentTimeMillis() - lastEmptyPollSent.get() > 1800){
+            } else if (address == 10 && System.currentTimeMillis() - lastEmptyPollSent > 500){
                 sendWifiPollResponse(address);
-                lastEmptyPollSent.set(System.currentTimeMillis());
+                lastEmptyPollSent = System.currentTimeMillis();
             }
         }
         catch (Throwable ex) {
-            LOGGER.info("rs485 sending device downlinks for poll check, got exception " + ex.getMessage());
+            LOGGER.error("rs485 sending device downlinks for poll check, got exception", ex);
             throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+    public void drainPendingQueues() {
+        List<PendingRequest> cloudRequests = pendingDownlinks
+                .stream()
+                .filter(request -> request.getHardwareId() != null)
+                .collect(toList());
+        pendingDownlinks.clear();
+        for (PendingRequest requestMessage : cloudRequests) {
+            processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.ERROR, "485 communication request queue was full");
         }
     }
 
     @VisibleForTesting
     void addToPending(PendingRequest request) throws Exception{
-        if (pendingDownlinks.offer(request, 5000, TimeUnit.MILLISECONDS)) {
-            LOGGER.info("put rs485 request, originator id {} in downlink queue, payload {}, queue size {}", request.getOriginatorId(), printHexBinary(request.getPayload()), pendingDownlinks.size());
+        if (pendingDownlinks.offer(request, 1, TimeUnit.MILLISECONDS)) {
+            if (LOGGER.isDebugEnabled()) LOGGER.debug("put rs485 request, originator id {} in downlink queue, payload {}, queue size {}", request.getOriginatorId(), printHexBinary(request.getPayload()), pendingDownlinks.size());
         } else {
             LOGGER.error("downlink queue was full, clearing it to try and recover");
-            pendingDownlinks.clear();
-            if (!pendingDownlinks.offer(request, 5000, TimeUnit.MILLISECONDS)) {
+            drainPendingQueues();
+            if (!pendingDownlinks.offer(request, 1, TimeUnit.MILLISECONDS)) {
                 throw new Exception("downlink queue is full");
             }
         }
@@ -344,10 +345,4 @@ public abstract class RS485MessagePublisher {
         }
     }
 
-    protected void pauseForBus() throws InterruptedException {
-        // rs485 spec from BWG specified that at a minimum, clients shouldn't submit to the bus after
-        // recieving a prompt to do so for at least 250 msecs, to give the spa controller time to release
-        // from bus
-        Thread.sleep(0,250000);
-    }
 }

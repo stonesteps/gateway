@@ -33,4 +33,10 @@ public interface GatewayEventDispatcher {
      */
     void sendMessage(QueuedUplink uplink,
                      boolean retryOnFailure);
+
+    /**
+     * utility to run off inner thread executor
+     * @param runner
+     */
+    void executeRunnable(Runnable runner);
 }

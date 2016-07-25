@@ -15,3 +15,8 @@ version 0.0.1 06-27-16
  - added fix to trigger reset of Linux WPA on Wifi for TS-7970 only. The Wifi/WPA stack on TS7970 has tendency
    to have wifi network device get stuck in unassociated ap mode when the ap goes offline and then comes back
    restarting wpa forces the wifi to physically reconnect to ap which gets it out of stuck unassociated state.
+
+0.0.1 07-25-16
+ - fixed rs485 RX/TX frame timing issue on RZ/A1L processor. The RX loop had to be refactored to parse incoming faster
+   in general. Changed RX parser to route incoming messages that require an immediate TX response such as DevicePoll, AddressAssignmentAck
+   to perform the TX immediately so as to fall within pack's frame timing. Muted extra logging statements.

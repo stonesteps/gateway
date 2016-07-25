@@ -57,7 +57,7 @@ public class MockProcessorTest {
         mockProcessor.handleDownlinkCommand(request, "1", "1");
 
         mockProcessor.processDataHarvestIteration();
-        verify(mockGatewayEventDispatcher, times(2)).sendUplink(eq("1"), eq("1"), eq(Bwg.Uplink.UplinkCommandType.ACKNOWLEDGEMENT), any(Bwg.Uplink.Model.DownlinkAcknowledge.class), anyBoolean());
+        verify(mockGatewayEventDispatcher, times(2)).executeRunnable(any());
         verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("4"), any(), eq(UplinkCommandType.MEASUREMENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
         verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("5"), any(), eq(UplinkCommandType.MEASUREMENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
         verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("1"), any(), eq(Bwg.Uplink.UplinkCommandType.SPA_STATE), argThat(new HasTempSetArgMatcher(78)), anyBoolean());
@@ -71,7 +71,7 @@ public class MockProcessorTest {
         mockProcessor.handleDownlinkCommand(request, "1", "1");
 
         mockProcessor.processDataHarvestIteration();
-        verify(mockGatewayEventDispatcher, times(2)).sendUplink(eq("1"), eq("1"), eq(Bwg.Uplink.UplinkCommandType.ACKNOWLEDGEMENT), any(Bwg.Uplink.Model.DownlinkAcknowledge.class), anyBoolean());
+        verify(mockGatewayEventDispatcher, times(2)).executeRunnable(any());
         verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("4"), any(), eq(UplinkCommandType.MEASUREMENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
         verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("5"), any(), eq(UplinkCommandType.MEASUREMENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
         verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("1"), any(), eq(Bwg.Uplink.UplinkCommandType.SPA_STATE), argThat(new HasCircPumpStateSetArgMatcher("LOW")), anyBoolean());

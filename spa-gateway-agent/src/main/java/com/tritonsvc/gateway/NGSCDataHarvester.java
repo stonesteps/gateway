@@ -51,15 +51,7 @@ public class NGSCDataHarvester extends RS485DataHarvester {
         int packetType = message[3];
         // FCS already checked
 
-        if (packetType == 0x0) {
-            processUnassignedDevicePoll();
-        } else if (packetType == 0x2) {
-            processAddressAssignment(message);
-        } else if (packetType == 0x4) {
-            processDevicePresentQuery(message[1]);
-        } else if (packetType == 0x6) {
-            processDevicePollForDownlink();
-        } else if (packetType == 0x13) {
+        if (packetType == 0x13) {
             isCelsius.set((0x01 & message[13]) > 0);
             processPanelUpdateMessage(message);
         } else if (packetType == 0x23) {
@@ -72,8 +64,6 @@ public class NGSCDataHarvester extends RS485DataHarvester {
             processFaultLogMessage(message);
         } else if (packetType == 0x2E) {
             processDeviceConfigsMessage(message);
-        } else if (packetType == 0x90) {
-            processWifiModuleCommand(message);
         }
     }
 
@@ -264,7 +254,7 @@ public class NGSCDataHarvester extends RS485DataHarvester {
                 getLatestSpaInfo().getComponents().hasFilterCycle1()) {
             return true;
         }
-        LOGGER.info("do not have all DeviceConfig, SystemInfo, SetupParams, FilterCycle yet for address {} will send panel request", getRegisteredAddress());
+        if (LOGGER.isDebugEnabled()) LOGGER.debug("do not have all DeviceConfig, SystemInfo, SetupParams, FilterCycle yet for address {} will send panel request", getRegisteredAddress());
         return false;
     }
 
