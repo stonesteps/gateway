@@ -10,6 +10,9 @@ import com.tritonsvc.spa.communication.proto.Bwg.Header;
 import com.tritonsvc.spa.communication.proto.Bwg.Header.Builder;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkHeader;
+import org.fusesource.hawtdispatch.Dispatch;
+import org.fusesource.hawtdispatch.DispatchPriority;
+import org.fusesource.hawtdispatch.DispatchQueue;
 import org.fusesource.mqtt.client.Future;
 import org.fusesource.mqtt.client.FutureConnection;
 import org.fusesource.mqtt.client.MQTT;
@@ -223,7 +226,7 @@ public class Agent {
 		Runtime.getRuntime().addShutdownHook(new ShutdownHandler());
 
 		// Starts inbound processing loop in a separate thread.
-        getInboundExecutor().execute(inbound);
+        getExecutor().execute(inbound);
 
 		// Executes any custom startup logic.
 		processor.executeStartup();
@@ -339,9 +342,9 @@ public class Agent {
 	}
 
     @VisibleForTesting
-    ExecutorService getInboundExecutor() {
+    ExecutorService getExecutor() {
         if (executor == null) {
-            executor = Executors.newSingleThreadExecutor();
+            executor = Executors.newFixedThreadPool(2);
         }
         return executor;
     }
@@ -402,6 +405,11 @@ public class Agent {
 		}
 
         @Override
+        public void executeRunnable(Runnable runner) {
+            getExecutor().execute(runner);
+        }
+
+        @Override
         public void sendMessage(QueuedUplink uplink,
                                 boolean retryOnFailure)  {
             try {
@@ -439,11 +447,11 @@ public class Agent {
                         }
                     } else {
                         removeUplinkRetry(uplink);
-                        LOGGER.info("resent and removed cached uplink for {}", uplink.getUplinkCommandType().name());
+                        if(LOGGER.isDebugEnabled()) LOGGER.debug("resent and removed cached uplink for {}", uplink.getUplinkCommandType().name());
                     }
                     killAttempts = 0;
                 } catch (Exception te) {
-                    LOGGER.info("Unable to publish message {}, retry={}, cannot connect to broker", uplink.getUplinkCommandType().name(), uplink.getAttempts());
+                    LOGGER.warn("Unable to publish message {}, retry={}, cannot connect to broker", uplink.getUplinkCommandType().name(), uplink.getAttempts());
                     if (retryOnFailure) {
                         addUplinkRetry(uplink);
                     }
@@ -514,7 +522,7 @@ public class Agent {
                     try {
                         connection.kill().await(10, TimeUnit.SECONDS);
                     } catch (Exception ex) {
-                        LOGGER.info("unable to terminate stale old connection");
+                        LOGGER.debug("unable to terminate stale old connection");
                         try {Thread.sleep(5000);} catch(InterruptedException ie) {break;}
                         if (killAttempts++ < 5) {
                             continue;

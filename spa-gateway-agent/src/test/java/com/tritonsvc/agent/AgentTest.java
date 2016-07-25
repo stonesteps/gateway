@@ -56,7 +56,7 @@ public class AgentTest {
         doReturn(processor).when(agent).createProcessor();
         // do not want a real thread executor getting into Agent during test,
         // it will result in mqtt listener getting in tight loop and OOM
-        doReturn(mock(ExecutorService.class)).when(agent).getInboundExecutor();
+        doReturn(mock(ExecutorService.class)).when(agent).getExecutor();
         doReturn(mqttSub).doReturn(mqttPub).when(agent).createMQTT();
         when(mqttSub.blockingConnection()).thenReturn(subConnection);
         when(mqttPub.futureConnection()).thenReturn(pubConnection);

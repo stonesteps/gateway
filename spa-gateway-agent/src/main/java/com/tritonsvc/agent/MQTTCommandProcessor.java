@@ -229,22 +229,23 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
         }
         builder.setGatewaySerialNumber(gwSerialNumber);
         eventDispatcher.sendUplink(null, originatorId, UplinkCommandType.REGISTRATION, builder.build(), false);
-        LOGGER.info("sent device registration for {}", deviceTypeName);
+        if(LOGGER.isDebugEnabled())  LOGGER.debug("sent device registration for {}", deviceTypeName);
     }
 
     /**
-     * Convenience method for sending an acknowledgement event for prior downlink
+     * Convenience method for sending an acknowledgement event for prior downlink asynchronously
      *
      * @param hardwareId
      * @param originator
      */
     public void sendAck(String hardwareId, String originator, AckResponseCode code, String description) {
-        DownlinkAcknowledge.Builder builder = DownlinkAcknowledge.newBuilder()
-                .setCode(code);
-        if (description != null) {
-            builder.setDescription(description);
-        }
-        eventDispatcher.sendUplink(hardwareId, originator, UplinkCommandType.ACKNOWLEDGEMENT, builder.build(), false);
+        eventDispatcher.executeRunnable(() -> {
+            DownlinkAcknowledge.Builder builder = DownlinkAcknowledge.newBuilder().setCode(code);
+            if (description != null) {
+                builder.setDescription(description);
+            }
+            eventDispatcher.sendUplink(hardwareId, originator, UplinkCommandType.ACKNOWLEDGEMENT, builder.build(), false);
+        });
     }
 
     /**

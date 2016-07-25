@@ -14,25 +14,24 @@
             </encoder>
     </appender>  
 
-
-    <appender name="MQTT_TRACE" class="ch.qos.logback.core.FileAppender">
-        <file>${logDir}/mqtt_trace.log</file>
-        <encoder>
-            <pattern>%date %level [%thread] %logger{10} [%file:%line] %msg%n</pattern>
-        </encoder>
-    </appender>
-
     <root level="info">
         <appender-ref ref="FILE" />
     </root>
-    <!-- this traps mqtt connection health with the cloud, good to leave this on,
-         eventually can send this log out to diagnostic views to troubleshoot, etc.
-         any time the mqtt client gets disconnected from broker it'll start logging retries, etc
-         into here
-         -->
-    <logger name="mqtt_trace" level="DEBUG" additivity="false">
+
+    <logger name="com.tritonsvc.wifi" level="INFO" additivity="false">
         <appender-ref ref="FILE" />
-        <appender-ref ref="MQTT_TRACE" />
+    </logger>
+
+    <logger name="com.tritonsvc.gateway.RS485MessagePublisher" level="INFO" additivity="false">
+        <appender-ref ref="FILE" />
+    </logger>
+
+    <logger name="com.tritonsvc.gateway.RS485DataHarvester" level="INFO" additivity="false">
+        <appender-ref ref="FILE" />
+    </logger>
+
+    <logger name="mqtt_trace" level="ERROR" additivity="false">
+        <appender-ref ref="FILE" />
     </logger>
 
 </configuration>

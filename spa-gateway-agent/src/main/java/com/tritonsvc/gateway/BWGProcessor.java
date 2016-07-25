@@ -84,17 +84,18 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private RS485MessagePublisher rs485MessagePublisher;
     private FaultLogManager faultLogManager;
     private UART rs485Uart;
-    private AtomicLong lastSpaDetailsSent = new AtomicLong(0);
-    private AtomicLong lastWifiStatsSent = new AtomicLong(0);
-    private AtomicLong lastPanelRequestSent = new AtomicLong(0);
+    private long lastSpaDetailsSent = 0;
+    private long lastWifiStatsSent = 0;
+    private long lastPanelRequestSent = 0;
     private AtomicLong updateInterval = new AtomicLong(DEFAULT_UPDATE_INTERVAL);
     private AtomicLong wifiStatUpdateInterval = new AtomicLong(DEFAULT_WIFIUPDATE_INTERVAL);
     private AtomicLong ambientUpdateInterval = new AtomicLong(DEFAULT_AMBIENT_INTERVAL);
     private AtomicLong pumpCurrentUpdateInterval = new AtomicLong(DEFAULT_PUMP_CURRENT_INTERVAL);
     private Byte persistedRS485Address = null;
-    private AtomicLong lastFaultLogsSent = new AtomicLong(0);
-    private AtomicLong lastAmbientSent = new AtomicLong(0);
-    private AtomicLong lastPumpCurrentSent = new AtomicLong(0);
+    private long lastFaultLogsSent = 0;
+    private long lastAmbientSent = 0;
+    private long lastPumpCurrentSent = 0;
+    private long lastWifiStatsRead = 0;
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
     private String rs485ControllerType = null;
@@ -366,7 +367,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         try {
             DeviceRegistration registeredSpa = obtainSpaRegistration();
             if (registeredSpa.getHardwareId() == null) {
-                LOGGER.info("skipping data harvest, spa gateway has not been registered");
+                if(LOGGER.isDebugEnabled()) LOGGER.debug("skipping data harvest, spa gateway has not been registered");
                 return;
             }
             long timestamp = System.currentTimeMillis();
@@ -380,14 +381,14 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
             if (!getRS485DataHarvester().hasAllConfigState() &&
-                    (timestamp - lastPanelRequestSent.get() > MAX_PANEL_REQUEST_INTERIM)) {
+                    (timestamp - lastPanelRequestSent > MAX_PANEL_REQUEST_INTERIM)) {
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
-                lastPanelRequestSent.set(timestamp);
+                lastPanelRequestSent = timestamp;
             }
             rs485Active = getRS485DataHarvester().getLatestSpaInfo().getRs485AddressActive();
             // this loop runs often(once every 3 seconds), but only send up to cloud when timestamps on state data change
             // or at least the update interval has passed since last cloud update was sent
-            if (timestamp - lastSpaDetailsSent.get() > updateInterval.get()) {
+            if (timestamp - lastSpaDetailsSent > updateInterval.get()) {
                 getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
                 locked = false;
                 updateSpaInfoStateForLatestCloudUpdate(timestamp);
@@ -395,9 +396,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 locked = true;
             }
 
-            if (lastSpaDetailsSent.get() != getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp()) {
+            if (lastSpaDetailsSent != getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp()) {
                 getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, UplinkCommandType.SPA_STATE, getRS485DataHarvester().getLatestSpaInfo(), false);
-                lastSpaDetailsSent.set(getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp());
+                lastSpaDetailsSent = getRS485DataHarvester().getLatestSpaInfo().getLastUpdateTimestamp();
                 LOGGER.info("Finished data harvest periodic iteration, sent spa state to cloud");
             }
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().unlock();
@@ -985,16 +986,17 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private void processMeasurements(String hardwareId) throws IOException {
-        if ( (ambientUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastAmbientSent.get() > DEFAULT_AMBIENT_INTERVAL)) ||
-                (System.currentTimeMillis() - lastAmbientSent.get() > ambientUpdateInterval.get())) {
+        long now = System.currentTimeMillis();
+        if ( (ambientUpdateInterval.get() < 1 && (now - lastAmbientSent > DEFAULT_AMBIENT_INTERVAL)) ||
+                (now - lastAmbientSent > ambientUpdateInterval.get())) {
             wsnDataHarvester.sendLatestWSNDataToCloud(newArrayList(DataType.AMBIENT_TEMP, DataType.AMBIENT_HUMIDITY), hardwareId);
-            lastAmbientSent.set(new Date().getTime());
+            lastAmbientSent = now;
         }
 
-        if ( (pumpCurrentUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastPumpCurrentSent.get() > DEFAULT_PUMP_CURRENT_INTERVAL)) ||
-                (System.currentTimeMillis() - lastPumpCurrentSent.get() > pumpCurrentUpdateInterval.get())) {
+        if ( (pumpCurrentUpdateInterval.get() < 1 && (now - lastPumpCurrentSent > DEFAULT_PUMP_CURRENT_INTERVAL)) ||
+                (now - lastPumpCurrentSent > pumpCurrentUpdateInterval.get())) {
             wsnDataHarvester.sendLatestWSNDataToCloud(newArrayList(DataType.PUMP_AC_CURRENT), hardwareId);
-            lastPumpCurrentSent.set(new Date().getTime());
+            lastPumpCurrentSent = now;
         }
     }
 
@@ -1003,7 +1005,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         if (faultLogManager.hasUnsentFaultLogs()) {
             final Bwg.Uplink.Model.FaultLogs faultLogs = faultLogManager.getUnsentFaultLogs();
             if (faultLogs != null) {
-                LOGGER.info("sent {} fault logs to cloud", faultLogs.getFaultLogsCount());
+                if (LOGGER.isDebugEnabled()) LOGGER.debug("sent {} fault logs to cloud", faultLogs.getFaultLogsCount());
                 getCloudDispatcher().sendUplink(hardwareId, null, UplinkCommandType.FAULT_LOGS, faultLogs, false);
             }
         }
@@ -1011,7 +1013,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         // fault logs - check FaultLogsManager for default fetch interval
         // issue fetch logs command untill there are logs to collect from device
         final int nextLogNumberToFetch = faultLogManager.generateFetchNext();
-        if ((timestamp - lastFaultLogsSent.get() > faultLogManager.getFetchInterval()) || nextLogNumberToFetch > -1) {
+        if ((timestamp - lastFaultLogsSent > faultLogManager.getFetchInterval()) || nextLogNumberToFetch > -1) {
             // get latest fetch log entry or entry with number held by fault log manager
             Short logNumber = nextLogNumberToFetch > -1 ? Short.valueOf((short) nextLogNumberToFetch) : null;
             LOGGER.info("sending request for fault log number {}, address {}", logNumber != null ? logNumber.toString() : 255, getRS485DataHarvester().getRegisteredAddress());
@@ -1021,10 +1023,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             } catch (RS485Exception ex) {
                 LOGGER.error("unable to send request for fault log", ex);
             }
-            lastFaultLogsSent.set(timestamp);
+            lastFaultLogsSent = timestamp;
         }
 
-        boolean currentRs485Active = (faultLogManager.getLastLogReceived() + (5 * faultLogManager.getFetchInterval())) > lastFaultLogsSent.get();
+        boolean currentRs485Active = (faultLogManager.getLastLogReceived() + (5 * faultLogManager.getFetchInterval())) > lastFaultLogsSent;
         if (currentRs485Active != lastRs485Active) {
             LOGGER.info("rs 485 status change detected from {} to {}", lastRs485Active, currentRs485Active);
             boolean wLocked = false;
@@ -1071,9 +1073,16 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     private void processWifiDiag(String hardwareId) {
         boolean wLocked = false;
+        long now = System.currentTimeMillis();
+
+        if (now - lastWifiStatsRead < 60000) {
+            return;
+        }
+
+        lastWifiStatsRead = now;
         try {
             WifiStat currentWifiStat = lwconfigParser.parseStat(wifiDevice, lastWifiStatSent, iwConfigPath, ethernetDevice);
-            long receivedTime = System.currentTimeMillis() + 1;
+            long receivedTime = now + 1;
 
             if (hasWifiStateChanged(currentWifiStat)) {
                 getRS485DataHarvester().getLatestSpaInfoLock().writeLock().lockInterruptibly();
@@ -1091,10 +1100,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                 LOGGER.info("Wifi status change detected, from " + oldWifiStatus + " to " + currentWifiStat.getWifiConnectionHealth().name());
             }
 
-            if ((wifiStatUpdateInterval.get() < 1 && (System.currentTimeMillis() - lastWifiStatsSent.get() > 60000)) ||
-                    (System.currentTimeMillis() - lastWifiStatsSent.get() > wifiStatUpdateInterval.get())) {
+            if ((wifiStatUpdateInterval.get() < 1 && (now - lastWifiStatsSent > 60000)) ||
+                    (now - lastWifiStatsSent > wifiStatUpdateInterval.get())) {
                 sendWifiStats(hardwareId, newArrayList(currentWifiStat));
-                lastWifiStatsSent.set(new Date().getTime());
+                lastWifiStatsSent = now;
                 lastWifiStatSent = currentWifiStat;
                 LOGGER.info("sent wifi stat to cloud, connection health {}", currentWifiStat.getWifiConnectionHealth().name());
 

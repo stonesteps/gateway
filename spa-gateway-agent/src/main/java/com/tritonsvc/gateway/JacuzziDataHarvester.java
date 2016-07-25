@@ -51,15 +51,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
     public void processMessage(byte[] message) {
         int packetType = message[3];
 
-        if (packetType == 0x0) {
-            processUnassignedDevicePoll();
-        } else if (packetType == 0x2) {
-            processAddressAssignment(message);
-        } else if (packetType == 0x4) {
-            processDevicePresentQuery(message[1]);
-        } else if (packetType == 0x6) {
-            processDevicePollForDownlink();
-        } else if (packetType == 0x16) {
+        if (packetType == 0x16) {
             isCelsius.set((0x01 & message[17]) > 0);
             processPanelUpdateMessage(message);
             if (!populatedSystemInfo) {
@@ -73,8 +65,6 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
         } else if (packetType == 0x1D) {
             processDeviceConfigsMessage(message);
             processSystemInfoMessage(message);
-        } else if (packetType == 0x90) {
-            processWifiModuleCommand(message);
         }
     }
 
@@ -326,7 +316,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
                 getLatestSpaInfo().getComponents().hasFilterCycle1()) {
             return true;
         }
-        LOGGER.info("do not have DeviceConfig, SystemInfo yet for address {}, will send panel request", getRegisteredAddress());
+        if (LOGGER.isDebugEnabled()) LOGGER.debug("do not have DeviceConfig, SystemInfo yet for address {}, will send panel request", getRegisteredAddress());
         return false;
     }
 

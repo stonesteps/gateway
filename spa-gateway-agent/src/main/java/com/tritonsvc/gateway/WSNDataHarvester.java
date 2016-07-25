@@ -33,7 +33,6 @@ public class WSNDataHarvester implements Runnable {
     private ZMQ.Context context;
     private static final String DATA_HARVEST_SUBSCRIPTION_ADDRESS = "wsn.data.harvest.subscription.address";
     private Map<String, WsnData> measurements = new ConcurrentHashMap<>();
-    private TS7970WiredCurrentSensor wiredCurrentSensor;
     private static long WSN_POLL_TIME = 30000;
 
     /**
@@ -43,11 +42,23 @@ public class WSNDataHarvester implements Runnable {
      */
     public WSNDataHarvester (BWGProcessor processor) {
         this.processor = processor;
-        wiredCurrentSensor = new TS7970WiredCurrentSensor(processor.getConfigProps());
     }
 
     @Override
     public void run() {
+
+        if (!Objects.equals(processor.getOsType(), BWGProcessor.TS_IMX6)) {
+            //TODO - remove this when BLE is implemented on Renesas/RedPine and actually
+            //       dumping data from BLE network into zeroMQ socket on board
+            //       skipping running wsn harvest thread on Renesas/RedPine for now since no BLE support yet
+            return;
+        }
+
+        TS7970WiredCurrentSensor ts7970wiredCurrentSensor = null;
+        if ( Objects.equals(processor.getOsType(), BWGProcessor.TS_IMX6)) {
+            ts7970wiredCurrentSensor = new TS7970WiredCurrentSensor(processor.getConfigProps());
+        }
+
         Socket subscriber = null;
         context = ZMQ.context(1);
         while(processor.stillRunning()) {
@@ -67,13 +78,15 @@ public class WSNDataHarvester implements Runnable {
                 }
 
                 // temprorary hard wired sensors
-                List<WsnData> wsnDatas = wiredCurrentSensor.processWiredSensors();
-                for (WsnData wsnData : wsnDatas) {
-                    measurements.put(wsnData.getSensorMac(), wsnData);
+                if (ts7970wiredCurrentSensor != null) {
+                    List<WsnData> wsnDatas = ts7970wiredCurrentSensor.processWiredSensors();
+                    for (WsnData wsnData : wsnDatas) {
+                        measurements.put(wsnData.getSensorMac(), wsnData);
+                    }
                 }
             }
             catch (Throwable ex) {
-                LOGGER.info("harvest data listener got exception " + ex.getMessage());
+                LOGGER.warn("harvest data listener got exception " + ex.getMessage());
                 if (subscriber != null) {
                     subscriber.close();
                     subscriber = null;
@@ -87,7 +100,9 @@ public class WSNDataHarvester implements Runnable {
         if (context != null) {
             context.close();
         }
-        wiredCurrentSensor.shutdown();
+        if (ts7970wiredCurrentSensor != null) {
+            ts7970wiredCurrentSensor.shutdown();
+        }
     }
 
     /**
@@ -134,7 +149,7 @@ public class WSNDataHarvester implements Runnable {
             }
             DeviceRegistration registeredMote = processor.obtainMoteRegistration(spaHardwareId, entries.get(0).getMoteMac(), entries.get(0).getDeviceName());
             if (registeredMote.getHardwareId() == null) {
-                LOGGER.info("skipping wsn data harvest for mote mac {}, has not been registered yet with cloud", entries.get(0).getMoteMac());
+                if (LOGGER.isDebugEnabled()) LOGGER.debug("skipping wsn data harvest for mote mac {}, has not been registered yet with cloud", entries.get(0).getMoteMac());
                 continue;
             }
             List<Measurement> measurements = newArrayList();
@@ -175,7 +190,7 @@ public class WSNDataHarvester implements Runnable {
                         eb.setSensorIdentifier(wsnData.getSensorIdentifier());
                     }
                     measurements.add(eb.build());
-                    LOGGER.info(" sent {} measurement for mote {}, registered id {} {}", wsnData.getDataType().name(), wsnData.getDeviceName(), registeredMote.getHardwareId(), Double.toString(wsnData.getValue()));
+                    if (LOGGER.isDebugEnabled()) LOGGER.debug(" sent {} measurement for mote {}, registered id {} {}", wsnData.getDataType().name(), wsnData.getDeviceName(), registeredMote.getHardwareId(), Double.toString(wsnData.getValue()));
                 }
             }
             if (!measurements.isEmpty()) {

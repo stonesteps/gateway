@@ -42,6 +42,7 @@ public abstract class RS485DataHarvester implements Runnable {
 
     private static Logger LOGGER = LoggerFactory.getLogger(RS485DataHarvester.class);
     private static long ADDRESS_STATE_ROLL_INTERIM = 120000; // 2 minutes
+    private static long REQUEST_MESSAGE_POLL_INTERVAL = 2000;
     private BWGProcessor processor;
     private FaultLogManager faultLogManager;
 
@@ -65,6 +66,8 @@ public abstract class RS485DataHarvester implements Runnable {
     private SpaState spaState = SpaState.newBuilder().setLastUpdateTimestamp(new Date().getTime()).build();
     private AtomicReference<ADDRESS_STATE> addressState = new AtomicReference<>();
     private AtomicLong lastAddressStateRoll = new AtomicLong(0);
+    private long lastPollSent = 0;
+    private long lastWifiPollSent = 0;
     private LinkedBlockingQueue<byte[]> pendingMessages;
     private enum ADDRESS_STATE {
         STATIC_ADDRESS,
@@ -153,8 +156,8 @@ public abstract class RS485DataHarvester implements Runnable {
     @Override
     public void run() {
         ByteBuffer workingMessage = ByteBuffer.allocate(256);
-        ByteBuffer readBytes = ByteBuffer.allocate(1);
-        LOGGER.info("RS 485 configured to use fixed address of {}", getRegisteredAddress());
+        ByteBuffer readBytes = ByteBuffer.allocate(100);
+        LOGGER.info("RS 485 configured to use address of {}", getRegisteredAddress());
         Thread messageProcessor = new Thread(new MessageProcessor());
         messageProcessor.start();
 
@@ -163,7 +166,7 @@ public abstract class RS485DataHarvester implements Runnable {
                 if (processor.getRS485UART() == null) {
                     processor.setUpRS485();
                 }
-                processor.getRS485UART().setReceiveTimeout(5000);
+                processor.getRS485UART().setReceiveTimeout(2);
 
                 while (!cancelled && processor.stillRunning()) {
                     readBytes.clear();
@@ -172,7 +175,7 @@ public abstract class RS485DataHarvester implements Runnable {
                 }
             }
             catch (Throwable ex) {
-                LOGGER.info("harvest rs485 data listener got exception ",ex);
+                LOGGER.warn("harvest rs485 data listener got exception ",ex);
                 workingMessage.clear();
                 state = State.searchForBeginning;
                 hdlcFrameLength = 0;
@@ -397,6 +400,7 @@ public abstract class RS485DataHarvester implements Runnable {
 
     private void setAddressState(ADDRESS_STATE addressState) {
         lastAddressStateRoll.set(System.currentTimeMillis());
+        rs485MessagePublisher.drainPendingQueues();
         this.addressState.set(addressState);
     }
 
@@ -411,7 +415,7 @@ public abstract class RS485DataHarvester implements Runnable {
                     if (message != null) {
                         int packetType = message[3];
                         if (!HdlcCrc.isValidFCS(message)) {
-                            LOGGER.info("Invalid rs485 data message, failed FCS check {}", printHexBinary(message));
+                            if (LOGGER.isDebugEnabled()) LOGGER.debug("Invalid rs485 data message, failed FCS check {}", printHexBinary(message));
                             continue;
                         }
                         if (packetType == 0x16 && processor.getRS485ControllerType() == null) {
@@ -421,7 +425,7 @@ public abstract class RS485DataHarvester implements Runnable {
                         processMessage(message);
                     }
                 } catch (Throwable ex) {
-                    LOGGER.info("harvest rs485 message cruncher got exception ",ex);
+                    LOGGER.warn("harvest rs485 message cruncher got exception ",ex);
                 }
             }
         }
@@ -441,15 +445,15 @@ public abstract class RS485DataHarvester implements Runnable {
     }
 
     private void parseHDLCMessages(ByteBuffer workingMessage, ByteBuffer bytesRead) {
-        if (workingMessage.position() > 127) {
-            hdlcFrameLength = 0;
-            state = State.searchForBeginning;
-            LOGGER.info("rs 485 frame out of sync, message parsing went over 128 bytes, resetting state.");
-        }
-
         bytesRead.flip();
-        if (bytesRead.remaining() == 1) {
+        while (bytesRead.remaining() > 0) {
             byte data = bytesRead.get();
+            if (workingMessage.position() > 127) {
+                hdlcFrameLength = 0;
+                state = State.searchForBeginning;
+                workingMessage.clear();
+                LOGGER.warn("rs 485 frame out of sync, message parsing went over 128 bytes, resetting state.");
+            }
             switch (state) {
                 case searchForBeginning:
                     if (data == delimiter) {
@@ -478,11 +482,36 @@ public abstract class RS485DataHarvester implements Runnable {
                     break;
                 case searchForEnd:
                     if (data == delimiter) {
+                        workingMessage.flip();
                         if ( !shouldNotProcessMessage(workingMessage) ) {
-                            byte[] message = new byte[hdlcFrameLength];
-                            workingMessage.position(0);
-                            workingMessage.get(message);
-                            pendingMessages.offer(message);
+                            int packetType = (0xFF & workingMessage.get(3));
+                            long now = System.currentTimeMillis();
+                            switch (packetType) {
+                                case 6:
+                                    if ((now - lastPollSent) > REQUEST_MESSAGE_POLL_INTERVAL) {
+                                        lastPollSent = now;
+                                        processDevicePollForDownlink();
+                                    }
+                                    break;
+                                case 4:
+                                    processDevicePresentQuery(workingMessage.get(1));
+                                    break;
+                                case 2:
+                                    processAddressAssignment(convertToMessageBody(workingMessage));
+                                    break;
+                                case 0:
+                                    processUnassignedDevicePoll();
+                                    break;
+                                case 0x90:
+                                    if ((now - lastWifiPollSent) > REQUEST_MESSAGE_POLL_INTERVAL) {
+                                        lastWifiPollSent = now;
+                                        processWifiModuleCommand(convertToMessageBody(workingMessage));
+                                    }
+                                    break;
+                                default:
+                                    pendingMessages.offer(convertToMessageBody(workingMessage));
+                                    break;
+                            }
                         }
                     }
                     workingMessage.clear();
@@ -491,6 +520,12 @@ public abstract class RS485DataHarvester implements Runnable {
                     break;
             }
         }
+    }
+
+    private byte[] convertToMessageBody(ByteBuffer workingMessage) {
+        byte[] message = new byte[hdlcFrameLength];
+        workingMessage.get(message);
+        return message;
     }
 
     private boolean shouldNotProcessMessage(ByteBuffer workingMessage) {
@@ -549,7 +584,7 @@ public abstract class RS485DataHarvester implements Runnable {
     protected void processWifiModuleCommand(byte[] message) {
         try {
             int command = (0xFF & message[4]);
-            LOGGER.info("received wifi module command {}", command);
+            if (LOGGER.isDebugEnabled()) LOGGER.debug("received wifi module command {}", command);
             if (command == 1) {
                 rs485MessagePublisher.sendWifiMacAddress(rs485RegisrationAddress);
             }
@@ -560,20 +595,16 @@ public abstract class RS485DataHarvester implements Runnable {
 
     protected void processUnassignedDevicePoll() {
         if (System.currentTimeMillis() - registrationLastAttempt.get() > MAX_485_REG_WAIT) {
-            synchronized(registrationLastAttempt) {
-                if (System.currentTimeMillis() - registrationLastAttempt.get() > MAX_485_REG_WAIT) {
-                    byte[] requestKey = new byte[2];
-                    new Random().nextBytes(requestKey);
-                    int requestId = (0xFF00 & (requestKey[0] << 8)) | (0xFF & requestKey[1]);
-                    registrationrequestId.set(requestId);
-                    registrationLastAttempt.set(System.currentTimeMillis());
-                    try {
-                        rs485MessagePublisher.sendUnassignedDeviceResponse(requestId);
-                    } catch (RS485Exception ex) {
-                        LOGGER.error("unable to send unassigned device response", ex);
-                        registrationrequestId.set(0);
-                    }
-                }
+            byte[] requestKey = new byte[2];
+            new Random().nextBytes(requestKey);
+            int requestId = (0xFF00 & (requestKey[0] << 8)) | (0xFF & requestKey[1]);
+            registrationrequestId.set(requestId);
+            registrationLastAttempt.set(System.currentTimeMillis());
+            try {
+                rs485MessagePublisher.sendUnassignedDeviceResponse(requestId);
+            } catch (RS485Exception ex) {
+                LOGGER.error("unable to send unassigned device response", ex);
+                registrationrequestId.set(0);
             }
         }
     }
