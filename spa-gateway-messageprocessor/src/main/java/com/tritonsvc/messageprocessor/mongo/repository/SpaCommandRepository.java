@@ -11,6 +11,7 @@ import java.util.List;
 public interface SpaCommandRepository extends MongoRepository<SpaCommand, String> {
 
     List<SpaCommand> findFirst25ByProcessedTimestampIsNullOrderBySentTimestampAsc();
-    SpaCommand findByOriginatorIdAndSpaId(String originatorId, String spaId);
+    List<SpaCommand> findByOriginatorIdOrderBySentTimestampDesc(String originatorId);
 
+    SpaCommand findByOriginatorIdAndSpaId(String originatorId, String spaId);
 }

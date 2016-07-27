@@ -2,7 +2,9 @@ package com.tritonsvc.messageprocessor.messagehandler;
 
 import com.bwg.iot.model.Event;
 import com.bwg.iot.model.Spa;
+import com.bwg.iot.model.SpaCommand;
 import com.tritonsvc.messageprocessor.mongo.repository.EventRepository;
+import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
@@ -28,6 +30,9 @@ public class EventsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mode
 
     @Autowired
     private EventRepository eventRepository;
+
+    @Autowired
+    private SpaCommandRepository spaCommandRepository;
 
     @Override
     public Class<Bwg.Uplink.Model.Events> handles() {
@@ -69,6 +74,16 @@ public class EventsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mode
             eventEntity.setEventOccuredTimestamp(new Date(event.getEventOccuredTimestamp()));
         if (event.getMetadataCount() > 0) eventEntity.setMetadata(BwgHelper.getMetadataAsMap(event.getMetadataList()));
         if (event.getOidDataCount() > 0) eventEntity.setOidData(BwgHelper.getMetadataAsMap(event.getOidDataList()));
+
+        // if REQUEST event has originatorId, add metadata from spaCommand
+        if (eventEntity.getMetadata() != null && eventEntity.getMetadata().containsKey("originatorId")) {
+            List<SpaCommand> sc = spaCommandRepository.findByOriginatorIdOrderBySentTimestampDesc(eventEntity.getMetadata().get("originatorId"));
+            if (!sc.isEmpty()) {
+                sc.get(0).getMetadata().forEach((k, v) -> {
+                    eventEntity.getMetadata().put(k, v);
+                });
+            }
+        }
 
         return eventEntity;
     }

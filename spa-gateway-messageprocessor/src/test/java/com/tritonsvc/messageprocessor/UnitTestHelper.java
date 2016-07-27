@@ -20,6 +20,7 @@ import javax.annotation.PreDestroy;
 import java.nio.file.Paths;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.UUID;
 
 /**
  * Helper class for unit testting.
@@ -78,10 +79,15 @@ public class UnitTestHelper extends AbstractMongoConfiguration {
 
     public SpaCommand createSpaCommand(Spa spa, int requestType, HashMap<String, String> values) {
         final SpaCommand command = new SpaCommand();
+        HashMap<String, String> meta = new HashMap<>(3);
+        meta.put("Requested By","Dan");
+        meta.put("Via", "mobile");
         command.setSpaId(spa.get_id());
         command.setSentTimestamp(new Date());
         command.setRequestTypeId(Integer.valueOf(requestType));
         command.setValues(values);
+        command.setMetadata(meta);
+        command.setOriginatorId(UUID.randomUUID().toString());
         spaCommandRepository.save(command);
         return command;
     }
