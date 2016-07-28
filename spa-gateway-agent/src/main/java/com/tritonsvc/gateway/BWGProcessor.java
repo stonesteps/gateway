@@ -96,6 +96,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private long lastAmbientSent = 0;
     private long lastPumpCurrentSent = 0;
     private long lastWifiStatsRead = 0;
+    private long lastRS485StatusChangeEventSent = 0;
     private ScheduledExecutorService es = null;
     private ScheduledFuture<?> intervalResetFuture = null;
     private String rs485ControllerType = null;
@@ -1026,7 +1027,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             lastFaultLogsSent = timestamp;
         }
 
-        boolean currentRs485Active = (faultLogManager.getLastLogReceived() + (5 * faultLogManager.getFetchInterval())) > lastFaultLogsSent;
+        long faultLogHisteresis = (5 * faultLogManager.getFetchInterval());
+        boolean currentRs485Active = (faultLogManager.getLastLogReceived() + (faultLogHisteresis)) > lastFaultLogsSent;
         if (currentRs485Active != lastRs485Active) {
             LOGGER.info("rs 485 status change detected from {} to {}", lastRs485Active, currentRs485Active);
             boolean wLocked = false;
@@ -1043,15 +1045,18 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
                     getRS485DataHarvester().getLatestSpaInfoLock().writeLock().unlock();
                 }
             }
-            Event event = Event.newBuilder()
-                    .setEventOccuredTimestamp(timestamp)
-                    .setEventReceivedTimestamp(timestamp)
-                    .setEventType(currentRs485Active ? EventType.NOTIFICATION : EventType.ALERT)
-                    .setDescription("Spa Controller rs-485 connectivity status change detected, from " + textualRS485Meaning(lastRs485Active) + " to " + textualRS485Meaning(currentRs485Active))
-                    .addMetadata(Metadata.newBuilder().setName("oldRS485Status").setValue(textualRS485Meaning(lastRs485Active)))
-                    .addMetadata(Metadata.newBuilder().setName("newRS485Status").setValue(textualRS485Meaning(currentRs485Active)))
-                    .build();
-            sendEvents(hardwareId, newArrayList(event));
+            if ((timestamp - lastRS485StatusChangeEventSent) > faultLogHisteresis) {
+                lastRS485StatusChangeEventSent = timestamp;
+                Event event = Event.newBuilder()
+                        .setEventOccuredTimestamp(timestamp)
+                        .setEventReceivedTimestamp(timestamp)
+                        .setEventType(currentRs485Active ? EventType.NOTIFICATION : EventType.ALERT)
+                        .setDescription("Spa Controller rs-485 connectivity status change detected, from " + textualRS485Meaning(lastRs485Active) + " to " + textualRS485Meaning(currentRs485Active))
+                        .addMetadata(Metadata.newBuilder().setName("oldRS485Status").setValue(textualRS485Meaning(lastRs485Active)))
+                        .addMetadata(Metadata.newBuilder().setName("newRS485Status").setValue(textualRS485Meaning(currentRs485Active)))
+                        .build();
+                sendEvents(hardwareId, newArrayList(event));
+            }
         }
 
         if (!currentRs485Active) {
