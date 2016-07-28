@@ -136,9 +136,9 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         switch (severity) {
             case ERROR:
             case FATAL:
-                return "red";
+                return Alert.SeverityLevelEnum.red.name();
             case WARNING:
-                return "yellow";
+                return Alert.SeverityLevelEnum.yellow.name();
             default:
                 return null;
         }

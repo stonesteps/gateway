@@ -2,6 +2,7 @@ package com.tritonsvc.messageprocessor;
 
 import com.bwg.iot.model.*;
 import com.bwg.iot.model.Component.ComponentType;
+import com.bwg.iot.model.WifiConnectionHealth;
 import com.tritonsvc.gateway.FaultLogEntry;
 import com.tritonsvc.gateway.FaultLogManager;
 import com.tritonsvc.messageprocessor.mongo.repository.*;
@@ -9,9 +10,7 @@ import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BluetoothStatus;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.SwimSpaMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
@@ -29,20 +28,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = {SpaGatewayMessageProcessorApplication.class, UnitTestHelper.class})
@@ -264,7 +256,7 @@ public class UplinkProcessorTest {
         final List<Alert> alerts = spa.getAlerts();
         assertNotNull(alerts);
         assertEquals(1, alerts.size());
-        assertEquals("red", alerts.get(0).getSeverityLevel());
+        assertEquals(Alert.SeverityLevelEnum.red.name(), alerts.get(0).getSeverityLevel());
         assertEquals("sample description", alerts.get(0).getLongDescription());
     }
 
