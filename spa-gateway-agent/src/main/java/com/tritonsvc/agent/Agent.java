@@ -10,9 +10,6 @@ import com.tritonsvc.spa.communication.proto.Bwg.Header;
 import com.tritonsvc.spa.communication.proto.Bwg.Header.Builder;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkHeader;
-import org.fusesource.hawtdispatch.Dispatch;
-import org.fusesource.hawtdispatch.DispatchPriority;
-import org.fusesource.hawtdispatch.DispatchQueue;
 import org.fusesource.mqtt.client.Future;
 import org.fusesource.mqtt.client.FutureConnection;
 import org.fusesource.mqtt.client.MQTT;
@@ -27,7 +24,9 @@ import javax.naming.ldap.LdapName;
 import javax.naming.ldap.Rdn;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
@@ -38,9 +37,13 @@ import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateExpiredException;
 import java.security.cert.CertificateFactory;
+import java.security.cert.CertificateNotYetValidException;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
@@ -296,7 +299,7 @@ public class Agent {
 
         try {
             sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(kmf != null ? kmf.getKeyManagers() : null, tmf.getTrustManagers(), new java.security.SecureRandom());
+            sslContext.init(kmf != null ? kmf.getKeyManagers() : null, ignoreExpiredErrors(tmf.getTrustManagers()), new java.security.SecureRandom());
         } catch (Exception ex) {
             LOGGER.error("unable to create SSL Context", ex);
             sslContext = null;
@@ -304,6 +307,37 @@ public class Agent {
             gatewayPublic = null;
             gatewayPrivate = null;
         }
+    }
+
+    private TrustManager[] ignoreExpiredErrors(TrustManager[] origTrustManagers) {
+        final X509TrustManager origTrustmanager = (X509TrustManager)origTrustManagers[0];
+
+        // don't be so strict as to prevent the agent from connecting to the cloud just because it's sysstem
+        // clock may be initially wrong, which trips up ssl from forming due to a cert validity check on timeframe
+        return new TrustManager[]{
+            new X509TrustManager() {
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                    return origTrustmanager.getAcceptedIssuers();
+                }
+
+                public void checkClientTrusted(X509Certificate[] certs, String authType) throws CertificateException {
+                    origTrustmanager.checkClientTrusted(certs, authType);
+                }
+
+                public void checkServerTrusted(X509Certificate[] certs, String authType) throws CertificateException {
+                    try {
+                        origTrustmanager.checkServerTrusted(certs, authType);
+                    } catch (CertificateException e) {
+                        Throwable problem = Throwables.getRootCause(e);
+                        if (problem.getClass().equals(CertificateExpiredException.class) || problem.getClass().equals(CertificateNotYetValidException.class)) {
+                            LOGGER.warn("Noted {}, most likely the system clock {} is not properly set to current date, will continue.", problem.getClass().getSimpleName(), new Date().toString());
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
+            }
+        };
     }
 
     private String getProtocolPrefix() {
