@@ -1,29 +1,16 @@
 package com.tritonsvc.messageprocessor;
 
-import com.bwg.iot.model.Component;
+import com.bwg.iot.model.*;
 import com.bwg.iot.model.Component.ComponentType;
-import com.bwg.iot.model.ComponentState;
-import com.bwg.iot.model.Event;
-import com.bwg.iot.model.FaultLog;
-import com.bwg.iot.model.Spa;
-import com.bwg.iot.model.SpaCommand;
 import com.bwg.iot.model.WifiConnectionHealth;
-import com.bwg.iot.model.WifiStat;
 import com.tritonsvc.gateway.FaultLogEntry;
 import com.tritonsvc.gateway.FaultLogManager;
-import com.tritonsvc.messageprocessor.mongo.repository.ComponentRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.EventRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.FaultLogRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.WifiStatRepository;
+import com.tritonsvc.messageprocessor.mongo.repository.*;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.ToggleComponent;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.BluetoothStatus;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.PanelMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.SwimSpaMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
@@ -41,20 +28,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = {SpaGatewayMessageProcessorApplication.class, UnitTestHelper.class})
@@ -77,6 +57,9 @@ public class UplinkProcessorTest {
 
     @Autowired
     private FaultLogRepository faultLogRepository;
+
+    @Autowired
+    private FaultLogDescriptionRepository faultLogDescriptionRepository;
 
     @Autowired
     private WifiStatRepository wifiStatRepository;
@@ -236,6 +219,15 @@ public class UplinkProcessorTest {
     @Test
     public void handleFaultLogs() throws Exception {
         faultLogRepository.deleteAll();
+        faultLogDescriptionRepository.deleteAll();
+
+        // create sample description
+        final FaultLogDescription faultLogDescription = new FaultLogDescription();
+        faultLogDescription.setCode(1);
+        faultLogDescription.setSeverity(FaultLogSeverity.ERROR);
+        faultLogDescription.setDescription("sample description");
+        faultLogDescription.setControllerType("NGSC");
+        faultLogDescriptionRepository.save(faultLogDescription);
 
         // send register message
         Spa spa = new Spa();
@@ -259,6 +251,13 @@ public class UplinkProcessorTest {
         assertEquals(100, logs.get(0).getTargetTemp());
         assertEquals(101, logs.get(0).getSensorATemp());
         assertEquals(102, logs.get(0).getSensorBTemp());
+
+        spa = spaRepository.findOne("spaId");
+        final List<Alert> alerts = spa.getAlerts();
+        assertNotNull(alerts);
+        assertEquals(1, alerts.size());
+        assertEquals(Alert.SeverityLevelEnum.red.name(), alerts.get(0).getSeverityLevel());
+        assertEquals("sample description", alerts.get(0).getLongDescription());
     }
 
     @Test

@@ -1,8 +1,7 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
-import com.bwg.iot.model.FaultLog;
-import com.bwg.iot.model.FaultLogDescription;
-import com.bwg.iot.model.Spa;
+import com.bwg.iot.model.*;
+import com.tritonsvc.messageprocessor.mongo.repository.AlertRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.FaultLogDescriptionRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.FaultLogRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
@@ -12,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,6 +34,9 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
 
     @Autowired
     private FaultLogDescriptionRepository faultLogDescriptionRepository;
+
+    @Autowired
+    private AlertRepository alertRepository;
 
     @Override
     public Class<Bwg.Uplink.Model.FaultLogs> handles() {
@@ -66,6 +69,8 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                     faultLogEntity = createFaultLogEntity(spaId, controllerType, code, spa, faultLog);
                     faultLogRepository.save(faultLogEntity);
                     log.info("Saved new fault log with code {} for spa {} and occur date {}", code, spaId, occurDate);
+
+                    mapFaultLogToAlert(spa, faultLogEntity);
                 } else {
                     log.info("Skipped fault log with code {} for spa {} and occur date {}, was a duplicate", code, spaId, occurDate);
                 }
@@ -96,7 +101,46 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         faultLogEntity.setSensorATemp(faultLog.getSensorATemp());
         faultLogEntity.setSensorBTemp(faultLog.getSensorBTemp());
         faultLogEntity.setCelcius(faultLog.getCelcius());
+        faultLogEntity.setFaultLogDescription(description);
 
         return faultLogEntity;
+    }
+
+    private void mapFaultLogToAlert(final Spa spa, final FaultLog faultLog) {
+        final FaultLogDescription faultLogDescription = faultLog.getFaultLogDescription();
+        final String severityLevel = getSeverityLevel(faultLog.getSeverity());
+        if (severityLevel != null) {
+            final Alert alert = new Alert();
+            alert.setName(null); // FIXME where to get name from?
+            alert.setLongDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
+            alert.setSeverityLevel(severityLevel);
+            alert.setComponent(null); // FIXME where to get component from?
+            alert.setShortDescription(null);
+            alert.setCreationDate(faultLog.getTimestamp());
+            alert.setSpaId(faultLog.getSpaId());
+            alert.setDealerId(faultLog.getDealerId());
+            alert.setOemId(faultLog.getOemId());
+            alertRepository.save(alert);
+
+            if (spa != null) {
+                if (spa.getAlerts() == null) {
+                    spa.setAlerts(new ArrayList<>());
+                }
+                spa.getAlerts().add(alert);
+                spaRepository.save(spa);
+            }
+        }
+    }
+
+    private String getSeverityLevel(final FaultLogSeverity severity) {
+        switch (severity) {
+            case ERROR:
+            case FATAL:
+                return Alert.SeverityLevelEnum.red.name();
+            case WARNING:
+                return Alert.SeverityLevelEnum.yellow.name();
+            default:
+                return null;
+        }
     }
 }
