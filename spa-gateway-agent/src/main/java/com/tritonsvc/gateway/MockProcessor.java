@@ -12,12 +12,7 @@ import com.tritonsvc.agent.MQTTCommandProcessor;
 import com.tritonsvc.httpd.RegistrationInfoHolder;
 import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.spa.communication.proto.Bwg;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationAckState;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.Request;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.RequestMetadata;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.SpaRegistrationResponse;
-import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.UplinkAcknowledge;
+import com.tritonsvc.spa.communication.proto.Bwg.Downlink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
@@ -27,11 +22,7 @@ import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Properties;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -70,6 +61,10 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private boolean sendRandomMeasurementReadings = true;
     private long lastMeasurementReadingsSendTime = 0L;
 
+    private Integer wifiState;
+    private boolean ethernetPluggedIn;
+    private boolean rs485AddressActive;
+
     /**
      * Constructor
      *
@@ -102,7 +97,8 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     }
 
     @Override
-    public synchronized void processEventsHandler() {}
+    public synchronized void processEventsHandler() {
+    }
 
     private void init(final Properties props, String homePath) {
         spaStateHolder = new MockSpaStateHolder(props);
@@ -143,6 +139,28 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         final String sendRandomWifiStatsStr = props.getProperty("mock.sendRandomWifiStats");
         if (sendRandomWifiStatsStr != null) {
             sendRandomWifiStats = "true".equalsIgnoreCase(sendRandomWifiStatsStr);
+        }
+
+        // wifiState(WifiConnectionHealth) 0 - 4
+        final String wifiStateStr = props.getProperty("mock.wifiState");
+        if (wifiStateStr != null) {
+            try {
+                wifiState = Integer.valueOf(wifiStateStr);
+            } catch (final NumberFormatException e) {
+                LOGGER.error("Property mock.wifiState is invalid {}", wifiStateStr);
+            }
+        }
+
+        // ethernetPluggedIn(true|false), 
+        final String ethernetPluggedInStr = props.getProperty("mock.ethernetPluggedIn");
+        if (ethernetPluggedInStr != null) {
+            ethernetPluggedIn = "true".equalsIgnoreCase(ethernetPluggedInStr);
+        }
+
+        // rs485AddressActive(true|false)
+        final String rs485AddressActiveStr = props.getProperty("mock.rs485AddressActive");
+        if (rs485AddressActiveStr != null) {
+            rs485AddressActive = "true".equalsIgnoreCase(rs485AddressActiveStr);
         }
     }
 
@@ -334,19 +352,19 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             sendReg = true;
         }
 
-        if ( sendReg) {
+        if (sendReg) {
             sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
         }
 
-        if ( sendReg) {
+        if (sendReg) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "controller", newHashMap(), "controller_originatorid");
         }
 
-        if ( sendReg) {
+        if (sendReg) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockTemperatureMAC", "mote_type", "temperature sensor"), "mote_temp");
         }
 
-        if ( sendReg) {
+        if (sendReg) {
             sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockCurrentMAC", "mote_type", "current sensor"), "mote_current");
         }
 
@@ -373,7 +391,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     @Override
     public String getEthernetDeviceName() {
-        return "eth0";
+        return ethernetPluggedIn ? "eth0" : null;
     }
 
     @Override
@@ -398,7 +416,8 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
         int randomCode;
 
-        while((randomCode = rnd.nextInt(20)) < 1) {}
+        while ((randomCode = rnd.nextInt(20)) < 1) {
+        }
         int targetTemp = rnd.nextInt(100) + 20;
         int tempA = rnd.nextInt(100) + 20;
         int tempB = rnd.nextInt(100) + 20;
@@ -426,12 +445,14 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         diagBuilder.setRawDataRate("11 Mb/s");
         diagBuilder.setDataRate(1100000);
         diagBuilder.setDeltaDataRate(0);
-        while ((newValue = random.nextInt(100)) < 30){}
+        while ((newValue = random.nextInt(100)) < 30) {
+        }
         diagBuilder.setLinkQualityPercentage(random.nextInt(newValue));
         diagBuilder.setDeltaLinkQualityPercentage(0);
         diagBuilder.setLinkQualityRaw("88/100");
 
-        while ((newValue = random.nextInt(80)) < 30){}
+        while ((newValue = random.nextInt(80)) < 30) {
+        }
         diagBuilder.setSignalLevelUnits(newValue * -1);
         diagBuilder.setSignalLevelUnitsRaw("40/100");
         diagBuilder.setDeltaSignalLevelUnits(0);
@@ -450,7 +471,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         diagBuilder.setDeltaNoiseLevel(0);
 
         Random rnd = new Random();
-        builder.setWifiConnectionHealth(Bwg.Uplink.Model.Constants.WifiConnectionHealth.valueOf(rnd.nextInt(4)));
+        builder.setWifiConnectionHealth(Bwg.Uplink.Model.Constants.WifiConnectionHealth.valueOf(wifiState != null ? wifiState.intValue() : rnd.nextInt(4)));
         builder.setApMacAddress("00:24:17:44:35:28");
         builder.setMode("Managed");
         builder.setConnectedDiag(diagBuilder);
@@ -493,10 +514,10 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private List<Bwg.Uplink.Model.Measurement> buildRandomMeasurementReadings(boolean isTemp) {
         final List<Bwg.Uplink.Model.Measurement> list = new ArrayList<>();
         if (isTemp) {
-            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.AMBIENT_TEMP, "fahrenheit","1"));
-            list.add(buildRandomMeasurementReading(DataType.AMBIENT_HUMIDITY, "percentage","2"));
+            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.AMBIENT_TEMP, "fahrenheit", "1"));
+            list.add(buildRandomMeasurementReading(DataType.AMBIENT_HUMIDITY, "percentage", "2"));
         } else {
-            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.PUMP_AC_CURRENT, "amps","1"));
+            list.add(buildRandomMeasurementReading(Bwg.Uplink.Model.Measurement.DataType.PUMP_AC_CURRENT, "amps", "1"));
         }
         return list;
     }
