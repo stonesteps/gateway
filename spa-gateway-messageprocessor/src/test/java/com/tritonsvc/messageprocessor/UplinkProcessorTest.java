@@ -258,6 +258,9 @@ public class UplinkProcessorTest {
         assertEquals(1, alerts.size());
         assertEquals(Alert.SeverityLevelEnum.red.name(), alerts.get(0).getSeverityLevel());
         assertEquals("sample description", alerts.get(0).getLongDescription());
+        assertEquals("sample description", alerts.get(0).getShortDescription());
+        assertEquals("Controller", alerts.get(0).getComponent());
+        assertEquals("Fault Log", alerts.get(0).getName());
     }
 
     @Test
