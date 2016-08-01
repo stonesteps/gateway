@@ -23,6 +23,8 @@ import java.util.Map;
 public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Model.FaultLogs> {
 
     private static final Logger log = LoggerFactory.getLogger(FaultLogsMessageHandler.class);
+    private static final String ALERT_NAME_FAULT_LOG = "Fault Log";
+    private static final String ALERT_COMPONENT_CONTROLLNER = "Controller";
 
     private final Map<String, FaultLogDescription> cache = new HashMap<>();
 
@@ -111,15 +113,15 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         final String severityLevel = getSeverityLevel(faultLog.getSeverity());
         if (severityLevel != null) {
             final Alert alert = new Alert();
-            alert.setName(null); // FIXME where to get name from?
-            alert.setLongDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
-            alert.setSeverityLevel(severityLevel);
-            alert.setComponent(null); // FIXME where to get component from?
-            alert.setShortDescription(null);
             alert.setCreationDate(faultLog.getTimestamp());
             alert.setSpaId(faultLog.getSpaId());
             alert.setDealerId(faultLog.getDealerId());
             alert.setOemId(faultLog.getOemId());
+            alert.setName(ALERT_NAME_FAULT_LOG);
+            alert.setComponent(ALERT_COMPONENT_CONTROLLNER);
+            alert.setSeverityLevel(severityLevel);
+            alert.setLongDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
+            alert.setShortDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
             alertRepository.save(alert);
 
             if (spa != null) {
