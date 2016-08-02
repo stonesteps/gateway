@@ -33,6 +33,10 @@ public class MockSpaStateHolder {
     private final ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(2);
     private final Map<Integer, ScheduledFuture> filterCycleUpdateFutureMap = new HashMap<>();
 
+    private Integer wifiState;
+    private boolean ethernetPluggedIn;
+    private boolean rs485AddressActive;
+
     public MockSpaStateHolder() {
         this(1, 1, 4, 3, 8, 1, 2, 4, 1);
     }
@@ -55,6 +59,28 @@ public class MockSpaStateHolder {
         final int lightN = getInt(props, "mock.lightNumber", 4);
         final int filterN = getInt(props, "mock.filterNumber", 1);
 
+        // wifiState(WifiConnectionHealth) 0 - 4
+        final String wifiStateStr = props.getProperty("mock.wifiState");
+        if (wifiStateStr != null) {
+            try {
+                wifiState = Integer.valueOf(wifiStateStr);
+            } catch (final NumberFormatException e) {
+                log.error("Property mock.wifiState is invalid {}", wifiStateStr);
+            }
+        }
+
+        // ethernetPluggedIn(true|false),
+        final String ethernetPluggedInStr = props.getProperty("mock.ethernetPluggedIn");
+        if (ethernetPluggedInStr != null) {
+            ethernetPluggedIn = "true".equalsIgnoreCase(ethernetPluggedInStr);
+        }
+
+        // rs485AddressActive(true|false)
+        final String rs485AddressActiveStr = props.getProperty("mock.rs485AddressActive");
+        if (rs485AddressActiveStr != null) {
+            rs485AddressActive = "true".equalsIgnoreCase(rs485AddressActiveStr);
+        }
+
         initBuilders(ozoneN, microsilkN, auxN, misterN, pumpN, circPumpN, blowerN, lightN, filterN);
     }
 
@@ -73,8 +99,9 @@ public class MockSpaStateHolder {
         builder.setSetupParams(buildSetupParams(timestamp));
         builder.setComponents(buildComponents(timestamp));
         builder.setLastUpdateTimestamp(timestamp);
-        builder.setWifiState(WifiConnectionHealth.AVG);
-        builder.setEthernetPluggedIn(false);
+        builder.setWifiState(wifiState != null ? WifiConnectionHealth.valueOf(wifiState.intValue()) : WifiConnectionHealth.AVG);
+        builder.setEthernetPluggedIn(ethernetPluggedIn);
+        builder.setRs485AddressActive(rs485AddressActive);
         builder.setUpdateInterval(60);
 
         final Bwg.Uplink.Model.SpaState state = builder.build();

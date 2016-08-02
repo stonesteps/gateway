@@ -62,8 +62,6 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private long lastMeasurementReadingsSendTime = 0L;
 
     private Integer wifiState;
-    private boolean ethernetPluggedIn;
-    private boolean rs485AddressActive;
 
     /**
      * Constructor
@@ -149,18 +147,6 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             } catch (final NumberFormatException e) {
                 LOGGER.error("Property mock.wifiState is invalid {}", wifiStateStr);
             }
-        }
-
-        // ethernetPluggedIn(true|false), 
-        final String ethernetPluggedInStr = props.getProperty("mock.ethernetPluggedIn");
-        if (ethernetPluggedInStr != null) {
-            ethernetPluggedIn = "true".equalsIgnoreCase(ethernetPluggedInStr);
-        }
-
-        // rs485AddressActive(true|false)
-        final String rs485AddressActiveStr = props.getProperty("mock.rs485AddressActive");
-        if (rs485AddressActiveStr != null) {
-            rs485AddressActive = "true".equalsIgnoreCase(rs485AddressActiveStr);
         }
     }
 
@@ -391,7 +377,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     @Override
     public String getEthernetDeviceName() {
-        return ethernetPluggedIn ? "eth0" : null;
+        return "eth0";
     }
 
     @Override
