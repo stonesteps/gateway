@@ -256,7 +256,7 @@ public class UplinkProcessorTest {
         final List<Alert> alerts = spa.getAlerts();
         assertNotNull(alerts);
         assertEquals(1, alerts.size());
-        assertEquals(Alert.SeverityLevelEnum.red.name(), alerts.get(0).getSeverityLevel());
+        assertEquals(Alert.SeverityLevelEnum.ERROR.name(), alerts.get(0).getSeverityLevel());
         assertEquals("sample description", alerts.get(0).getLongDescription());
         assertEquals("sample description", alerts.get(0).getShortDescription());
         assertEquals("Controller", alerts.get(0).getComponent());

@@ -71,7 +71,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                     faultLogEntity = createFaultLogEntity(spaId, controllerType, code, spa, faultLog);
                     faultLogRepository.save(faultLogEntity);
                     log.info("Saved new fault log with code {} for spa {} and occur date {}", code, spaId, occurDate);
-                    
+
                     mapFaultLogToAlert(spa, faultLogEntity);
                 } else {
                     log.info("Skipped fault log with code {} for spa {} and occur date {}, was a duplicate", code, spaId, occurDate);
@@ -136,11 +136,14 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
 
     private String getSeverityLevel(final FaultLogSeverity severity) {
         switch (severity) {
-            case ERROR:
             case FATAL:
-                return Alert.SeverityLevelEnum.red.name();
+                return Alert.SeverityLevelEnum.SEVERE.name();
+            case ERROR:
+                return Alert.SeverityLevelEnum.ERROR.name();
             case WARNING:
-                return Alert.SeverityLevelEnum.yellow.name();
+                return Alert.SeverityLevelEnum.WARNING.name();
+            case INFO:
+                return Alert.SeverityLevelEnum.INFO.name();
             default:
                 return null;
         }
