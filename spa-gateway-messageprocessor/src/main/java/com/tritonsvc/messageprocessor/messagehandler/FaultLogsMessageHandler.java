@@ -23,6 +23,8 @@ import java.util.Map;
 public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Model.FaultLogs> {
 
     private static final Logger log = LoggerFactory.getLogger(FaultLogsMessageHandler.class);
+    private static final String ALERT_NAME_FAULT_LOG = "Fault Log";
+    private static final String ALERT_COMPONENT_CONTROLLER = "Controller";
 
     private final Map<String, FaultLogDescription> cache = new HashMap<>();
 
@@ -69,8 +71,8 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                     faultLogEntity = createFaultLogEntity(spaId, controllerType, code, spa, faultLog);
                     faultLogRepository.save(faultLogEntity);
                     log.info("Saved new fault log with code {} for spa {} and occur date {}", code, spaId, occurDate);
-
-//                    mapFaultLogToAlert(spa, faultLogEntity);
+                    
+                    mapFaultLogToAlert(spa, faultLogEntity);
                 } else {
                     log.info("Skipped fault log with code {} for spa {} and occur date {}, was a duplicate", code, spaId, occurDate);
                 }
@@ -111,15 +113,15 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         final String severityLevel = getSeverityLevel(faultLog.getSeverity());
         if (severityLevel != null) {
             final Alert alert = new Alert();
-            alert.setName(null); // FIXME where to get name from?
-            alert.setLongDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
-            alert.setSeverityLevel(severityLevel);
-            alert.setComponent(null); // FIXME where to get component from?
-            alert.setShortDescription(null);
             alert.setCreationDate(faultLog.getTimestamp());
             alert.setSpaId(faultLog.getSpaId());
             alert.setDealerId(faultLog.getDealerId());
             alert.setOemId(faultLog.getOemId());
+            alert.setName(ALERT_NAME_FAULT_LOG);
+            alert.setComponent(ALERT_COMPONENT_CONTROLLER);
+            alert.setSeverityLevel(severityLevel);
+            alert.setLongDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
+            alert.setShortDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
             alertRepository.save(alert);
 
             if (spa != null) {
