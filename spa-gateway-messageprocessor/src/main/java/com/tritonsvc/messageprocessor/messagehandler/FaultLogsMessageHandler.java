@@ -71,8 +71,9 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                     faultLogEntity = createFaultLogEntity(spaId, controllerType, code, spa, faultLog);
                     faultLogRepository.save(faultLogEntity);
                     log.info("Saved new fault log with code {} for spa {} and occur date {}", code, spaId, occurDate);
-                    
-                    mapFaultLogToAlert(spa, faultLogEntity);
+
+                    //TODO - enable alerts once alert clearing feature is added to system
+                    //mapFaultLogToAlert(spa, faultLogEntity);
                 } else {
                     log.info("Skipped fault log with code {} for spa {} and occur date {}, was a duplicate", code, spaId, occurDate);
                 }
