@@ -24,7 +24,6 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
 
     private static final Logger log = LoggerFactory.getLogger(FaultLogsMessageHandler.class);
     private static final String ALERT_NAME_FAULT_LOG = "Fault Log";
-    private static final String ALERT_COMPONENT_CONTROLLER = "Controller";
 
     private final Map<String, FaultLogDescription> cache = new HashMap<>();
 
@@ -119,7 +118,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             alert.setDealerId(faultLog.getDealerId());
             alert.setOemId(faultLog.getOemId());
             alert.setName(ALERT_NAME_FAULT_LOG);
-            alert.setComponent(ALERT_COMPONENT_CONTROLLER);
+            alert.setComponent(com.bwg.iot.model.Component.ComponentType.CONTROLLER.name());
             alert.setSeverityLevel(severityLevel);
             alert.setLongDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
             alert.setShortDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
