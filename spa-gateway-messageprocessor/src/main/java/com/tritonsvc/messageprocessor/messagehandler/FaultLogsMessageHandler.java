@@ -11,10 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * process fault logs from spa systems
@@ -109,6 +106,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
     }
 
     private void mapFaultLogToAlert(final Spa spa, final FaultLog faultLog) {
+        if (tooOld(faultLog.getTimestamp())) return;
         final FaultLogDescription faultLogDescription = faultLog.getFaultLogDescription();
         final String severityLevel = getSeverityLevel(faultLog.getSeverity());
         if (severityLevel != null) {
@@ -129,9 +127,23 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                     spa.setAlerts(new ArrayList<>());
                 }
                 spa.getAlerts().add(alert);
+                updateSpaAlertState(spa, alert);
                 spaRepository.save(spa);
             }
         }
+    }
+
+    /**
+     * Returns true if given date is older than 3 days.
+     * @param date
+     * @return
+     */
+    private boolean tooOld(final Date date) {
+        final Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.DAY_OF_YEAR, -3);
+        final Date threeDaysAgo = cal.getTime();
+
+        return date.before(threeDaysAgo);
     }
 
     private String getSeverityLevel(final FaultLogSeverity severity) {
@@ -147,5 +159,54 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             default:
                 return null;
         }
+    }
+
+    private void updateSpaAlertState(final Spa spa, final Alert alert) {
+        final String highestActiveAlertSeverity = findHighestActiveAlertSeverityForSpa(alert.getSpaId());
+        if (spa != null && spa.getCurrentState() != null) {
+            if (!Objects.equals(spa.getCurrentState().getAlertState(), highestActiveAlertSeverity)) {
+                spa.getCurrentState().setAlertState(highestActiveAlertSeverity);
+            }
+            if (spa.getCurrentState().getComponents() != null && spa.getCurrentState().getComponents().size() > 0) {
+                final String highestActiveAlertSeverityForComponent = findHighestActiveAlertSeverityForSpaAndComponent(alert.getSpaId(), alert.getComponent());
+                for (final ComponentState componentState: spa.getCurrentState().getComponents()) {
+                    if (Objects.equals(componentState.getComponentType(), alert.getComponent())) {
+                        componentState.setAlertState(highestActiveAlertSeverityForComponent);
+                    }
+                }
+            }
+        }
+    }
+
+    private String findHighestActiveAlertSeverityForSpa(final String spaId) {
+        Long alertCount = alertRepository.countBySpaIdAndSeverityLevelAndClearedDateIsNull(spaId, Alert.SeverityLevelEnum.SEVERE.name());
+        if (alertCount != null && alertCount.longValue() > 0) return Alert.SeverityLevelEnum.SEVERE.name();
+
+        alertCount = alertRepository.countBySpaIdAndSeverityLevelAndClearedDateIsNull(spaId, Alert.SeverityLevelEnum.ERROR.name());
+        if (alertCount != null && alertCount.longValue() > 0) return Alert.SeverityLevelEnum.ERROR.name();
+
+        alertCount = alertRepository.countBySpaIdAndSeverityLevelAndClearedDateIsNull(spaId, Alert.SeverityLevelEnum.WARNING.name());
+        if (alertCount != null && alertCount.longValue() > 0) return Alert.SeverityLevelEnum.WARNING.name();
+
+        alertCount = alertRepository.countBySpaIdAndSeverityLevelAndClearedDateIsNull(spaId, Alert.SeverityLevelEnum.INFO.name());
+        if (alertCount != null && alertCount.longValue() > 0) return Alert.SeverityLevelEnum.INFO.name();
+
+        return null;
+    }
+
+    private String findHighestActiveAlertSeverityForSpaAndComponent(final String spaId, final String component) {
+        Long alertCount = alertRepository.countBySpaIdAndSeverityLevelAndComponentAndClearedDateIsNull(spaId, Alert.SeverityLevelEnum.SEVERE.name(), component);
+        if (alertCount != null && alertCount.longValue() > 0) return Alert.SeverityLevelEnum.SEVERE.name();
+
+        alertCount = alertRepository.countBySpaIdAndSeverityLevelAndComponentAndClearedDateIsNull(spaId, Alert.SeverityLevelEnum.ERROR.name(), component);
+        if (alertCount != null && alertCount.longValue() > 0) return Alert.SeverityLevelEnum.ERROR.name();
+
+        alertCount = alertRepository.countBySpaIdAndSeverityLevelAndComponentAndClearedDateIsNull(spaId, Alert.SeverityLevelEnum.WARNING.name(), component);
+        if (alertCount != null && alertCount.longValue() > 0) return Alert.SeverityLevelEnum.WARNING.name();
+
+        alertCount = alertRepository.countBySpaIdAndSeverityLevelAndComponentAndClearedDateIsNull(spaId, Alert.SeverityLevelEnum.INFO.name(), component);
+        if (alertCount != null && alertCount.longValue() > 0) return Alert.SeverityLevelEnum.INFO.name();
+
+        return null;
     }
 }
