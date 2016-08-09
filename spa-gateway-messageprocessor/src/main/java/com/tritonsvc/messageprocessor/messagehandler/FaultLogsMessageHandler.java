@@ -191,7 +191,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         alertCount = alertRepository.countBySpaIdAndSeverityLevelAndClearedDateIsNull(spaId, Alert.SeverityLevelEnum.INFO.name());
         if (alertCount != null && alertCount.longValue() > 0) return Alert.SeverityLevelEnum.INFO.name();
 
-        return null;
+        return Alert.SeverityLevelEnum.NONE.name();
     }
 
     private String findHighestActiveAlertSeverityForSpaAndComponent(final String spaId, final String component) {
@@ -207,6 +207,6 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         alertCount = alertRepository.countBySpaIdAndSeverityLevelAndComponentAndClearedDateIsNull(spaId, Alert.SeverityLevelEnum.INFO.name(), component);
         if (alertCount != null && alertCount.longValue() > 0) return Alert.SeverityLevelEnum.INFO.name();
 
-        return null;
+        return Alert.SeverityLevelEnum.NONE.name();
     }
 }
