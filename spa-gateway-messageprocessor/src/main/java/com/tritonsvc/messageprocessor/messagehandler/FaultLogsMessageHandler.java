@@ -106,7 +106,10 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
     }
 
     private void mapFaultLogToAlert(final Spa spa, final FaultLog faultLog) {
-        if (tooOld(faultLog.getTimestamp())) return;
+        if (olderThanThreeDays(faultLog.getTimestamp())) {
+            log.info("Skipping alert creation - FaultLog entry is older than three days.");
+            return;
+        }
         final FaultLogDescription faultLogDescription = faultLog.getFaultLogDescription();
         final String severityLevel = getSeverityLevel(faultLog.getSeverity());
         if (severityLevel != null) {
@@ -138,7 +141,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
      * @param date
      * @return
      */
-    private boolean tooOld(final Date date) {
+    private boolean olderThanThreeDays(final Date date) {
         final Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DAY_OF_YEAR, -3);
         final Date threeDaysAgo = cal.getTime();
