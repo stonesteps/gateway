@@ -181,7 +181,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                 spa.getCurrentState().setAlertState(highestActiveAlertSeverity);
             }
             if (spa.getCurrentState().getComponents() != null && spa.getCurrentState().getComponents().size() > 0) {
-                final String highestActiveAlertSeverityForComponent = findHighestActiveAlertSeverityForSpaAndComponent(alert.getSpaId(), alert.getComponent());
+                final String highestActiveAlertSeverityForComponent = findHighestActiveAlertSeverityForSpaAndComponentAndPortNo(alert.getSpaId(), alert.getComponent(),alert.getPortNo());
                 for (final ComponentState componentState: spa.getCurrentState().getComponents()) {
                     if (Objects.equals(componentState.getComponentType(), alert.getComponent())) {
                         componentState.setAlertState(highestActiveAlertSeverityForComponent);
@@ -198,8 +198,10 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         return getHighestAlertSeverity(results);
     }
 
-    private String findHighestActiveAlertSeverityForSpaAndComponent(final String spaId, final String component) {
+    private String findHighestActiveAlertSeverityForSpaAndComponentAndPortNo(final String spaId, final String component, final Integer portNo) {
         final Query query = Query.query(Criteria.where("spaId").is(spaId)).addCriteria(Criteria.where("component").is(component)).addCriteria(Criteria.where("clearedDate").is(null));
+        if (portNo != null) query.addCriteria(Criteria.where("portNo").is(portNo));
+
         final MapReduceResults<ValueObject> results = mongoTemplate.mapReduce(query, "alert", ALERT_AGGREGATE_MAP_FUNCTION, ALERT_AGGREGATE_REDUCE_FUNCTION, ValueObject.class);
 
         return getHighestAlertSeverity(results);
