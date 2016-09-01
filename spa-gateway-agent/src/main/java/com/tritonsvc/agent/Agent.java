@@ -140,6 +140,8 @@ public class Agent {
     private AtomicLong lastConnectAttempt = new AtomicLong(0);
     private AtomicLong lastSubReceived = new AtomicLong(0);
 
+    private String threadId;
+
 
 	/**
 	 * Start the agent.
@@ -645,6 +647,9 @@ public class Agent {
         if (gwSerialNumber == null) {
             gwSerialNumber = properties.getProperty(AgentConfiguration.GATEWAY_SERIALNUMBER);
         }
+        if (threadId != null && gwSerialNumber != null) {
+            gwSerialNumber = gwSerialNumber + ":" + threadId;
+        }
 		LOGGER.info("Using gateway serial number property: " + gwSerialNumber);
 
 		// Validate MQTT hostname.
@@ -708,5 +713,16 @@ public class Agent {
                 LOGGER.error("tried to restart wpa_supplicant", ex);
             }
         }
+    }
+    public String getThreadId() {
+        return threadId;
+    }
+
+    public void setThreadId(String threadId) {
+        this.threadId = threadId;
+    }
+
+    public String getGwSerialNumber() {
+        return gwSerialNumber;
     }
 }
