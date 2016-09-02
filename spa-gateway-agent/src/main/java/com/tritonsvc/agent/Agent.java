@@ -644,7 +644,7 @@ public class Agent {
         LOGGER.info("Using configured processor: " + commandProcessorClassname);
 
 		// Validate hardware id.
-        if (gwSerialNumber == null) {
+        if (threadId != null || gwSerialNumber == null) {
             gwSerialNumber = properties.getProperty(AgentConfiguration.GATEWAY_SERIALNUMBER);
         }
         if (threadId != null && gwSerialNumber != null) {
