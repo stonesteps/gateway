@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
@@ -77,10 +78,18 @@ public class SpaStateMessageHandler extends AbstractMessageHandler<Bwg.Uplink.Mo
         spaStateEntity.setCleanupCycle(spaState.hasController() && spaState.getController().hasCleanupCycle() ? spaState.getController().getCleanupCycle() : false);
         spaStateEntity.setErrorCode(spaState.hasController() && spaState.getController().hasErrorCode() ? spaState.getController().getErrorCode() : 0);
         spaStateEntity.setMessageSeverity(spaState.hasController() && spaState.getController().hasMessageSeverity() ? spaState.getController().getMessageSeverity() : null);
-        spaStateEntity.setUplinkTimestamp(new Date());
+
+        spaStateEntity.setOnline(true);
+        Date now = new Date();
+        spaStateEntity.setUplinkTimestamp(now);
         if (spaState.hasUpdateInterval()) {
             spaStateEntity.setUpdateIntervalSeconds(spaState.getUpdateInterval());
         }
+
+        long updateInterval = spaStateEntity.getUpdateIntervalSeconds() < 1 ? 60 : spaStateEntity.getUpdateIntervalSeconds();
+        updateInterval += 45; // give it time padding for transit&processing
+        Date staleTimestamp = new Date(System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(updateInterval));
+        spaStateEntity.setStaleTimestamp(staleTimestamp);
 
         if (spaState.hasWifiUpdateInterval()) {
             spaStateEntity.setWifiUpdateIntervalSeconds(spaState.getWifiUpdateInterval());
