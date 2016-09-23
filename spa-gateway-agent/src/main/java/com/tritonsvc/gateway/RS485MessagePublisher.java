@@ -313,7 +313,7 @@ public abstract class RS485MessagePublisher {
         if (pendingDownlinks.offer(request, 1, TimeUnit.MILLISECONDS)) {
             if (LOGGER.isDebugEnabled()) LOGGER.debug("put rs485 request, originator id {} in downlink queue, payload {}, queue size {}", request.getOriginatorId(), printHexBinary(request.getPayload()), pendingDownlinks.size());
         } else {
-            LOGGER.error("downlink queue was full, clearing it to try and recover");
+            LOGGER.error("rs485 spa request command queue was full, clearing to remove old commands.");
             drainPendingQueues();
             if (!pendingDownlinks.offer(request, 1, TimeUnit.MILLISECONDS)) {
                 throw new Exception("downlink queue is full");
