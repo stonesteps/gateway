@@ -1,6 +1,10 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
-import com.bwg.iot.model.*;
+import com.bwg.iot.model.Alert;
+import com.bwg.iot.model.FaultLog;
+import com.bwg.iot.model.FaultLogDescription;
+import com.bwg.iot.model.FaultLogSeverity;
+import com.bwg.iot.model.Spa;
 import com.tritonsvc.messageprocessor.mongo.repository.AlertRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.FaultLogDescriptionRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.FaultLogRepository;
@@ -12,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,8 +29,6 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
 
     private static final Logger log = LoggerFactory.getLogger(FaultLogsMessageHandler.class);
     private static final String ALERT_NAME_FAULT_LOG = "Fault Log";
-    private static final String ALERT_COMPONENT_CONTROLLER = "Controller";
-
     private final Map<String, FaultLogDescription> cache = new HashMap<>();
 
     @Autowired
@@ -110,6 +113,10 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
     }
 
     private void mapFaultLogToAlert(final Spa spa, final FaultLog faultLog) {
+        if (olderThanThreeDays(faultLog.getTimestamp())) {
+            log.info("Skipping alert creation - FaultLog entry is older than three days.");
+            return;
+        }
         final FaultLogDescription faultLogDescription = faultLog.getFaultLogDescription();
         final String severityLevel = getSeverityLevel(faultLog.getSeverity());
         if (severityLevel != null) {
@@ -119,7 +126,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             alert.setDealerId(faultLog.getDealerId());
             alert.setOemId(faultLog.getOemId());
             alert.setName(ALERT_NAME_FAULT_LOG);
-            alert.setComponent(ALERT_COMPONENT_CONTROLLER);
+            alert.setComponent(com.bwg.iot.model.Component.ComponentType.CONTROLLER.name());
             alert.setSeverityLevel(severityLevel);
             alert.setLongDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
             alert.setShortDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
@@ -130,18 +137,35 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                     spa.setAlerts(new ArrayList<>());
                 }
                 spa.getAlerts().add(alert);
+                updateSpaAlertState(spa, alert);
                 spaRepository.save(spa);
             }
         }
     }
 
+    /**
+     * Returns true if given date is older than 3 days.
+     * @param date
+     * @return
+     */
+    private boolean olderThanThreeDays(final Date date) {
+        final Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.DAY_OF_YEAR, -3);
+        final Date threeDaysAgo = cal.getTime();
+
+        return date.before(threeDaysAgo);
+    }
+
     private String getSeverityLevel(final FaultLogSeverity severity) {
         switch (severity) {
-            case ERROR:
             case FATAL:
-                return Alert.SeverityLevelEnum.red.name();
+                return Alert.SeverityLevelEnum.SEVERE.name();
+            case ERROR:
+                return Alert.SeverityLevelEnum.ERROR.name();
             case WARNING:
-                return Alert.SeverityLevelEnum.yellow.name();
+                return Alert.SeverityLevelEnum.WARNING.name();
+            case INFO:
+                return Alert.SeverityLevelEnum.INFO.name();
             default:
                 return null;
         }
