@@ -43,6 +43,8 @@ start() {
     if [ "x$PID" = "x" ]; then
         su $OWNER -c "nohup $JAVA_EXEC $PARAMS -jar $JAR_NAME 2>> $LOG_FILE >> $LOG_FILE &"
         echo "$SERVICE_NAME started ..."
+        PID=`pid_of_jvm`
+        echo "$PID" > "$BASEDIR/pid"
     else
         echo "$SERVICE_NAME is already running ..."
     fi
@@ -83,6 +85,7 @@ stop() {
     else
         echo "$SERVICE_NAME is not running ..."
     fi
+    rm -rf "$BASEDIR/pid" 2 > /dev/null
 }
 
 status() {
