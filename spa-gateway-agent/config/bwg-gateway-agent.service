@@ -6,8 +6,9 @@ Description=BWG gateway
 After=network.target
 
 [Service]
+PIDFile=/opt/spa/pid
 Type=forking
-ExecStart=/etc/init.d/bwg-gateway-agent start
+ExecStart=/opt/spa/bwg-gateway-agent start
 TimeoutStopSec=15
 
 [Install]
