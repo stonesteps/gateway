@@ -1,8 +1,7 @@
 package com.tritonsvc.agent;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.primitives.Ints;
-import com.tritonsvc.gateway.BWGProcessor;
+import com.tritonsvc.HostUtils;
 import com.tritonsvc.model.AgentSettings;
 import com.tritonsvc.model.Ethernet;
 import com.tritonsvc.model.GenericSettings;
@@ -63,16 +62,15 @@ public class AgentSettingsPersister {
     /**
      * load the agent's settings from files
      *
-     * @param file the file to store general non-network settings
-     * @param osType the type of os, used to find the correct network files
+     * @param file the file to store general non-network setting
      * @param ethDeviceName the name of the ethernet device in linux
      * @param wifiDeviceName name of wifi device
      * @return
      */
-    public AgentSettings load(final File file, String osType, String ethDeviceName, String wifiDeviceName) {
+    public AgentSettings load(final File file, String ethDeviceName, String wifiDeviceName) {
         final AgentSettings agentSettings = new AgentSettings();
         final Properties props = loadProperties(file);
-        fillAgentSettings(agentSettings, props, osType, ethDeviceName, wifiDeviceName);
+        fillAgentSettings(agentSettings, props, ethDeviceName, wifiDeviceName);
         return agentSettings;
     }
 
@@ -81,17 +79,16 @@ public class AgentSettingsPersister {
      *
      * @param file the file to store general non-network settings
      * @param agentSettings all the settings to save
-     * @param osType type of os, only used for network saves
      * @param ethDevice ethernet device name, only used for network saves
      * @param homePath where the agent is installed, only used for network saves
      * @param wifiDevice wifi device name, only used for network saves
      * @param networkSettings if updating network area of settings
      */
-    public void save(final File file, final AgentSettings agentSettings, String osType, String ethDevice, String homePath, String wifiDevice, NetworkSettings networkSettings) {
+    public void save(final File file, final AgentSettings agentSettings, String ethDevice, String homePath, String wifiDevice, NetworkSettings networkSettings) {
         if (agentSettings == null) return;
         try {
             if (networkSettings != null) {
-                FileBasedConfigurationBuilder<FileBasedConfiguration> builder  = getWifiSupplicant(osType, wifiDevice);
+                FileBasedConfigurationBuilder<FileBasedConfiguration> builder  = getWifiSupplicant(wifiDevice);
                 Configuration wifiProps = builder.getConfiguration();
                 // the wpa_supplicant.conf, needs to have the 'disabled' attribute in the 'network' component, or this
                 // won't persist the 'disabled' attribute inside the 'network' element correctly
@@ -111,7 +108,7 @@ public class AgentSettingsPersister {
                 builder.save();
 
                 if (networkSettings.getEthernet() != null) {
-                    if (osType.equals(BWGProcessor.TS_IMX6)) {
+                    if (getHostUtils().isSystemD()) {
                         saveSystemDEthernet(networkSettings.getEthernet(), ethDevice, homePath);
                     } else {
                         saveSysVEthernet(networkSettings.getEthernet(), ethDevice, homePath);
@@ -148,14 +145,14 @@ public class AgentSettingsPersister {
         return props;
     }
 
-    private void fillAgentSettings(final AgentSettings agentSettings, final Properties props, String osType, String ethDevice, String wifiDevice) {
+    private void fillAgentSettings(final AgentSettings agentSettings, final Properties props, String ethDevice, String wifiDevice) {
         final NetworkSettings networkSettings = new NetworkSettings();
         agentSettings.setNetworkSettings(networkSettings);
 
         final Map<String, String> propertiesMap = toMap(props);
 
         // only return Wifi if it's enabled, otherwise null
-        FileBasedConfigurationBuilder<FileBasedConfiguration> builder = getWifiSupplicant(osType, wifiDevice);
+        FileBasedConfigurationBuilder<FileBasedConfiguration> builder = getWifiSupplicant(wifiDevice);
         Configuration wifiProps;
         try {
             wifiProps = builder.getConfiguration();
@@ -179,7 +176,7 @@ public class AgentSettingsPersister {
         }
 
         // try to load ethernet whether it's plugged in or not
-        if (osType.equals(BWGProcessor.TS_IMX6)) {
+        if (getHostUtils().isSystemD()) {
             networkSettings.setEthernet(loadSystemDEthernet(ethDevice));
         } else {
             networkSettings.setEthernet(loadSysVEthernet(ethDevice));
@@ -440,9 +437,9 @@ public class AgentSettingsPersister {
     }
 
     @VisibleForTesting
-    FileBasedConfigurationBuilder<FileBasedConfiguration> getWifiSupplicant(String osType, String wifiDevice){
+    FileBasedConfigurationBuilder<FileBasedConfiguration> getWifiSupplicant(String wifiDevice){
         File file;
-        if (osType.equals(BWGProcessor.TS_IMX6)) {
+        if (getHostUtils().isSystemD()) {
             file = getSystemFile("/etc/wpa_supplicant/wpa_supplicant-" + wifiDevice + ".conf");
         } else {
             file = getSystemFile("/etc/wpa_supplicant/wpa_supplicant.conf");
@@ -462,5 +459,10 @@ public class AgentSettingsPersister {
     @VisibleForTesting
     Process executeUnixCommand(String command) throws IOException {
         return Runtime.getRuntime().exec(command);
+    }
+
+    @VisibleForTesting
+    HostUtils getHostUtils() {
+        return HostUtils.instance();
     }
 }

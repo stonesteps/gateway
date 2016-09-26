@@ -13,15 +13,40 @@ import java.util.concurrent.TimeUnit;
  */
 public final class HostUtils {
 
+    public static final String TS_IMX6 = "ts-imx6";
+    public static final String BEAGLEBONE = "beaglebone";
+    public static final String BWG = "linux iotgw";
     private static final Logger LOGGER = LoggerFactory.getLogger(HostUtils.class);
-    private static final String uname = unameCmd();
+    private static HostUtils hostUtils;
+    private final String uname;
+    private final boolean isSystemD;
+    private final String osType;
 
     private HostUtils() {
-        // utility class
+        uname = unameCmd().toLowerCase();
+        isSystemD = (uname.contains(TS_IMX6) || uname.contains(BEAGLEBONE));
+        if (uname.contains(HostUtils.TS_IMX6)) {
+            osType = HostUtils.TS_IMX6;
+        } else if (uname.contains(HostUtils.BEAGLEBONE)) {
+            osType = HostUtils.BEAGLEBONE;
+        } else {
+            osType = BWG;
+        }
     }
 
-    public static String uname() {
-        return uname;
+    public boolean isSystemD() {
+        return isSystemD;
+    }
+
+    public String getOsType() {
+        return osType;
+    }
+
+    public static HostUtils instance() {
+        if (hostUtils == null) {
+            hostUtils = new HostUtils();
+        }
+        return hostUtils;
     }
 
     private static String unameCmd() {
