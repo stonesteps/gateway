@@ -3,6 +3,7 @@ package com.tritonsvc.gateway;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.primitives.Ints;
+import com.tritonsvc.HostUtils;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Components.BlowerComponent;
@@ -228,7 +229,7 @@ public abstract class RS485DataHarvester implements Runnable {
             rs485RegisrationAddress = rs485PreferredStaticAddress;
         }
 
-        if ( Objects.equals(processor.getOsType(), BWGProcessor.TS_IMX6)) {
+        if ( Objects.equals(getHostUtils().getOsType(), HostUtils.TS_IMX6)) {
             try {
                 LOGGER.info("performing TS-7970 rs485 RX reset fix");
                 executeUnixCommand("echo test > /dev/" + processor.getSerialPort()).waitFor(10, TimeUnit.SECONDS);
@@ -826,4 +827,10 @@ public abstract class RS485DataHarvester implements Runnable {
     Process executeUnixCommand(String command) throws IOException {
         return Runtime.getRuntime().exec(command);
     }
+
+    @VisibleForTesting
+    HostUtils getHostUtils() {
+        return HostUtils.instance();
+    }
+
   }

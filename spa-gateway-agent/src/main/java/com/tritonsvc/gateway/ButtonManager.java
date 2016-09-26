@@ -1,6 +1,7 @@
 package com.tritonsvc.gateway;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.tritonsvc.HostUtils;
 import com.tritonsvc.httpd.WebServer;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.EventType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Event;
@@ -28,7 +29,6 @@ import static org.apache.commons.io.FileUtils.forceDelete;
 public class ButtonManager {
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
-    private String systemType = null;
     private WebServer webServer;
     private ButtonState buttonState;
     private long webServerTimeoutMs;
@@ -51,7 +51,6 @@ public class ButtonManager {
         this.webServer = webServer;
         buttonState = ButtonState.NOT_PRESSED;
         this.webServerTimeoutMs = webServerTimeoutMs;
-        systemType = processor.getOsType();
         this.processor = processor;
         events = new ConcurrentLinkedQueue<>();
         this.ifConfigPath = ifConfigPath;
@@ -179,7 +178,7 @@ public class ButtonManager {
         addPendingEvent(event);
 
         stopAPProcessIfPresent();
-        if (systemType.equals(BWGProcessor.TS_IMX6)) {
+        if (getHostUtils().isSystemD()) {
             executeUnixCommand("sudo systemctl stop wpa_supplicant@" + processor.getWifiDeviceName()).waitFor(10, TimeUnit.SECONDS);
         } else {
             //TODO - check renesas linux, make sure inti.d/wpa_supplicant exists
@@ -203,7 +202,7 @@ public class ButtonManager {
         stopAPProcessIfPresent();
         startedAP = false;
         try {
-            if (systemType.equals(BWGProcessor.TS_IMX6)) {
+            if (getHostUtils().isSystemD()) {
                 executeUnixCommand("sudo systemctl restart wpa_supplicant@" + processor.getWifiDeviceName()).waitFor(10, TimeUnit.SECONDS);
             } else {
                 //TODO - check renesas linux, make sure inti.d/wpa_supplicant exists
@@ -216,7 +215,7 @@ public class ButtonManager {
 
         if (restartNetwork) {
             try {
-                if (systemType.equals(BWGProcessor.TS_IMX6)) {
+                if (getHostUtils().isSystemD()) {
                     executeUnixCommand("sudo " + ifConfigPath + " " + processor.getEthernetDeviceName() + " down").waitFor(10, TimeUnit.SECONDS);
                     executeUnixCommand("sudo ip addr flush dev " + processor.getEthernetDeviceName()).waitFor(10, TimeUnit.SECONDS);
                     executeUnixCommand("sudo systemctl restart systemd-networkd").waitFor(10, TimeUnit.SECONDS);
@@ -242,7 +241,7 @@ public class ButtonManager {
 
     private boolean checkButtonState() {
         try {
-            if (systemType.equals(BWGProcessor.TS_IMX6)) {
+            if (getHostUtils().getOsType().equals(HostUtils.TS_IMX6)) {
                 Process proc = executeUnixCommand("sudo tshwctl --addr 31 --peek");
                 proc.waitFor(2, TimeUnit.SECONDS);
                 String line;
@@ -253,6 +252,8 @@ public class ButtonManager {
                         }
                     }
                 }
+            } else if (getHostUtils().getOsType().equals(HostUtils.BEAGLEBONE)){
+                //TODO, do the real Beaglebone button check in linux
             } else {
                 //TODO, do the real Renesas button check in linux sysfs /sys/class/gpio
             }
@@ -273,5 +274,10 @@ public class ButtonManager {
                         .setFile(new File("/etc/hostapd.conf"))
                         .setThrowExceptionOnMissing(true)
                         .setIncludesAllowed(false));
+    }
+
+    @VisibleForTesting
+    HostUtils getHostUtils() {
+        return HostUtils.instance();
     }
 }
