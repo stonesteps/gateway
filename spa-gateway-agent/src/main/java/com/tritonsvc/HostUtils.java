@@ -11,12 +11,12 @@ import java.util.concurrent.TimeUnit;
 /**
  * Helps with os command execution.
  */
-public final class CommandUtil {
+public final class HostUtils {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(CommandUtil.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(HostUtils.class);
     private static final String uname = unameCmd();
 
-    private CommandUtil() {
+    private HostUtils() {
         // utility class
     }
 
