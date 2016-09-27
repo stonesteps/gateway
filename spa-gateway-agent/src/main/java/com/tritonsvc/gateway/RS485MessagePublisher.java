@@ -1,6 +1,7 @@
 package com.tritonsvc.gateway;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.tritonsvc.HostUtils;
 import com.tritonsvc.spa.communication.proto.Bwg.AckResponseCode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.TempRange;
@@ -131,6 +132,7 @@ public abstract class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
+            pauseForBus();
             processor.getRS485UART().write(bb);
             if (LOGGER.isDebugEnabled()) LOGGER.debug("sent device query response {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
@@ -160,6 +162,7 @@ public abstract class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
+            pauseForBus();
             processor.getRS485UART().write(bb);
             if (LOGGER.isDebugEnabled()) LOGGER.debug("sent unassigned device response {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
@@ -186,6 +189,7 @@ public abstract class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
+            pauseForBus();
             processor.getRS485UART().write(bb);
             if (LOGGER.isDebugEnabled()) LOGGER.debug("sent address assignment response for newly acquired address {} {}", address, printHexBinary(bb.array()));
         } catch (Throwable ex) {
@@ -221,6 +225,7 @@ public abstract class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
+            pauseForBus();
             processor.getRS485UART().write(bb);
             if (LOGGER.isDebugEnabled()) LOGGER.debug("sent wifi mac response {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
@@ -252,6 +257,7 @@ public abstract class RS485MessagePublisher {
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);
 
+            pauseForBus();
             processor.getRS485UART().write(bb);
             if (LOGGER.isDebugEnabled()) LOGGER.debug("sent wifi poll response {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
@@ -272,6 +278,7 @@ public abstract class RS485MessagePublisher {
             if (requestMessage != null) {
                 ByteBuffer bb = ByteBuffer.wrap(requestMessage.getPayload());
                 try {
+                    pauseForBus();
                     processor.getRS485UART().write(bb);
                     if (requestMessage.getHardwareId() != null) {
                         // if hardwareid is not present, this was a message initiated by the agent not the cloud, don't send an ack up to cloud in this case
@@ -345,4 +352,18 @@ public abstract class RS485MessagePublisher {
         }
     }
 
+    protected void pauseForBus() throws InterruptedException {
+        // rs485 spec from BWG specified that at a minimum, clients shouldn't submit to the bus after
+        // recieving a prompt to do so for at least 250 msecs, to give the spa controller time to release
+        // from bus
+
+        if (getHostUtils().isFastProcessor()) {
+            Thread.sleep(0, 250000);
+        }
+    }
+
+    @VisibleForTesting
+    HostUtils getHostUtils() {
+        return HostUtils.instance();
+    }
 }

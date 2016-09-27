@@ -21,22 +21,28 @@ public final class HostUtils {
     private final String uname;
     private final boolean isSystemD;
     private final String osType;
+    private final boolean isFast;
 
     private HostUtils() {
         uname = unameCmd().toLowerCase();
         isSystemD = (uname.contains(TS_IMX6) || uname.contains(BEAGLEBONE));
         if (uname.contains(HostUtils.TS_IMX6)) {
             osType = HostUtils.TS_IMX6;
+            isFast = true;
         } else if (uname.contains(HostUtils.BEAGLEBONE)) {
             osType = HostUtils.BEAGLEBONE;
+            isFast = true;
         } else {
             osType = BWG;
+            isFast = false;
         }
     }
 
     public boolean isSystemD() {
         return isSystemD;
     }
+
+    public boolean isFastProcessor() { return isFast; }
 
     public String getOsType() {
         return osType;
