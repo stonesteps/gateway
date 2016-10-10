@@ -249,7 +249,7 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
     }
 
     @Override
-    public void updateSpaTime(String originatorId, String hardwareId, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception {
+    public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception {
         try {
             ByteBuffer bb = ByteBuffer.allocate(8);
             bb.put(DELIMITER_BYTE); // start flag
@@ -257,7 +257,8 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
             bb.put((byte) 0x21); // the set target time packet type
-            bb.put((byte) hour.intValue());
+            // wasn't optional, have to explicitly set the display time whenever changing the time values
+            bb.put((byte) (((currentTimeMilitaryDisplay ? 1 : 0) << 7) | (0x7F & hour.intValue())));
             bb.put((byte) minute.intValue());
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag

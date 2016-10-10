@@ -203,7 +203,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
     }
 
     @Override
-    public void updateSpaTime(String originatorId, String hardwareId, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception {
+    public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception {
         try {
             int yearVal = year < 2000 ? 0 : 2000 - year;
 
@@ -212,6 +212,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
             bb.put((byte) 0x0A);
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            //TODO, set 12/24 bits to 0 since we don't want to change the display format and only enable Set Time or Set Date bits dependent on data passed in
             bb.put((byte) (0xF0 & ((byte) day.intValue()))); // flags + month
             bb.put((byte) day.intValue()); // day
             bb.put((byte) yearVal); // year

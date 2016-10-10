@@ -114,6 +114,7 @@ public abstract class RS485MessagePublisher {
      *
      * @param originatorId
      * @param hardwareId
+     * @param currentTimeMilitaryDisplay
      * @param address
      * @param year         in format xxxx
      * @param month        values 0-11
@@ -122,7 +123,7 @@ public abstract class RS485MessagePublisher {
      * @param minute       values 0-59
      * @param second       values 0-59
      */
-    public abstract void updateSpaTime(String originatorId, String hardwareId, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception;
+    public abstract void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception;
 
     /**
      * send the response message for a device query message

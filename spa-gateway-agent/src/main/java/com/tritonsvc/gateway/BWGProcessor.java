@@ -114,6 +114,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private SoftwareUpgradeManager softwareUpgradeManager;
     private boolean skipSoftwareUpgrade = false;
     private String serialPort;
+    private boolean militaryTimeDisplay;
 
     /**
      * Constructor
@@ -364,6 +365,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             boolean rs485Active;
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
+            if (getRS485DataHarvester().getLatestSpaInfo().hasController() && getRS485DataHarvester().getLatestSpaInfo().getController().hasMilitary()) {
+                militaryTimeDisplay = getRS485DataHarvester().getLatestSpaInfo().getController().getMilitary();
+            }
             if (!getRS485DataHarvester().hasAllConfigState() &&
                     (timestamp - lastPanelRequestSent > MAX_PANEL_REQUEST_INTERIM)) {
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
@@ -708,7 +712,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         final Integer hour = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_HOUR.name(), metadataList));
         final Integer minute = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_MINUTE.name(), metadataList));
         final Integer second = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_SECOND.name(), metadataList));
-        getRS485MessagePublisher().updateSpaTime(originatorId, hardwareId, address, year, month, day, hour, minute, second);
+        getRS485MessagePublisher().updateSpaTime(originatorId, hardwareId, militaryTimeDisplay, address, year, month, day, hour, minute, second);
     }
 
     private void updateAgentSettings(final List<RequestMetadata> metadataList) {
