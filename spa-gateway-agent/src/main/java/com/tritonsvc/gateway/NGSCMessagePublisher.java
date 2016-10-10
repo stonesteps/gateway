@@ -264,7 +264,7 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
             addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
         }
         catch (Throwable ex) {
-            LOGGER.info("rs485 set temp got exception " + ex.getMessage());
+            LOGGER.info("rs485 set time got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
     }
