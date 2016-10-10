@@ -247,4 +247,25 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
     private boolean withinRange(int tempFahr, int low, int high) {
         return tempFahr >= low && tempFahr <= high;
     }
+
+    @Override
+    public void updateSpaTime(String originatorId, String hardwareId, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception {
+        try {
+            ByteBuffer bb = ByteBuffer.allocate(8);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte) 0x07);
+            bb.put(address); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte) 0x21); // the set target time packet type
+            bb.put((byte) hour.intValue());
+            bb.put((byte) minute.intValue());
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
+        }
+        catch (Throwable ex) {
+            LOGGER.info("rs485 set temp got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
 }

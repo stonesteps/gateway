@@ -61,7 +61,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
 
         if (code >= JacuzziCommandCode.kLight1MetaButton.getCode() &&
                 code <= JacuzziCommandCode.kLight4MetaButton.getCode()) {
-            sendLightCommand( address,  originatorId, hardwareId, code);
+            sendLightCommand(address, originatorId, hardwareId, code);
             return;
         }
 
@@ -76,8 +76,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
             addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
-        }
-        catch (Throwable ex) {
+        } catch (Throwable ex) {
             LOGGER.info("rs485 send button code got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
@@ -141,7 +140,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
         }
     }
 
-    private void sendLightCommand(byte address, String originatorId, String hardwareId, int code) throws RS485Exception{
+    private void sendLightCommand(byte address, String originatorId, String hardwareId, int code) throws RS485Exception {
         try {
             LightComponent.State state = null;
             int intensity = 25;
@@ -199,6 +198,30 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
             LOGGER.info("sent light request {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
             LOGGER.info("rs485 sending light request got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+    @Override
+    public void updateSpaTime(String originatorId, String hardwareId, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception {
+        try {
+            int yearVal = year < 2000 ? 0 : 2000 - year;
+
+            ByteBuffer bb = ByteBuffer.allocate(10);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte) 0x0A);
+            bb.put(address); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte) (0xF0 & ((byte) day.intValue()))); // flags + month
+            bb.put((byte) day.intValue()); // day
+            bb.put((byte) yearVal); // year
+            bb.put((byte) hour.intValue()); // hour
+            bb.put((byte) minute.intValue()); // minute
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
+        } catch (Throwable ex) {
+            LOGGER.info("rs485 set temp got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
     }

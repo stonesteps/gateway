@@ -279,6 +279,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         try {
             if (request.getRequestType().equals(RequestType.HEATER)) {
                 updateHeater(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, getRS485DataHarvester().usesCelsius());
+            } else if (request.getRequestType().equals(RequestType.SET_TIME)) {
+                setTime(request.getMetadataList(), originatorId, hardwareId, getRS485DataHarvester().getRegisteredAddress());
             } else if (request.getRequestType().equals(RequestType.UPDATE_AGENT_SETTINGS)) {
                 updateAgentSettings(request.getMetadataList());
             } else {
@@ -697,6 +699,16 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         } else {
             throw new RS485Exception("Update heater command did not have required metadata param: " + SpaCommandAttribName.DESIREDTEMP.name());
         }
+    }
+
+    private void setTime(final List<RequestMetadata> metadataList, String originatorId, String hardwareId, final byte address) throws Exception {
+        final Integer year = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_YEAR.name(), metadataList));
+        final Integer month = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_MONTH.name(), metadataList));
+        final Integer day = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_DAY.name(), metadataList));
+        final Integer hour = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_HOUR.name(), metadataList));
+        final Integer minute = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_MINUTE.name(), metadataList));
+        final Integer second = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_SECOND.name(), metadataList));
+        getRS485MessagePublisher().updateSpaTime(originatorId, hardwareId, address, year, month, day, hour, minute, second);
     }
 
     private void updateAgentSettings(final List<RequestMetadata> metadataList) {

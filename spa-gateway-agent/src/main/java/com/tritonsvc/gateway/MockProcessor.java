@@ -63,6 +63,9 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     private Integer wifiState;
 
+    private long lastSetTime;
+    private long lastSetTimeValue;
+
     /**
      * Constructor
      *
@@ -230,8 +233,10 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         sendEvents(hardwareId, newArrayList(event));
 
         try {
-            if (request.getRequestType().equals(Bwg.Downlink.Model.RequestType.HEATER)) {
+            if (request.getRequestType().equals(RequestType.HEATER)) {
                 updateHeater(request.getMetadataList(), originatorId, hardwareId);
+            } else if (request.getRequestType().equals(RequestType.SET_TIME)) {
+                setTime(request.getMetadataList());
             } else {
                 switch (request.getRequestType()) {
                     case PUMP:
@@ -286,6 +291,50 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             spaStateHolder.updateHeater((int) temp);
             sendAck(hardwareId, originatorId, Bwg.AckResponseCode.OK, null);
         }
+    }
+
+    private void setTime(List<Bwg.Downlink.Model.RequestMetadata> metadataList) {
+        lastSetTime = System.currentTimeMillis();
+
+        int hour = getInt(metadataList, SpaCommandAttribName.TIME_HOUR.name());
+        int minute = getInt(metadataList, SpaCommandAttribName.TIME_HOUR.name());
+        int second = getInt(metadataList, SpaCommandAttribName.TIME_HOUR.name());
+
+        int day = getInt(metadataList, SpaCommandAttribName.DATE_DAY.name());
+        int month = getInt(metadataList, SpaCommandAttribName.DATE_MONTH.name());
+        int year = getInt(metadataList, SpaCommandAttribName.DATE_YEAR.name());
+
+        lastSetTimeValue = buildDateAndTime(year, month, day, hour, minute, second);
+    }
+
+    private int getInt(List<RequestMetadata> metadata, String name) {
+        final String value = BwgHelper.getRequestMetadataValue(name, metadata);
+        if (value != null) {
+            try {
+                return Integer.parseInt(value);
+            } catch (final NumberFormatException e) {
+                // ignore
+            }
+        }
+
+        // return 0 by default or on error
+        return 0;
+    }
+
+    private long buildDateAndTime(int year, int month, int day, int hour, int minute, int second) {
+        final Calendar c = Calendar.getInstance();
+
+        if (year > 0) {
+            c.set(Calendar.YEAR, year);
+            c.set(Calendar.MONTH, month);
+            c.set(Calendar.DAY_OF_MONTH, day);
+        }
+
+        c.set(Calendar.HOUR_OF_DAY, hour);
+        c.set(Calendar.MINUTE, minute);
+        c.set(Calendar.SECOND, second);
+
+        return c.getTimeInMillis();
     }
 
     private void updatePeripherlal(List<Bwg.Downlink.Model.RequestMetadata> metadataList, String originatorId, String hardwareId, Bwg.Uplink.Model.Constants.ComponentType componentType) {
