@@ -364,12 +364,12 @@ public abstract class MQTTCommandProcessor implements AgentMessageProcessor, Net
 
     protected synchronized void loadAgentSettings(String ethernetDevice, String wifiDevice) {
         final File networkSettingFile = new File(dataPath, AGENT_SETTINGS_PROPERTIES_FILENAME);
-        this.agentSettings = persister.load(networkSettingFile, getOsType(), ethernetDevice, wifiDevice);
+        this.agentSettings = persister.load(networkSettingFile, ethernetDevice, wifiDevice);
     }
 
     protected synchronized void saveAgentSettings(NetworkSettings networkSettings) {
         final File networkSettingFile = new File(dataPath, AGENT_SETTINGS_PROPERTIES_FILENAME);
-        persister.save(networkSettingFile, this.agentSettings, getOsType(), getEthernetDeviceName(), homePath, getWifiDeviceName(), networkSettings);
+        persister.save(networkSettingFile, this.agentSettings, getEthernetDeviceName(), homePath, getWifiDeviceName(), networkSettings);
         loadAgentSettings(getEthernetDeviceName(), getWifiDeviceName());
     }
 

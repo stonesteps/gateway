@@ -1,6 +1,7 @@
 package com.tritonsvc.sw_upgrade;
 
-import com.tritonsvc.CommandUtil;
+import com.google.common.annotations.VisibleForTesting;
+import com.tritonsvc.HostUtils;
 import com.tritonsvc.gateway.BWGProcessor;
 import com.tritonsvc.httpd.util.SSLUtil;
 import com.tritonsvc.spa.communication.proto.Bwg;
@@ -18,7 +19,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.util.Arrays;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,7 +40,7 @@ public final class SoftwareUpgradeManager {
     private String softwareUpgradePackageFolder = "./upgrade";
     private String softwareUpgradePackageFilename = "upgradePackage.tar.gz";
     private String softwareUpgradeCommand = "service bwg-gateway-agent restart";
-    private String softwareUpgradeCommandYocto = "sudo systemctl restart bwg-gateway-agent.service";
+    private String softwareUpgradeCommandSystemd = "sudo systemctl restart bwg-gateway-agent.service";
     private String softwareUpgradeTempFile = ".upgr_last_version";
     private String softwareUpgradeMarkerFile = ".upgr_marker";
     private ExecutorService es = Executors.newSingleThreadExecutor();
@@ -72,7 +72,7 @@ public final class SoftwareUpgradeManager {
 
         final String softwareUpgradeCommandYocto = properties.getProperty("softwareUpgrade.commandYocto");
         if (softwareUpgradeCommandYocto != null) {
-            this.softwareUpgradeCommandYocto = softwareUpgradeCommandYocto;
+            this.softwareUpgradeCommandSystemd = softwareUpgradeCommandYocto;
         }
 
         final String softwareUpgradeTempFile = properties.getProperty("softwareUpgrade.tempFile");
@@ -124,7 +124,7 @@ public final class SoftwareUpgradeManager {
                     connection = (HttpURLConnection) url.openConnection();
                     connection.connect();
                 } catch (Exception ex) {
-                    LOGGER.info("skip sw upgrade, url {} was not reachable", fullUpgradeUrl);
+                    LOGGER.info("skip sw upgrade, url {} was not reachable", fullUpgradeUrl, ex);
                     connection = null;
                 }
 
@@ -226,11 +226,10 @@ public final class SoftwareUpgradeManager {
     }
 
     private void initiateSoftwareUpgradeProcedure() {
-        final String uname = CommandUtil.uname();
         final String upgradeCommand;
         writeUpgradeMarkerFile();
-        if (StringUtils.isNotBlank(uname) && uname.toLowerCase().contains("ts-imx6")) {
-            upgradeCommand = softwareUpgradeCommandYocto;
+        if (getHostUtils().isSystemD()) {
+            upgradeCommand = softwareUpgradeCommandSystemd;
         } else {
             upgradeCommand = softwareUpgradeCommand;
         }
@@ -241,5 +240,10 @@ public final class SoftwareUpgradeManager {
         } catch (final IOException e) {
             LOGGER.error("Error while initiating software upgrade procedure");
         }
+    }
+
+    @VisibleForTesting
+    HostUtils getHostUtils() {
+        return HostUtils.instance();
     }
 }

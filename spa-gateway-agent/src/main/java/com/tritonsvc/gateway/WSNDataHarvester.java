@@ -1,7 +1,9 @@
 package com.tritonsvc.gateway;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
+import com.tritonsvc.HostUtils;
 import com.tritonsvc.gateway.wsn.WsnData;
 import com.tritonsvc.spa.communication.proto.Bwg.Metadata;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurement;
@@ -47,15 +49,15 @@ public class WSNDataHarvester implements Runnable {
     @Override
     public void run() {
 
-        if (!Objects.equals(processor.getOsType(), BWGProcessor.TS_IMX6)) {
-            //TODO - remove this when BLE is implemented on Renesas/RedPine and actually
+        if (!Objects.equals(getHostUtils().getOsType(), HostUtils.TS_IMX6)) {
+            //TODO - remove this when BLE is implemented on Renesas/RedPine/BeagleBone and actually
             //       dumping data from BLE network into zeroMQ socket on board
-            //       skipping running wsn harvest thread on Renesas/RedPine for now since no BLE support yet
+            //       skipping running wsn harvest thread on Renesas/RedPine/BeagleBone for now since no BLE support implemented yet
             return;
         }
 
         TS7970WiredCurrentSensor ts7970wiredCurrentSensor = null;
-        if ( Objects.equals(processor.getOsType(), BWGProcessor.TS_IMX6)) {
+        if ( Objects.equals(getHostUtils().getOsType(), HostUtils.TS_IMX6)) {
             ts7970wiredCurrentSensor = new TS7970WiredCurrentSensor(processor.getConfigProps());
         }
 
@@ -212,5 +214,10 @@ public class WSNDataHarvester implements Runnable {
         } else {
             return null;
         }
+    }
+
+    @VisibleForTesting
+    HostUtils getHostUtils() {
+        return HostUtils.instance();
     }
 }

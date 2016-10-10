@@ -63,9 +63,9 @@ public class SettingsPersisterTest {
         genericSettings.setUpdateInterval(12);
 
         final File agentSettingsFile = folder.newFile("agentSettings.properties");
-        persister.save(agentSettingsFile, agentSettings, "standard", "eth0", folder.getRoot().getAbsolutePath(), "wlan0", networkSettings);
+        persister.save(agentSettingsFile, agentSettings, "eth0", folder.getRoot().getAbsolutePath(), "wlan0", networkSettings);
 
-        final AgentSettings loaded = persister.load(agentSettingsFile, "standard","eth0","wlan0");
+        final AgentSettings loaded = persister.load(agentSettingsFile,"eth0","wlan0");
 
         Assert.assertEquals(agentSettings.getNetworkSettings().getWifi().getSsid(), loaded.getNetworkSettings().getWifi().getSsid());
 
@@ -86,16 +86,16 @@ public class SettingsPersisterTest {
         genericSettings.setUpdateInterval(12);
 
         final File agentSettingsFile = folder.newFile("agentSettings.properties");
-        persister.save(agentSettingsFile, agentSettings, null, null, null, null, null);
+        persister.save(agentSettingsFile, agentSettings, null, null, null, null);
 
-        final AgentSettings loaded = persister.load(agentSettingsFile, "standard", "eth0", "wlan0");
+        final AgentSettings loaded = persister.load(agentSettingsFile, "eth0", "wlan0");
         Assert.assertNotNull(loaded.getGenericSettings().getUpdateInterval());
         Assert.assertEquals(agentSettings.getGenericSettings().getUpdateInterval(), loaded.getGenericSettings().getUpdateInterval());
 
         loaded.getGenericSettings().setUpdateInterval(null);
-        persister.save(agentSettingsFile, loaded, null, null, null, null, null);
+        persister.save(agentSettingsFile, loaded, null, null, null, null);
 
-        final AgentSettings reloaded = persister.load(agentSettingsFile, "standard", "eth0", "wlan0");
+        final AgentSettings reloaded = persister.load(agentSettingsFile, "eth0", "wlan0");
         Assert.assertNull(reloaded.getGenericSettings().getUpdateInterval());
     }
 }

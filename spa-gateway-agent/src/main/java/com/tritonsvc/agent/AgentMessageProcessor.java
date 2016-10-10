@@ -66,12 +66,6 @@ public interface AgentMessageProcessor {
     void setPKI(X509Certificate publicCert, PrivateKey privateKey);
 
     /**
-     * get the host os
-     * @return
-     */
-    String getOsType();
-
-    /**
      * get the linux eth device name
      * @return
      */

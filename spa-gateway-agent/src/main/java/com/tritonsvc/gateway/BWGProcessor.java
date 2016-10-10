@@ -10,6 +10,7 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+import com.tritonsvc.HostUtils;
 import com.tritonsvc.agent.Agent;
 import com.tritonsvc.agent.AgentConfiguration;
 import com.tritonsvc.agent.AgentSettingsPersister;
@@ -71,7 +72,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private static final long DEFAULT_WIFIUPDATE_INTERVAL = 3600000; // 1 hour
     private static final long DEFAULT_AMBIENT_INTERVAL = 300000; // 5 mins
     private static final long DEFAULT_PUMP_CURRENT_INTERVAL = 300000; // 5 mins
-    public static final String TS_IMX6 = "ts-imx6";
 
     private static Logger LOGGER = LoggerFactory.getLogger(BWGProcessor.class);
     private static Map<String, String> DEFAULT_EMPTY_MAP = newHashMap();
@@ -320,25 +320,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             sendAck(hardwareId, originatorId, AckResponseCode.ERROR, ex.getMessage());
             return;
         }
-    }
-
-    @Override
-    public String getOsType() {
-        try {
-            Process proc = executeUnixCommand("uname -a");
-            proc.waitFor(2, TimeUnit.SECONDS);
-            String line;
-            try (BufferedReader iwconfigInput = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-                while ((line = iwconfigInput.readLine()) != null) {
-                    if (line.toLowerCase().contains(TS_IMX6)) {
-                        return TS_IMX6;
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            LOGGER.error("problem getting os type", ex);
-        }
-        return "standard";
     }
 
     @Override

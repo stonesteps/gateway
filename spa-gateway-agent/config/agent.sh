@@ -28,10 +28,10 @@ OWNER="$(ls -ld $BASEDIR/$JAR_NAME | awk '{print $3}')"
 JAVA_EXEC=java
 
 [ -d "$LOGS" ] || su $OWNER -c "mkdir $LOGS"
-[ -d "$BASEDIR/java" ] && JAVA_EXEC="./java/bin/java"
+[ -d "$BASEDIR/java" ] && JAVA_EXEC="$BASEDIR/java/bin/java"
 
 SERVICE_NAME="BWG Agent"
-PARAMS="-Djava.library.path=./lib -Djava.security.policy=./dio.policy"
+PARAMS="-Djava.library.path=$BASEDIR/lib -Djava.security.policy=$BASEDIR/dio.policy"
 
 pid_of_jvm() {
     ps -eo pid,args | grep "[j]ava.*$JAR_NAME" | awk '{print $1}'
@@ -43,6 +43,8 @@ start() {
     if [ "x$PID" = "x" ]; then
         su $OWNER -c "nohup $JAVA_EXEC $PARAMS -jar $JAR_NAME 2>> $LOG_FILE >> $LOG_FILE &"
         echo "$SERVICE_NAME started ..."
+        PID=`pid_of_jvm`
+        echo "$PID" > "$BASEDIR/pid"
     else
         echo "$SERVICE_NAME is already running ..."
     fi
@@ -83,6 +85,7 @@ stop() {
     else
         echo "$SERVICE_NAME is not running ..."
     fi
+    rm -rf "$BASEDIR/pid" 2 > /dev/null
 }
 
 status() {
