@@ -722,7 +722,4 @@ public class Agent {
         this.threadId = threadId;
     }
 
-    public String getGwSerialNumber() {
-        return gwSerialNumber;
-    }
 }
