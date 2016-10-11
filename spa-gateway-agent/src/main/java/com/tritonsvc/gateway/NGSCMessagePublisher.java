@@ -247,4 +247,40 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
     private boolean withinRange(int tempFahr, int low, int high) {
         return tempFahr >= low && tempFahr <= high;
     }
+
+    @Override
+    public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute) throws RS485Exception {
+        try {
+
+            int hourVal =0;
+            int minVal = 0;
+
+            if (hour != null && minute != null) {
+                hourVal = hour.intValue();
+                minVal = minute.intValue();
+            } else {
+                throw new RS485Exception("hour and minute are required to set spa time");
+            }
+
+            ByteBuffer bb = ByteBuffer.allocate(9);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte) 0x07); //length between the flags
+            bb.put(address); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte) 0x21); // the set target time packet type
+            // wasn't optional, have to explicitly set the display time whenever changing the time values
+            bb.put((byte) (((currentTimeMilitaryDisplay ? 1 : 0) << 7) | (0x7F & hour.intValue())));
+            bb.put((byte) minute.intValue());
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            bb.position(0);
+
+            LOGGER.info("sent time request {}", printHexBinary(bb.array()));
+            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
+        }
+        catch (Throwable ex) {
+            LOGGER.info("rs485 set time got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
 }

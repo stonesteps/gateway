@@ -131,6 +131,7 @@ public class JacuzziDataHarvester extends RS485DataHarvester {
                 .setDemoMode((0x08 & message[17]) > 0)
                 .setSettingsLock((0x04 & message[19]) > 0)
                 .setTimeNotSet((0x04 & message[17]) > 0)
+                .setMilitary((0x02 & message[17]) > 0)
                 .setSpaOverheatDisabled((0x80 & message[16]) > 0)
                 .setHeaterMode(HeaterMode.valueOf((0x30 & message[9]) >> 4) == null ? HeaterMode.REST : HeaterMode.valueOf((0x30 & message[9]) >> 4))
                 .setBluetoothStatus(btStatus)

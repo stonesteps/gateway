@@ -231,8 +231,10 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         sendEvents(hardwareId, newArrayList(event));
 
         try {
-            if (request.getRequestType().equals(Bwg.Downlink.Model.RequestType.HEATER)) {
+            if (request.getRequestType().equals(RequestType.HEATER)) {
                 updateHeater(request.getMetadataList(), originatorId, hardwareId);
+            } else if (request.getRequestType().equals(RequestType.SET_TIME)) {
+                spaStateHolder.setTime(request.getMetadataList());
             } else {
                 switch (request.getRequestType()) {
                     case PUMP:

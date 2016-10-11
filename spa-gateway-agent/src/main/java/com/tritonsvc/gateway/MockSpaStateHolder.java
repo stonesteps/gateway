@@ -5,12 +5,11 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.Bluetoot
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.ComponentType;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.HeaterMode;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Constants.WifiConnectionHealth;
+import com.tritonsvc.spa.communication.proto.BwgHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -36,6 +35,9 @@ public class MockSpaStateHolder {
     private Integer wifiState;
     private boolean ethernetPluggedIn;
     private boolean rs485AddressActive;
+
+    private long lastSetTime;
+    private long lastSetTimeValue;
 
     public MockSpaStateHolder() {
         this(1, 1, 4, 3, 8, 1, 2, 4, 1);
@@ -160,6 +162,60 @@ public class MockSpaStateHolder {
                     break;
             }
         }
+    }
+
+    public Calendar getTime() {
+        final Calendar c = Calendar.getInstance();
+        if (lastSetTime > 0 && lastSetTimeValue > 0) {
+            c.setTimeInMillis(lastSetTimeValue);
+            c.add(Calendar.MINUTE, (int) ((System.currentTimeMillis() - lastSetTime) / 60000L));
+        }
+
+        return c;
+    }
+
+    public void setTime(List<Bwg.Downlink.Model.RequestMetadata> metadataList) {
+        lastSetTime = System.currentTimeMillis();
+
+        int hour = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.TIME_HOUR.name());
+        int minute = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.TIME_MINUTE.name());
+
+        int day = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.DATE_DAY.name());
+        int month = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.DATE_MONTH.name());
+        int year = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.DATE_YEAR.name());
+
+        lastSetTimeValue = buildDateAndTime(year, month, day, hour, minute);
+    }
+
+    private long buildDateAndTime(int year, int month, int day, int hour, int minute) {
+        final Calendar c = Calendar.getInstance();
+
+        if (year > 0) {
+            c.set(Calendar.YEAR, year);
+            c.set(Calendar.MONTH, month);
+            c.set(Calendar.DAY_OF_MONTH, day);
+        }
+
+        c.set(Calendar.HOUR_OF_DAY, hour);
+        c.set(Calendar.MINUTE, minute);
+        c.set(Calendar.SECOND, 0);
+        c.set(Calendar.MILLISECOND, 0);
+
+        return c.getTimeInMillis();
+    }
+
+    private int getInt(List<Bwg.Downlink.Model.RequestMetadata> metadata, String name) {
+        final String value = BwgHelper.getRequestMetadataValue(name, metadata);
+        if (value != null) {
+            try {
+                return Integer.parseInt(value);
+            } catch (final NumberFormatException e) {
+                // ignore
+            }
+        }
+
+        // return 0 by default or on error
+        return 0;
     }
 
     private void initControllerBuilder() {
@@ -393,6 +449,17 @@ public class MockSpaStateHolder {
 
     private Bwg.Uplink.Model.Controller buildController(final long timestamp) {
         controllerBuilder.setLastUpdateTimestamp(timestamp);
+
+        // set time and date
+        final Calendar c = getTime();
+        controllerBuilder.setHour(c.get(Calendar.HOUR_OF_DAY));
+        controllerBuilder.setMinute(c.get(Calendar.MINUTE));
+
+        // should be specific just for jacuzzi
+        controllerBuilder.setYear(c.get(Calendar.YEAR));
+        controllerBuilder.setMonth(c.get(Calendar.MONTH) + 1);
+        controllerBuilder.setDay(c.get(Calendar.DAY_OF_MONTH));
+
         return controllerBuilder.build();
     }
 

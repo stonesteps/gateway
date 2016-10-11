@@ -77,6 +77,25 @@ public class MockProcessorTest {
         verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("1"), any(), eq(Bwg.Uplink.UplinkCommandType.SPA_STATE), argThat(new HasCircPumpStateSetArgMatcher("LOW")), anyBoolean());
     }
 
+    @Test
+    public void testSetTime() {
+        Map<String, String> values = new HashMap<>();
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.DATE_YEAR.name(), "2016");
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.DATE_MONTH.name(), "9");
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.DATE_DAY.name(), "10");
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.TIME_HOUR.name(), "14");
+        values.put(Bwg.Downlink.Model.SpaCommandAttribName.TIME_MINUTE.name(), "15");
+
+        final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(Bwg.Downlink.Model.RequestType.SET_TIME, values);
+        mockProcessor.handleDownlinkCommand(request, "1", "1");
+
+        mockProcessor.processDataHarvestIteration();
+        verify(mockGatewayEventDispatcher, times(1)).executeRunnable(any());
+        verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("4"), any(), eq(UplinkCommandType.MEASUREMENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
+        verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("5"), any(), eq(UplinkCommandType.MEASUREMENT), any(Bwg.Uplink.Model.Events.class), anyBoolean());
+        verify(mockGatewayEventDispatcher, times(1)).sendUplink(eq("1"), any(), eq(Bwg.Uplink.UplinkCommandType.SPA_STATE), argThat(new HasTimeSetArgMatcher(2016, 10, 10, 14, 15)), anyBoolean());
+    }
+
     private class HasTempSetArgMatcher extends ArgumentMatcher<Bwg.Uplink.Model.SpaState> {
 
         private final int desiredTemp;
@@ -109,6 +128,35 @@ public class MockProcessorTest {
             if (argument instanceof Bwg.Uplink.Model.SpaState) {
                 final Bwg.Uplink.Model.SpaState arg = (Bwg.Uplink.Model.SpaState) argument;
                 return desiredState.equals(arg.getComponents().getCirculationPump().getCurrentState().name());
+            }
+
+            return false;
+        }
+    }
+
+    private class HasTimeSetArgMatcher extends ArgumentMatcher<Bwg.Uplink.Model.SpaState> {
+
+        private final int year;
+        private final int month;
+        private final int day;
+        private final int hour;
+        private final int minute;
+
+        public HasTimeSetArgMatcher(int year, int month, int day, int hour, int minute) {
+            this.year = year;
+            this.month = month;
+            this.day = day;
+            this.hour = hour;
+            this.minute = minute;
+        }
+
+        @Override
+        public boolean matches(final Object argument) {
+            if (argument instanceof Bwg.Uplink.Model.SpaState) {
+                final Bwg.Uplink.Model.SpaState arg = (Bwg.Uplink.Model.SpaState) argument;
+                return year == arg.getController().getYear() && month == arg.getController().getMonth() &&
+                        day == arg.getController().getDay() && hour == arg.getController().getHour() &&
+                        minute == arg.getController().getMinute();
             }
 
             return false;

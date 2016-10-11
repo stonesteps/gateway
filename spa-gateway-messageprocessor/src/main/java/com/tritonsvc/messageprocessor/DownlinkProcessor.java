@@ -65,10 +65,13 @@ public class DownlinkProcessor {
                     sent = downlinkRequestor.sendPlainCommand(command);
                 } else if (SpaCommand.RequestType.REBOOT_GATEWAY.getCode() == command.getRequestTypeId().intValue()) {
                     sent = downlinkRequestor.sendPlainCommand(command);
+                } else if (SpaCommand.RequestType.SET_TIME.getCode() == command.getRequestTypeId().intValue()) {
+                    sent = downlinkRequestor.sendPlainCommand(command);
                 } else {
                     sent = downlinkRequestor.sendPeripheralStateUpdateCommand(command);
                 }
             } catch (Throwable th) {
+                log.error("unable to send downlink command ", th);
                 // squash everything, need to return from here in all cases
                 // so command can be marked processed
             }

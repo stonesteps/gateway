@@ -12,10 +12,8 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.lang.System.arraycopy;
 import static java.util.stream.Collectors.toList;
 import static javax.xml.bind.DatatypeConverter.printHexBinary;
 
@@ -25,9 +23,9 @@ import static javax.xml.bind.DatatypeConverter.printHexBinary;
 public abstract class RS485MessagePublisher {
     private static Logger LOGGER = LoggerFactory.getLogger(RS485MessagePublisher.class);
     protected BWGProcessor processor;
-    protected byte POLL_FINAL_CONTROL_BYTE = (byte)0xBF;
-    protected byte DELIMITER_BYTE = (byte)0x7E;
-    protected byte LINKING_ADDRESS_BYTE = (byte)0xFE;
+    protected byte POLL_FINAL_CONTROL_BYTE = (byte) 0xBF;
+    protected byte DELIMITER_BYTE = (byte) 0x7E;
+    protected byte LINKING_ADDRESS_BYTE = (byte) 0xFE;
     protected LinkedBlockingQueue<PendingRequest> pendingDownlinks = new LinkedBlockingQueue<>(8);
     protected AtomicReference<FilterCycleRequest> filterCycleRequest = new AtomicReference<>();
     protected long lastEmptyPollSent = 0;
@@ -112,6 +110,21 @@ public abstract class RS485MessagePublisher {
                                         int LowLow) throws RS485Exception;
 
     /**
+     * Sets time and date on spa. Some spas allow only time to be set, date is ignored in such case.
+     *
+     * @param originatorId
+     * @param hardwareId
+     * @param currentTimeMilitaryDisplay
+     * @param address
+     * @param year         in format xxxx
+     * @param month        values 0-11
+     * @param day          values 1-31
+     * @param hour         values 0-23
+     * @param minute       values 0-59
+     */
+    public abstract void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute) throws RS485Exception;
+
+    /**
      * send the response message for a device query message
      *
      * @param address
@@ -191,7 +204,8 @@ public abstract class RS485MessagePublisher {
 
             pauseForBus();
             processor.getRS485UART().write(bb);
-            if (LOGGER.isDebugEnabled()) LOGGER.debug("sent address assignment response for newly acquired address {} {}", address, printHexBinary(bb.array()));
+            if (LOGGER.isDebugEnabled())
+                LOGGER.debug("sent address assignment response for newly acquired address {} {}", address, printHexBinary(bb.array()));
         } catch (Throwable ex) {
             LOGGER.warn("rs485 sending address assignment ack got exception ", ex);
             throw new RS485Exception(new Exception(ex));
@@ -284,7 +298,8 @@ public abstract class RS485MessagePublisher {
                         // if hardwareid is not present, this was a message initiated by the agent not the cloud, don't send an ack up to cloud in this case
                         processor.sendAck(requestMessage.getHardwareId(), requestMessage.getOriginatorId(), AckResponseCode.OK, null);
                     }
-                    if (LOGGER.isDebugEnabled()) LOGGER.debug("sent queued downlink message, originator {}, as 485 poll response, payload {}, there are {} remaining", requestMessage.getOriginatorId(), printHexBinary(bb.array()), pendingDownlinks.size());
+                    if (LOGGER.isDebugEnabled())
+                        LOGGER.debug("sent queued downlink message, originator {}, as 485 poll response, payload {}, there are {} remaining", requestMessage.getOriginatorId(), printHexBinary(bb.array()), pendingDownlinks.size());
                 } catch (Exception ex) {
                     if (requestMessage.getHardwareId() != null) {
                         // if hardwareid is not present, this was a message initiated by the agent not the cloud, don't send an ack up to cloud in this case
@@ -293,12 +308,11 @@ public abstract class RS485MessagePublisher {
                     LOGGER.warn("failed sending downlink message, originator {}, as 485 poll response, payload {}", requestMessage.getOriginatorId(), printHexBinary(bb.array()));
                     throw ex;
                 }
-            } else if (address == 10 && System.currentTimeMillis() - lastEmptyPollSent > 500){
+            } else if (address == 10 && System.currentTimeMillis() - lastEmptyPollSent > 500) {
                 sendWifiPollResponse(address);
                 lastEmptyPollSent = System.currentTimeMillis();
             }
-        }
-        catch (Throwable ex) {
+        } catch (Throwable ex) {
             LOGGER.error("rs485 sending device downlinks for poll check, got exception", ex);
             throw new RS485Exception(new Exception(ex));
         }
@@ -316,9 +330,10 @@ public abstract class RS485MessagePublisher {
     }
 
     @VisibleForTesting
-    void addToPending(PendingRequest request) throws Exception{
+    void addToPending(PendingRequest request) throws Exception {
         if (pendingDownlinks.offer(request, 1, TimeUnit.MILLISECONDS)) {
-            if (LOGGER.isDebugEnabled()) LOGGER.debug("put rs485 request, originator id {} in downlink queue, payload {}, queue size {}", request.getOriginatorId(), printHexBinary(request.getPayload()), pendingDownlinks.size());
+            if (LOGGER.isDebugEnabled())
+                LOGGER.debug("put rs485 request, originator id {} in downlink queue, payload {}, queue size {}", request.getOriginatorId(), printHexBinary(request.getPayload()), pendingDownlinks.size());
         } else {
             LOGGER.error("rs485 spa request command queue was full, clearing to remove old commands.");
             drainPendingQueues();
@@ -327,6 +342,7 @@ public abstract class RS485MessagePublisher {
             }
         }
     }
+
 
     protected static class PendingRequest {
         private byte[] payload;
