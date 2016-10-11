@@ -207,7 +207,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
         try {
             int yearVal = year < 2000 ? 0 : 2000 - year;
 
-            ByteBuffer bb = ByteBuffer.allocate(10);
+            ByteBuffer bb = ByteBuffer.allocate(11);
             bb.put(DELIMITER_BYTE); // start flag
             bb.put((byte) 0x0A);
             bb.put(address); // device address
