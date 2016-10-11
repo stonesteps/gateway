@@ -205,22 +205,26 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
     @Override
     public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception {
         try {
-            int yearVal = year < 2000 ? 0 : 2000 - year;
+            int yearVal = year < 2000 ? 0 : year - 2000;
 
-            ByteBuffer bb = ByteBuffer.allocate(11);
+            ByteBuffer bb = ByteBuffer.allocate(12);
             bb.put(DELIMITER_BYTE); // start flag
             bb.put((byte) 0x0A);
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
             //TODO, set 12/24 bits to 0 since we don't want to change the display format and only enable Set Time or Set Date bits dependent on data passed in
-            bb.put((byte) (0xF0 & ((byte) day.intValue()))); // flags + month
+            bb.put((byte) 0x18); // set time packet type
+            bb.put((byte) (0xF0 | (0xF & month.intValue()))); // flags + month
             bb.put((byte) day.intValue()); // day
             bb.put((byte) yearVal); // year
             bb.put((byte) hour.intValue()); // hour
             bb.put((byte) minute.intValue()); // minute
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
+            bb.position(0);
+
             addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
+            LOGGER.info("sent time request {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
             LOGGER.info("rs485 set time and date got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));

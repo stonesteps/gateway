@@ -253,7 +253,7 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
         try {
             ByteBuffer bb = ByteBuffer.allocate(8);
             bb.put(DELIMITER_BYTE); // start flag
-            bb.put((byte) 0x07);
+            bb.put((byte) 0x07); //length between the flags
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
             bb.put((byte) 0x21); // the set target time packet type
@@ -262,6 +262,9 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
             bb.put((byte) minute.intValue());
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
+            bb.position(0);
+
+            LOGGER.info("sent time request {}", printHexBinary(bb.array()));
             addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
         }
         catch (Throwable ex) {
