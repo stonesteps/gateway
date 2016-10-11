@@ -711,8 +711,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         final Integer day = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_DAY.name(), metadataList));
         final Integer hour = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_HOUR.name(), metadataList));
         final Integer minute = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_MINUTE.name(), metadataList));
-        final Integer second = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_SECOND.name(), metadataList));
-        getRS485MessagePublisher().updateSpaTime(originatorId, hardwareId, militaryTimeDisplay, address, year, month, day, hour, minute, second);
+        getRS485MessagePublisher().updateSpaTime(originatorId, hardwareId, militaryTimeDisplay, address, year, month, day, hour, minute);
     }
 
     private void updateAgentSettings(final List<RequestMetadata> metadataList) {

@@ -203,7 +203,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
     }
 
     @Override
-    public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception {
+    public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute) throws RS485Exception {
         try {
             int yearVal = year < 2000 ? 0 : year - 2000;
 

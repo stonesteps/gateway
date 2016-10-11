@@ -249,9 +249,9 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
     }
 
     @Override
-    public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute, Integer second) throws RS485Exception {
+    public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute) throws RS485Exception {
         try {
-            ByteBuffer bb = ByteBuffer.allocate(8);
+            ByteBuffer bb = ByteBuffer.allocate(9);
             bb.put(DELIMITER_BYTE); // start flag
             bb.put((byte) 0x07); //length between the flags
             bb.put(address); // device address

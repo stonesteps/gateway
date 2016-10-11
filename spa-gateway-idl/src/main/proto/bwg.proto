@@ -620,7 +620,6 @@ message Downlink {
             DATE_YEAR = 13;
             TIME_HOUR = 14;
             TIME_MINUTE = 15;
-            TIME_SECOND = 16;
         }
 
         message RequestMetadata {

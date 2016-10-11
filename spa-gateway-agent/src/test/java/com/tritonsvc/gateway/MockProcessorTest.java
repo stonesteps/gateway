@@ -85,7 +85,6 @@ public class MockProcessorTest {
         values.put(Bwg.Downlink.Model.SpaCommandAttribName.DATE_DAY.name(), "10");
         values.put(Bwg.Downlink.Model.SpaCommandAttribName.TIME_HOUR.name(), "14");
         values.put(Bwg.Downlink.Model.SpaCommandAttribName.TIME_MINUTE.name(), "15");
-        values.put(Bwg.Downlink.Model.SpaCommandAttribName.TIME_SECOND.name(), "0");
 
         final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(Bwg.Downlink.Model.RequestType.SET_TIME, values);
         mockProcessor.handleDownlinkCommand(request, "1", "1");

@@ -179,16 +179,15 @@ public class MockSpaStateHolder {
 
         int hour = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.TIME_HOUR.name());
         int minute = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.TIME_MINUTE.name());
-        int second = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.TIME_SECOND.name());
 
         int day = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.DATE_DAY.name());
         int month = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.DATE_MONTH.name());
         int year = getInt(metadataList, Bwg.Downlink.Model.SpaCommandAttribName.DATE_YEAR.name());
 
-        lastSetTimeValue = buildDateAndTime(year, month, day, hour, minute, second);
+        lastSetTimeValue = buildDateAndTime(year, month, day, hour, minute);
     }
 
-    private long buildDateAndTime(int year, int month, int day, int hour, int minute, int second) {
+    private long buildDateAndTime(int year, int month, int day, int hour, int minute) {
         final Calendar c = Calendar.getInstance();
 
         if (year > 0) {
@@ -199,7 +198,8 @@ public class MockSpaStateHolder {
 
         c.set(Calendar.HOUR_OF_DAY, hour);
         c.set(Calendar.MINUTE, minute);
-        c.set(Calendar.SECOND, second);
+        c.set(Calendar.SECOND, 0);
+        c.set(Calendar.MILLISECOND, 0);
 
         return c.getTimeInMillis();
     }
