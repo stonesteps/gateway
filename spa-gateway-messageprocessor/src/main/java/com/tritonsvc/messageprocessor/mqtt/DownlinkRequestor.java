@@ -197,8 +197,8 @@ public final class DownlinkRequestor {
     }
 
     private boolean sendDownlinkMessage(final Spa spa, final SpaCommand command, Bwg.Downlink.Model.RequestType requestType) {
-        final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(requestType, command.getValues());
         try {
+            final Bwg.Downlink.Model.Request request = BwgHelper.buildRequest(requestType, command.getValues());
             final byte[] messageData = BwgHelper.buildDownlinkMessage(command.getOriginatorId(), command.getSpaId(), Bwg.Downlink.DownlinkCommandType.REQUEST, request);
             if (messageData != null && messageData.length > 0) {
                 final String serialNumber = getGatewaySerialNumber(spa.get_id());

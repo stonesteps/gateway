@@ -114,6 +114,7 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     private SoftwareUpgradeManager softwareUpgradeManager;
     private boolean skipSoftwareUpgrade = false;
     private String serialPort;
+    private boolean militaryTimeDisplay;
 
     /**
      * Constructor
@@ -279,6 +280,8 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         try {
             if (request.getRequestType().equals(RequestType.HEATER)) {
                 updateHeater(request.getMetadataList(), getRS485DataHarvester().getRegisteredAddress(), originatorId, hardwareId, getRS485DataHarvester().usesCelsius());
+            } else if (request.getRequestType().equals(RequestType.SET_TIME)) {
+                setTime(request.getMetadataList(), originatorId, hardwareId, getRS485DataHarvester().getRegisteredAddress());
             } else if (request.getRequestType().equals(RequestType.UPDATE_AGENT_SETTINGS)) {
                 updateAgentSettings(request.getMetadataList());
             } else {
@@ -362,6 +365,9 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
             boolean rs485Active;
             getRS485DataHarvester().getLatestSpaInfoLock().readLock().lockInterruptibly();
             locked = true;
+            if (getRS485DataHarvester().getLatestSpaInfo().hasController() && getRS485DataHarvester().getLatestSpaInfo().getController().hasMilitary()) {
+                militaryTimeDisplay = getRS485DataHarvester().getLatestSpaInfo().getController().getMilitary();
+            }
             if (!getRS485DataHarvester().hasAllConfigState() &&
                     (timestamp - lastPanelRequestSent > MAX_PANEL_REQUEST_INTERIM)) {
                 getRS485MessagePublisher().sendPanelRequest(getRS485DataHarvester().getRegisteredAddress(), false, null);
@@ -697,6 +703,26 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         } else {
             throw new RS485Exception("Update heater command did not have required metadata param: " + SpaCommandAttribName.DESIREDTEMP.name());
         }
+    }
+
+    private void setTime(final List<RequestMetadata> metadataList, String originatorId, String hardwareId, final byte address) throws Exception {
+
+        String yearStr = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_YEAR.name(), metadataList);
+        Integer year = yearStr != null ? Ints.tryParse(yearStr) : null;
+
+        String monthStr = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_MONTH.name(), metadataList);
+        Integer month = monthStr != null ? Ints.tryParse(monthStr) : null;
+
+        String dayStr = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_DAY.name(), metadataList);
+        Integer day = dayStr != null ? Ints.tryParse(dayStr) : null;
+
+        String hourStr = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_HOUR.name(), metadataList);
+        Integer hour = hourStr != null ? Ints.tryParse(hourStr) : null;
+
+        String minuteStr = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_MINUTE.name(), metadataList);
+        Integer minute = minuteStr != null ? Ints.tryParse(minuteStr) : null;
+
+        getRS485MessagePublisher().updateSpaTime(originatorId, hardwareId, militaryTimeDisplay, address, year, month, day, hour, minute);
     }
 
     private void updateAgentSettings(final List<RequestMetadata> metadataList) {

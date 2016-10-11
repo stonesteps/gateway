@@ -61,7 +61,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
 
         if (code >= JacuzziCommandCode.kLight1MetaButton.getCode() &&
                 code <= JacuzziCommandCode.kLight4MetaButton.getCode()) {
-            sendLightCommand( address,  originatorId, hardwareId, code);
+            sendLightCommand(address, originatorId, hardwareId, code);
             return;
         }
 
@@ -76,8 +76,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
             addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
-        }
-        catch (Throwable ex) {
+        } catch (Throwable ex) {
             LOGGER.info("rs485 send button code got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
@@ -141,7 +140,7 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
         }
     }
 
-    private void sendLightCommand(byte address, String originatorId, String hardwareId, int code) throws RS485Exception{
+    private void sendLightCommand(byte address, String originatorId, String hardwareId, int code) throws RS485Exception {
         try {
             LightComponent.State state = null;
             int intensity = 25;
@@ -199,6 +198,53 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
             LOGGER.info("sent light request {}", printHexBinary(bb.array()));
         } catch (Throwable ex) {
             LOGGER.info("rs485 sending light request got exception " + ex.getMessage());
+            throw new RS485Exception(new Exception(ex));
+        }
+    }
+
+    @Override
+    public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute) throws RS485Exception {
+        try {
+
+            int yearVal = 0;
+            int monthVal = 0;
+            int dayVal = 0;
+            int hourVal =0;
+            int minVal = 0;
+            boolean useDate = false;
+            boolean useTime = false;
+            if (year != null && month != null && day != null) {
+                yearVal = year < 2000 ? 0 : year - 2000;
+                monthVal = month.intValue();
+                dayVal = day.intValue();
+                useDate = true;
+            }
+
+            if (hour != null && minute != null) {
+                hourVal = hour.intValue();
+                minVal = minute.intValue();
+                useTime = true;
+            }
+
+            ByteBuffer bb = ByteBuffer.allocate(12);
+            bb.put(DELIMITER_BYTE); // start flag
+            bb.put((byte) 0x0A);
+            bb.put(address); // device address
+            bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
+            bb.put((byte) 0x18); // set time packet type
+            bb.put((byte) ((useDate ?  0x10 : 0) | (useTime ?  0x20 : 0) | (0xF & monthVal))); // flags + month
+            bb.put((byte) dayVal); // day
+            bb.put((byte) yearVal); // year
+            bb.put((byte) hourVal); // hour
+            bb.put((byte) minVal); // minute
+            bb.put(HdlcCrc.generateFCS(bb.array()));
+            bb.put(DELIMITER_BYTE); // stop flag
+            bb.position(0);
+
+            addToPending(new PendingRequest(bb.array(), originatorId, hardwareId));
+            LOGGER.info("sent time request {}", printHexBinary(bb.array()));
+        } catch (Throwable ex) {
+            LOGGER.info("rs485 set time and date got exception " + ex.getMessage());
             throw new RS485Exception(new Exception(ex));
         }
     }

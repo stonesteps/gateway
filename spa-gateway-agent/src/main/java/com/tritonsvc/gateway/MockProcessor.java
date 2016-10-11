@@ -196,9 +196,10 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
             registeredSpa.getMeta().put("regUserId", response.hasRegUserId() ? response.getRegUserId() : null);
             registeredSpa.getMeta().put("swUpgradeUrl", response.hasSwUpgradeUrl() ? response.getSwUpgradeUrl() : null);
             LOGGER.info("received spa registration success for originator {} on hardwareid {} ", originatorId, hardwareId);
+            return;
         }
 
-        LOGGER.info("received spa registration {} for hardwareid {} that did not have a previous code for ", originatorId, hardwareId);
+        LOGGER.info("received spa registration {} for hardwareid {} that did not have a previous code for spa_originatorid", originatorId, hardwareId);
     }
 
     @Override
@@ -230,8 +231,10 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         sendEvents(hardwareId, newArrayList(event));
 
         try {
-            if (request.getRequestType().equals(Bwg.Downlink.Model.RequestType.HEATER)) {
+            if (request.getRequestType().equals(RequestType.HEATER)) {
                 updateHeater(request.getMetadataList(), originatorId, hardwareId);
+            } else if (request.getRequestType().equals(RequestType.SET_TIME)) {
+                spaStateHolder.setTime(request.getMetadataList());
             } else {
                 switch (request.getRequestType()) {
                     case PUMP:
@@ -331,42 +334,48 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     @Override
     public void processDataHarvestIteration() {
+        String oldname = Thread.currentThread().getName();
+        Thread.currentThread().setName(oldname + " : " + gwSerialNumber);
+        try {
 
-        boolean sendReg = false;
-        if (System.currentTimeMillis() > lastRegSendTime + MAX_REG_LIFETIME) {
-            lastRegSendTime = System.currentTimeMillis();
-            sendReg = true;
-        }
+            boolean sendReg = false;
+            if (System.currentTimeMillis() > lastRegSendTime + MAX_REG_LIFETIME) {
+                lastRegSendTime = System.currentTimeMillis();
+                sendReg = true;
+            }
 
-        if (sendReg) {
-            sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
-        }
+            if (sendReg) {
+                sendRegistration(null, this.gwSerialNumber, "gateway", newHashMap(), "spa_originatorid");
+            }
 
-        if (sendReg) {
-            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "controller", newHashMap(), "controller_originatorid");
-        }
+            if (sendReg) {
+                sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "controller", newHashMap(), "controller_originatorid");
+            }
 
-        if (sendReg) {
-            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockTemperatureMAC", "mote_type", "temperature sensor"), "mote_temp");
-        }
+            if (sendReg) {
+                sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockTemperatureMAC", "mote_type", "temperature sensor"), "mote_temp");
+            }
 
-        if (sendReg) {
-            sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockCurrentMAC", "mote_type", "current sensor"), "mote_current");
-        }
+            if (sendReg) {
+                sendRegistration(registeredSpa.getHardwareId(), this.gwSerialNumber, "mote", ImmutableMap.of("mac", "mockCurrentMAC", "mote_type", "current sensor"), "mote_current");
+            }
 
-        if (registeredSpa.getHardwareId() == null || registeredController.getHardwareId() == null || registeredTemp.getHardwareId() == null || registeredCurrent.getHardwareId() == null) {
-            return;
-        }
+            if (registeredSpa.getHardwareId() == null || registeredController.getHardwareId() == null || registeredTemp.getHardwareId() == null || registeredCurrent.getHardwareId() == null) {
+                return;
+            }
 
-        if (System.currentTimeMillis() > lastSpaSendTime + 60000) {
-            // send spa info
-            LOGGER.info("Sending spa info");
-            sendSpaState(registeredSpa.getHardwareId(), spaStateHolder.buildSpaState());
-            sendFaultLogs();
-            sendWifiStats();
-            sendMeasurementReadings();
-            LOGGER.info("Sent harvest periodic reports");
-            lastSpaSendTime = System.currentTimeMillis();
+            if (System.currentTimeMillis() > lastSpaSendTime + 60000) {
+                // send spa info
+                LOGGER.info("Sending spa info");
+                sendSpaState(registeredSpa.getHardwareId(), spaStateHolder.buildSpaState());
+                sendFaultLogs();
+                sendWifiStats();
+                sendMeasurementReadings();
+                LOGGER.info("Sent harvest periodic reports");
+                lastSpaSendTime = System.currentTimeMillis();
+            }
+        } finally {
+            Thread.currentThread().setName(oldname);
         }
     }
 
