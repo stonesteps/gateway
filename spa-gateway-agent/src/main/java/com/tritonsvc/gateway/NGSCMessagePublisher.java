@@ -251,6 +251,17 @@ public class NGSCMessagePublisher extends RS485MessagePublisher {
     @Override
     public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute) throws RS485Exception {
         try {
+
+            int hourVal =0;
+            int minVal = 0;
+
+            if (hour != null && minute != null) {
+                hourVal = hour.intValue();
+                minVal = minute.intValue();
+            } else {
+                throw new RS485Exception("hour and minute are required to set spa time");
+            }
+
             ByteBuffer bb = ByteBuffer.allocate(9);
             bb.put(DELIMITER_BYTE); // start flag
             bb.put((byte) 0x07); //length between the flags

@@ -205,7 +205,26 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
     @Override
     public void updateSpaTime(String originatorId, String hardwareId, boolean currentTimeMilitaryDisplay, byte address, Integer year, Integer month, Integer day, Integer hour, Integer minute) throws RS485Exception {
         try {
-            int yearVal = year < 2000 ? 0 : year - 2000;
+
+            int yearVal = 0;
+            int monthVal = 0;
+            int dayVal = 0;
+            int hourVal =0;
+            int minVal = 0;
+            boolean useDate = false;
+            boolean useTime = false;
+            if (year != null && month != null && day != null) {
+                yearVal = year < 2000 ? 0 : year - 2000;
+                monthVal = month.intValue();
+                dayVal = day.intValue();
+                useDate = true;
+            }
+
+            if (hour != null && minute != null) {
+                hourVal = hour.intValue();
+                minVal = minute.intValue();
+                useTime = true;
+            }
 
             ByteBuffer bb = ByteBuffer.allocate(12);
             bb.put(DELIMITER_BYTE); // start flag
@@ -213,11 +232,11 @@ public class JacuzziMessagePublisher extends RS485MessagePublisher {
             bb.put(address); // device address
             bb.put(POLL_FINAL_CONTROL_BYTE); // control byte
             bb.put((byte) 0x18); // set time packet type
-            bb.put((byte) (0x30 | (0xF & month.intValue()))); // flags + month
-            bb.put((byte) day.intValue()); // day
+            bb.put((byte) ((useDate ?  0x10 : 0) | (useTime ?  0x20 : 0) | (0xF & monthVal))); // flags + month
+            bb.put((byte) dayVal); // day
             bb.put((byte) yearVal); // year
-            bb.put((byte) hour.intValue()); // hour
-            bb.put((byte) minute.intValue()); // minute
+            bb.put((byte) hourVal); // hour
+            bb.put((byte) minVal); // minute
             bb.put(HdlcCrc.generateFCS(bb.array()));
             bb.put(DELIMITER_BYTE); // stop flag
             bb.position(0);

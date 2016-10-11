@@ -71,6 +71,7 @@ public class DownlinkProcessor {
                     sent = downlinkRequestor.sendPeripheralStateUpdateCommand(command);
                 }
             } catch (Throwable th) {
+                log.error("unable to send downlink command ", th);
                 // squash everything, need to return from here in all cases
                 // so command can be marked processed
             }

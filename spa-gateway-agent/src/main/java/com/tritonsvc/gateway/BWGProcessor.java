@@ -706,11 +706,22 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
     }
 
     private void setTime(final List<RequestMetadata> metadataList, String originatorId, String hardwareId, final byte address) throws Exception {
-        final Integer year = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_YEAR.name(), metadataList));
-        final Integer month = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_MONTH.name(), metadataList));
-        final Integer day = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_DAY.name(), metadataList));
-        final Integer hour = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_HOUR.name(), metadataList));
-        final Integer minute = Ints.tryParse(BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_MINUTE.name(), metadataList));
+
+        String yearStr = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_YEAR.name(), metadataList);
+        Integer year = yearStr != null ? Ints.tryParse(yearStr) : null;
+
+        String monthStr = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_MONTH.name(), metadataList);
+        Integer month = monthStr != null ? Ints.tryParse(monthStr) : null;
+
+        String dayStr = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.DATE_DAY.name(), metadataList);
+        Integer day = dayStr != null ? Ints.tryParse(dayStr) : null;
+
+        String hourStr = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_HOUR.name(), metadataList);
+        Integer hour = hourStr != null ? Ints.tryParse(hourStr) : null;
+
+        String minuteStr = BwgHelper.getRequestMetadataValue(SpaCommandAttribName.TIME_MINUTE.name(), metadataList);
+        Integer minute = minuteStr != null ? Ints.tryParse(minuteStr) : null;
+
         getRS485MessagePublisher().updateSpaTime(originatorId, hardwareId, militaryTimeDisplay, address, year, month, day, hour, minute);
     }
 
