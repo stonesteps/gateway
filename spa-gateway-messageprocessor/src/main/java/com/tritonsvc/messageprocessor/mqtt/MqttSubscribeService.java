@@ -4,11 +4,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.tritonsvc.messageprocessor.MessageProcessorConfiguration;
 import com.tritonsvc.messageprocessor.PkiInfo;
-import org.fusesource.mqtt.client.FutureConnection;
-import org.fusesource.mqtt.client.MQTT;
-import org.fusesource.mqtt.client.Message;
-import org.fusesource.mqtt.client.QoS;
-import org.fusesource.mqtt.client.Topic;
+import com.tritonsvc.messageprocessor.util.Watchdog;
+import com.tritonsvc.messageprocessor.util.WatchedThreadCreator;
+import org.fusesource.mqtt.client.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,19 +14,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PreDestroy;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Mqtt service class. Responsible for sending and receiving messages from mqtt.
  */
 @Service
-public class MqttSubscribeService {
+public class MqttSubscribeService implements WatchedThreadCreator {
 
     private static final Logger log = LoggerFactory.getLogger(MqttSubscribeService.class);
 
@@ -79,6 +73,14 @@ public class MqttSubscribeService {
         disconnect();
     }
 
+    @Override
+    public void recreateThread() {
+        if (currentSubscription != null) {
+            currentSubscription.cancel(true);
+        }
+        currentSubscription = es.submit(new Subscription(currentTopic, currentListener));
+    }
+
     public void subscribe(final String topic, final MessageListener listener) throws Exception {
         log.info("subscribing listener to topic {}", topic);
 
@@ -88,7 +90,7 @@ public class MqttSubscribeService {
 
         final Subscription subscription = new Subscription(currentTopic, currentListener);
         currentSubscription = es.submit(subscription);
-        watchdog = es.submit(new Watchdog());
+        watchdog = es.submit(new Watchdog(WATCHDOG_SLEEP_MILLISECONDS, WATCHDOG_THRESHOLD_MILLISECONDS, lastCheckin, this));
     }
 
     @VisibleForTesting
@@ -154,7 +156,12 @@ public class MqttSubscribeService {
                     connection.subscribe(new Topic[]{new Topic(topic, QoS.AT_LEAST_ONCE)});
                 } catch (Exception e) {
                     log.error("error with connection to mqtt broker {}:{} while subscribing to quete {}", mqttHostname, mqttPort, topic);
-                    try {Thread.sleep(10000);} catch (InterruptedException ie){};
+                    try {
+                        Thread.sleep(10000);
+                    } catch (InterruptedException ie) {
+                        // ignore
+                    }
+
                     continue;
                 }
 
@@ -178,27 +185,10 @@ public class MqttSubscribeService {
                     log.info("no uplink messages received in 2 minutes, will recreate subscription ...");
                 } catch (final Throwable e) {
                     log.error("exception processing message, will recreate subscription ...", e);
-                    try {Thread.sleep(10000);} catch (InterruptedException ie){}
-                }
-            }
-            return null;
-        }
-    }
-
-    private final class Watchdog implements Callable<Void> {
-
-        @Override
-        public Void call() throws Exception {
-            while (!Thread.currentThread().isInterrupted()) {
-                // check periodically if current subscription thread is not hung
-                Thread.sleep(WATCHDOG_SLEEP_MILLISECONDS);
-                if (System.currentTimeMillis() - lastCheckin.get() > WATCHDOG_THRESHOLD_MILLISECONDS) {
-                    log.error("No subscriber activity for over {} milliseconds, recreating subscriber thread", WATCHDOG_THRESHOLD_MILLISECONDS);
-                    // terminate subscription
-                    currentSubscription.cancel(true);
-                    currentSubscription = es.submit(new Subscription(currentTopic, currentListener));
-                } else {
-                    log.info("Subscriber thread is active, taking no action");
+                    try {
+                        Thread.sleep(10000);
+                    } catch (InterruptedException ie) {
+                    }
                 }
             }
             return null;
