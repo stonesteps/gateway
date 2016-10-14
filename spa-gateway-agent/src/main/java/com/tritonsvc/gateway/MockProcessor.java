@@ -61,6 +61,8 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private boolean sendRandomMeasurementReadings = true;
     private long lastMeasurementReadingsSendTime = 0L;
 
+    private long spaStateSendInterval = 60000L;
+
     private Integer wifiState;
 
     /**
@@ -146,6 +148,16 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
                 wifiState = Integer.valueOf(wifiStateStr);
             } catch (final NumberFormatException e) {
                 LOGGER.error("Property mock.wifiState is invalid {}", wifiStateStr);
+            }
+        }
+
+        // for IT tests
+        final String spaStateSendIntervalStr = props.getProperty("mock.spaStateSendInterval");
+        if (spaStateSendIntervalStr != null) {
+            try {
+                spaStateSendInterval = Long.valueOf(spaStateSendIntervalStr);
+            } catch (final NumberFormatException e) {
+                LOGGER.error("Property mock.spaStateSendInterval is invalid {}", spaStateSendIntervalStr);
             }
         }
     }
@@ -364,7 +376,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
                 return;
             }
 
-            if (System.currentTimeMillis() > lastSpaSendTime + 60000) {
+            if (System.currentTimeMillis() > lastSpaSendTime + spaStateSendInterval) {
                 // send spa info
                 LOGGER.info("Sending spa info");
                 sendSpaState(registeredSpa.getHardwareId(), spaStateHolder.buildSpaState());
