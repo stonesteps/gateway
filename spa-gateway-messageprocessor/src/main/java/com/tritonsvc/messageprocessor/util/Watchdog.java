@@ -30,16 +30,19 @@ public final class Watchdog implements Callable<Void> {
         while (!Thread.currentThread().isInterrupted()) {
             // check periodically if current watched thread is not hung
             Thread.sleep(watchdogSleepMilliseconds);
-
-            if (System.currentTimeMillis() - lastCheckin.get() > watchdogThresholdMilliseconds) {
-                log.error("Watched thread reported no activity for over {} milliseconds, recreating it", watchdogThresholdMilliseconds);
-
-                // terminate and create new watched thread
-                watchedThreadCreator.recreateThread();
-            } else {
-                log.info("Watched thread is active, taking no action");
-            }
+            loop();
         }
         return null;
+    }
+
+    private void loop() {
+        if (System.currentTimeMillis() - lastCheckin.get() > watchdogThresholdMilliseconds) {
+            log.error("Watched thread reported no activity for over {} milliseconds, recreating it", watchdogThresholdMilliseconds);
+
+            // terminate and create new watched thread
+            watchedThreadCreator.recreateThread();
+        } else {
+            log.info("Watched thread is active, taking no action");
+        }
     }
 }
