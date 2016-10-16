@@ -3,10 +3,10 @@ package com.tritonsvc.messageprocessor;
 import com.bwg.iot.model.Spa;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tritonsvc.agent.Agent;
-import com.tritonsvc.model.RegisterUserResponse;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MqttSendService;
+import com.tritonsvc.model.RegisterUserResponse;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.junit.*;
@@ -18,14 +18,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.SpringApplicationConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import javax.net.ssl.*;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.URL;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.X509Certificate;
 
 /**
  * Created by holow on 3/26/2016.
@@ -35,37 +32,6 @@ import java.security.cert.X509Certificate;
 public class SpaRegisterIT {
 
     private static final Logger log = LoggerFactory.getLogger(SpaRegisterIT.class);
-    private static final TrustManager[] trustAllCerts = new TrustManager[]{
-            new X509TrustManager() {
-                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                    return new X509Certificate[0];
-                }
-
-                public void checkClientTrusted(
-                        java.security.cert.X509Certificate[] certs, String authType) {
-                }
-
-                public void checkServerTrusted(
-                        java.security.cert.X509Certificate[] certs, String authType) {
-                }
-            }
-    };
-    static {
-        try {
-            SSLContext sc = SSLContext.getInstance("TLS");
-            sc.init(null, trustAllCerts, new java.security.SecureRandom());
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-            HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
-                public boolean verify(String string, SSLSession ssls) {
-                    return true;
-                }
-            });
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Unable to initialise SSL context", e);
-        } catch (KeyManagementException e) {
-            throw new RuntimeException("Unable to initialise SSL context", e);
-        }
-    }
 
     @Autowired
     private SpaRepository spaRepository;
@@ -94,7 +60,7 @@ public class SpaRegisterIT {
             public void run() {
                 try {
                     final File agentFolder = tempFolder.newFolder("agent");
-                    IOUtils.copy(SpaRegisterIT.class.getResourceAsStream("/agent-config.properties"), new FileOutputStream(new File(agentFolder, "config.properties")));
+                    IOUtils.copy(SpaRegisterIT.class.getResourceAsStream("/agent-config-http.properties"), new FileOutputStream(new File(agentFolder, "config.properties")));
 
                     agent = new Agent();
                     agent.start(agentFolder.getAbsolutePath());
@@ -122,8 +88,8 @@ public class SpaRegisterIT {
 
         final Spa registeredSpa = spaRepository.findOneBySerialNumber("demo_2872_ep_gateway");
 
-        final URL url = new URL("https://localhost:8000/registerUserToSpa");
-        HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+        final URL url = new URL("http://localhost:8080/registerUserToSpa");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         final String response = getContent(conn);
 
         final ObjectMapper objectMapper = new ObjectMapper();
@@ -132,7 +98,7 @@ public class SpaRegisterIT {
         Assert.assertEquals(registerUserResponse.getRegKey(), registeredSpa.getRegKey());
     }
 
-    private String getContent(final HttpsURLConnection conn) throws IOException {
+    private String getContent(final HttpURLConnection conn) throws IOException {
         String response = null;
         if (conn != null) {
             final ByteArrayOutputStream bos = new ByteArrayOutputStream();
