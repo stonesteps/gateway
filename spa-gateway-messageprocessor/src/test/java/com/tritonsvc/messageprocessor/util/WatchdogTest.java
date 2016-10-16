@@ -2,10 +2,17 @@ package com.tritonsvc.messageprocessor.util;
 
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.when;
 
 /**
  * Created by holow on 14.10.2016.
@@ -22,12 +29,19 @@ public class WatchdogTest {
         ExecutorService es = Executors.newCachedThreadPool();
 
         WatchedThreadCreator mockedWatchedThreadCreator = Mockito.mock(WatchedThreadCreator.class);
+
+        final CountDownLatch cdl = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            cdl.countDown();
+            return null;
+        }).when(mockedWatchedThreadCreator).recreateThread();
+
         AtomicLong lastCheckin = new AtomicLong(System.currentTimeMillis());
 
         Watchdog watchdog = new Watchdog(500, 2000, lastCheckin, mockedWatchedThreadCreator);
         es.submit(watchdog);
 
-        Thread.sleep(2100);
+        cdl.await(5, TimeUnit.SECONDS);
         es.shutdownNow();
 
         Mockito.verify(mockedWatchedThreadCreator, Mockito.times(1)).recreateThread();
@@ -45,13 +59,20 @@ public class WatchdogTest {
         WatchedThreadCreator mockedWatchedThreadCreator = Mockito.mock(WatchedThreadCreator.class);
         AtomicLong lastCheckin = new AtomicLong(System.currentTimeMillis());
 
+        final CountDownLatch cdl = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            cdl.countDown();
+            return null;
+        }).when(mockedWatchedThreadCreator).recreateThread();
+
+
         Watchdog watchdog = new Watchdog(500, 2000, lastCheckin, mockedWatchedThreadCreator);
         es.submit(watchdog);
 
         Thread.sleep(1800);
         lastCheckin.set(System.currentTimeMillis());
 
-        Thread.sleep(1800);
+        cdl.await(2, TimeUnit.SECONDS);
         es.shutdownNow();
 
         Mockito.verify(mockedWatchedThreadCreator, Mockito.never()).recreateThread();
