@@ -228,7 +228,7 @@ public class AgentSettingsPersister {
                 // allow-hotplug eth0:1
                 // iface eth0:1 inet dhcp
 
-                if (line.contains("iface " + deviceName + ":1")) {
+                if (line.contains("iface " + deviceName + ":1") || (getHostUtils().isRunit() && line.contains("iface eth0 inet"))) {
                     Ethernet eth = new Ethernet();
                     if (line.contains("static")) {
                         while ((line = reader.readLine()) != null && (line.contains("address") || line.contains("netmask") || line.contains("gateway"))) {
@@ -364,12 +364,22 @@ public class AgentSettingsPersister {
             // allow-hotplug eth0:1
             // iface eth0:1 inet dhcp
             while ((line = reader.readLine()) != null) {
-                if (line.contains("iface " + deviceName + ":1")) {
-                    while ((line = reader.readLine()) != null && (line.contains("address") || line.contains("netmask") || line.contains("gateway"))) {}
+                if (line.contains("iface " + deviceName + ":1") || (getHostUtils().isRunit() && line.contains("iface eth0 inet"))) {
+                    while ((line = reader.readLine()) != null && (line.contains("address") || line.contains("netmask") || line.contains("gateway") || line.contains("udhcpc_opts"))) {}
                     if (eth.isDhcp()) {
-                        writer.println("iface eth0:1 inet dhcp");
+                        if (getHostUtils().isRunit()) {
+                            writer.println("iface eth0 inet dhcp");
+                            writer.println("    udhcpc_opts -t 0 -T 10 -A 20 -S &");
+                        } else {
+                            writer.println("iface eth0:1 inet dhcp");
+                        }
+
                     } else {
-                        writer.println("iface eth0:1 inet static");
+                        if (getHostUtils().isRunit()) {
+                            writer.println("iface eth0 inet static");
+                        } else {
+                            writer.println("iface eth0:1 inet static");
+                        }
                         if (eth.getIpAddress() != null) {
                             writer.println("address " + eth.getIpAddress());
                         }
@@ -397,17 +407,17 @@ public class AgentSettingsPersister {
     private void processEthernetParam(String line, Ethernet eth, String separator) {
         line = line.toLowerCase();
         if (line.contains("address")) {
-            String[] parts = line.split("\\s");
+            String[] parts = line.split(separator);
             if (parts.length ==2) {
                 eth.setIpAddress(parts[1]);
             }
         } else if (line.contains("netmask")) {
-            String[] parts = line.split("\\s");
+            String[] parts = line.split(separator);
             if (parts.length ==2) {
                 eth.setNetmask(parts[1]);
             }
         } else if (line.contains("gateway")) {
-            String[] parts = line.split("\\s");
+            String[] parts = line.split(separator);
             if (parts.length ==2) {
                 eth.setGateway(parts[1]);
             }
@@ -442,7 +452,7 @@ public class AgentSettingsPersister {
         if (getHostUtils().isSystemD()) {
             file = getSystemFile("/etc/wpa_supplicant/wpa_supplicant-" + wifiDevice + ".conf");
         } else {
-            file = getSystemFile("/etc/wpa_supplicant/wpa_supplicant.conf");
+            file = getSystemFile("/etc/wpa_supplicant.conf");
         }
         return new FileBasedConfigurationBuilder<FileBasedConfiguration>(PropertiesConfiguration.class)
                 .configure(new Parameters().properties()
