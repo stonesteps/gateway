@@ -9,13 +9,13 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 
-public class ApnsResponseConsumer implements Runnable {
+public class ApnsResponseQueueConsumer implements Runnable {
 
-    private static final Logger log = LoggerFactory.getLogger(ApnsResponseConsumer.class);
+    private static final Logger log = LoggerFactory.getLogger(ApnsResponseQueueConsumer.class);
 
     private final BlockingQueue<Future<PushNotificationResponse<SimpleApnsPushNotification>>> queue;
 
-    public ApnsResponseConsumer(final BlockingQueue<Future<PushNotificationResponse<SimpleApnsPushNotification>>> queue) {
+    public ApnsResponseQueueConsumer(final BlockingQueue<Future<PushNotificationResponse<SimpleApnsPushNotification>>> queue) {
         this.queue = queue;
     }
 

@@ -39,20 +39,16 @@ public class ApnsSender {
 
     public void pushPayload(final String deviceToken, final String payload) {
         log.info("sending apns payload {} to device {}", payload, deviceToken);
-        if (enabled) {
-            if (apnsClient != null) {
-                connect();
+        if (enabled && apnsClient != null) {
+            connect();
 
-                final String token = TokenUtil.sanitizeTokenString(deviceToken);
-                final SimpleApnsPushNotification pushNotification = new SimpleApnsPushNotification(token, "com.digduck.digduck", payload, null, DeliveryPriority.IMMEDIATE);
-                final Future<PushNotificationResponse<SimpleApnsPushNotification>> sendNotificationFuture = apnsClient.sendNotification(pushNotification);
+            final String token = TokenUtil.sanitizeTokenString(deviceToken);
+            final SimpleApnsPushNotification pushNotification = new SimpleApnsPushNotification(token, "com.digduck.digduck", payload, null, DeliveryPriority.IMMEDIATE);
+            final Future<PushNotificationResponse<SimpleApnsPushNotification>> sendNotificationFuture = apnsClient.sendNotification(pushNotification);
 
-                final boolean sentToProcess = apnsResponseQueue.offer(sendNotificationFuture);
-                if (!sentToProcess) {
-                    log.error("apns response queue does not accept any more items");
-                }
-            } else {
-                log.error("apns client is null");
+            final boolean sentToProcess = apnsResponseQueue.offer(sendNotificationFuture);
+            if (!sentToProcess) {
+                log.error("apns response queue does not accept any more items");
             }
         } else {
             log.info("apns notifications disabled");
@@ -71,7 +67,7 @@ public class ApnsSender {
     }
 
     public void connect() {
-        if (apnsClient != null && !apnsClient.isConnected()) {
+        if (enabled && apnsClient != null && !apnsClient.isConnected()) {
             try {
                 log.debug("apns client connecting...");
                 final Future<Void> connectFuture = apnsClient.connect(useProductionApns ? ApnsClient.PRODUCTION_APNS_HOST : ApnsClient.DEVELOPMENT_APNS_HOST);

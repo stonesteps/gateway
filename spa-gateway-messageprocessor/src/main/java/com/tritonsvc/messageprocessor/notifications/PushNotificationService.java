@@ -31,18 +31,19 @@ public class PushNotificationService {
     private String certPassword;
     @Value("${useProduction:false}")
     private boolean useProductionServer;
-    @Value("${apnsNotificationsEnabled:true}")
+    @Value("${apnsNotificationsEnabled:false}")
     private boolean apnsNotificationsEnabled;
 
-    private final ExecutorService es = Executors.newFixedThreadPool(11);
+    private final ExecutorService es = Executors.newCachedThreadPool();
     private final BlockingQueue<ApnsMessage> apnsQueue = new LinkedBlockingQueue<>();
     private final BlockingQueue<Future<PushNotificationResponse<SimpleApnsPushNotification>>> apnsResponseQueue = new LinkedBlockingQueue<>();
 
     @PostConstruct
     public void init() {
-        es.submit(new ApnsResponseConsumer(apnsResponseQueue));
+        es.submit(new ApnsResponseQueueConsumer(apnsResponseQueue));
         for (int i = 0; i < 5; i++) {
-            es.submit(new ApnsMessageConsumer(new ApnsSender(certPath, certPassword, useProductionServer, apnsNotificationsEnabled, apnsResponseQueue), apnsQueue));
+            es.submit(new ApnsMessageQueueConsumer(
+                    new ApnsSender(certPath, certPassword, useProductionServer, apnsNotificationsEnabled, apnsResponseQueue), apnsQueue));
         }
     }
 
@@ -64,7 +65,7 @@ public class PushNotificationService {
         try {
             apnsQueue.put(new ApnsMessage(deviceTokenId, payload));
         } catch (final InterruptedException e) {
-            log.error("error while adding apns message to queue");
+            log.error("error while putting apns message to queue");
         }
     }
 

@@ -5,14 +5,14 @@ import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.BlockingQueue;
 
-public class ApnsMessageConsumer implements Runnable {
+public class ApnsMessageQueueConsumer implements Runnable {
 
-    private static final Logger log = LoggerFactory.getLogger(ApnsMessageConsumer.class);
+    private static final Logger log = LoggerFactory.getLogger(ApnsMessageQueueConsumer.class);
 
     private final ApnsSender sender;
     private final BlockingQueue<ApnsMessage> queue;
 
-    public ApnsMessageConsumer(final ApnsSender sender, final BlockingQueue<ApnsMessage> queue) {
+    public ApnsMessageQueueConsumer(final ApnsSender sender, final BlockingQueue<ApnsMessage> queue) {
         this.sender = sender;
         this.queue = queue;
     }
