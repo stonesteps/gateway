@@ -701,13 +701,15 @@ public class Agent {
     }
 
     private void restartLinuxWPA() {
-        if (getHostUtils().isSystemD()) {
-            try {
+        try {
+            if (getHostUtils().isSystemD()) {
                 executeUnixCommand("sudo systemctl restart wpa_supplicant@" + processor.getWifiDeviceName()).waitFor(10, TimeUnit.SECONDS);
-                LOGGER.info("restarted wpa_supplicant for {}", processor.getWifiDeviceName());
-            } catch (Exception ex) {
-                LOGGER.error("tried to restart wpa_supplicant", ex);
+            } else if (getHostUtils().isRunit()) {
+                executeUnixCommand("sudo sv restart /service/wifi_station_wpa").waitFor(10, TimeUnit.SECONDS);
             }
+            LOGGER.info("restarted wpa_supplicant for {}", processor.getWifiDeviceName());
+        } catch (Exception ex) {
+            LOGGER.error("tried to restart wpa_supplicant", ex);
         }
     }
 

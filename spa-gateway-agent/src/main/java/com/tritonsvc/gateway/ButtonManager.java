@@ -115,39 +115,49 @@ public class ButtonManager {
         if (!startedAP) {
             return;
         }
-        try {
-            executeUnixCommand("sudo pkill -9 udhcpd").waitFor(10, TimeUnit.SECONDS);
-            LOGGER.info("stopped udhcpd if present");
-        } catch (Exception ex) {
-            LOGGER.error("had error stopping udhcpd process", ex);
-        }
 
-        try {
-            executeUnixCommand("sudo pkill -9 hostapd").waitFor(10, TimeUnit.SECONDS);
-            LOGGER.info("stopped hostapd if present");
-        } catch (Exception ex) {
-            LOGGER.error("had error stopping hostapd process", ex);
-        }
+        if (getHostUtils().isRunit()) {
+            try {
+                executeUnixCommand("sudo sv stop /service/wifi_ap").waitFor(10, TimeUnit.SECONDS);
+                LOGGER.info("stopped wifi ap if it was present");
+            } catch (Exception ex) {
+                LOGGER.error("had error stopping wifi ap process", ex);
+            }
+        } else {
+            try {
+                executeUnixCommand("sudo pkill -9 udhcpd").waitFor(10, TimeUnit.SECONDS);
+                LOGGER.info("stopped udhcpd if present");
+            } catch (Exception ex) {
+                LOGGER.error("had error stopping udhcpd process", ex);
+            }
 
-        try {
-            executeUnixCommand("sudo " + iwConfigPath + " " + processor.getWifiDeviceName() + " mode Managed").waitFor(10, TimeUnit.SECONDS);
-            LOGGER.info("changed wifi ap mode to managed");
-        } catch (Exception ex) {
-            LOGGER.error("had error stopping wlan ap interface", ex);
-        }
+            try {
+                executeUnixCommand("sudo pkill -9 hostapd").waitFor(10, TimeUnit.SECONDS);
+                LOGGER.info("stopped hostapd if present");
+            } catch (Exception ex) {
+                LOGGER.error("had error stopping hostapd process", ex);
+            }
 
-        try {
-            executeUnixCommand("sudo " + ifConfigPath + " " + processor.getWifiDeviceName() + " down").waitFor(10, TimeUnit.SECONDS);
-            LOGGER.info("brought wifi device down");
-        } catch (Exception ex) {
-            LOGGER.error("had error stopping wlan ap interface", ex);
-        }
+            try {
+                executeUnixCommand("sudo " + iwConfigPath + " " + processor.getWifiDeviceName() + " mode Managed").waitFor(10, TimeUnit.SECONDS);
+                LOGGER.info("changed wifi ap mode to managed");
+            } catch (Exception ex) {
+                LOGGER.error("had error stopping wlan ap interface", ex);
+            }
 
-        try {
-            executeUnixCommand("sudo " + ifConfigPath + " " + processor.getWifiDeviceName() + " up").waitFor(10, TimeUnit.SECONDS);
-            LOGGER.info("brought wifi device up");
-        } catch (Exception ex) {
-            LOGGER.error("had error starting wlan ap interface", ex);
+            try {
+                executeUnixCommand("sudo " + ifConfigPath + " " + processor.getWifiDeviceName() + " down").waitFor(10, TimeUnit.SECONDS);
+                LOGGER.info("brought wifi device down");
+            } catch (Exception ex) {
+                LOGGER.error("had error stopping wlan ap interface", ex);
+            }
+
+            try {
+                executeUnixCommand("sudo " + ifConfigPath + " " + processor.getWifiDeviceName() + " up").waitFor(10, TimeUnit.SECONDS);
+                LOGGER.info("brought wifi device up");
+            } catch (Exception ex) {
+                LOGGER.error("had error starting wlan ap interface", ex);
+            }
         }
     }
 
@@ -162,10 +172,15 @@ public class ButtonManager {
             forceDelete(factoryApMod);
             factoryMode = true;
         } else if (!config.getProperty("ssid").equals(spaSSID)) {
-            config.setProperty("ssid", spaSSID);
-            config.setProperty("wpa_passphrase", "controlmyspa");
+            if (getHostUtils().isRunit()) {
+                config.setProperty("ssid", "\"" + spaSSID + "\"");
+                config.setProperty("psk", "\"controlmyspa\"");
+            } else {
+                config.setProperty("ssid", spaSSID);
+                config.setProperty("wpa_passphrase", "controlmyspa");
+            }
             builder.save();
-            LOGGER.info("reconfigred hostapd to use SSID of {}", spaSSID);
+            LOGGER.info("reconfigred wifi ap to use SSID of {}", spaSSID);
         }
 
         long eventTime = System.currentTimeMillis();
@@ -180,16 +195,16 @@ public class ButtonManager {
         stopAPProcessIfPresent();
         if (getHostUtils().isSystemD()) {
             executeUnixCommand("sudo systemctl stop wpa_supplicant@" + processor.getWifiDeviceName()).waitFor(10, TimeUnit.SECONDS);
+            LOGGER.info("stopped wpa supplicant");
+            executeUnixCommand("sudo /usr/sbin/udhcpd");
+            LOGGER.info("started udhcpd");
+            executeUnixCommand("sudo /usr/sbin/hostapd -B /etc/hostapd.conf");
+            LOGGER.info("started hostapd");
         } else {
-            //TODO - check renesas linux, make sure inti.d/wpa_supplicant exists
-            executeUnixCommand("sudo /etc/init.d/wpa_supplicant stop").waitFor(10, TimeUnit.SECONDS);
+            executeUnixCommand("sudo sv stop /service/wifi_station").waitFor(10, TimeUnit.SECONDS);
+            executeUnixCommand("sudo sv start /service/wifi_ap").waitFor(10, TimeUnit.SECONDS);
+            LOGGER.info("started wifi ap");
         }
-        LOGGER.info("stopped wpa supplicant");
-
-        executeUnixCommand("sudo /usr/sbin/udhcpd");
-        LOGGER.info("started udhcpd");
-        executeUnixCommand("sudo /usr/sbin/hostapd -B /etc/hostapd.conf");
-        LOGGER.info("started hostapd");
     }
 
     private void addPendingEvent(Event event) {
@@ -205,12 +220,11 @@ public class ButtonManager {
             if (getHostUtils().isSystemD()) {
                 executeUnixCommand("sudo systemctl restart wpa_supplicant@" + processor.getWifiDeviceName()).waitFor(10, TimeUnit.SECONDS);
             } else {
-                //TODO - check renesas linux, make sure inti.d/wpa_supplicant exists
-                executeUnixCommand("sudo /etc/init.d/wpa_supplicant restart").waitFor(10, TimeUnit.SECONDS);
+                executeUnixCommand("sudo sv start /service/wifi_station").waitFor(10, TimeUnit.SECONDS);
             }
-            LOGGER.info("restarted wpa_supplicant");
+            LOGGER.info("restarted wifi ap client");
         } catch (Exception ex) {
-            LOGGER.error("had error restarting wpa wifi client process", ex);
+            LOGGER.error("had error restarting wifi client process", ex);
         }
 
         if (restartNetwork) {
@@ -220,7 +234,8 @@ public class ButtonManager {
                     executeUnixCommand("sudo ip addr flush dev " + processor.getEthernetDeviceName()).waitFor(10, TimeUnit.SECONDS);
                     executeUnixCommand("sudo systemctl restart systemd-networkd").waitFor(10, TimeUnit.SECONDS);
                 } else {
-                    executeUnixCommand("sudo /etc/init.d/networking restart").waitFor(10, TimeUnit.SECONDS);
+                    executeUnixCommand("sudo ifdown -af").waitFor(10, TimeUnit.SECONDS);
+                    executeUnixCommand("sudo ifup -af").waitFor(10, TimeUnit.SECONDS);
                 }
                 LOGGER.info("restarted linux networking");
             } catch (Exception ex) {
@@ -253,9 +268,18 @@ public class ButtonManager {
                     }
                 }
             } else if (getHostUtils().getOsType().equals(HostUtils.BEAGLEBONE)){
-                //TODO, do the real Beaglebone button check in linux
+                //TODO
             } else {
-                //TODO, do the real Renesas button check in linux sysfs /sys/class/gpio
+                Process proc = executeUnixCommand("cat /dev/gpio_button");
+                proc.waitFor(2, TimeUnit.SECONDS);
+                String line;
+                try (BufferedReader output = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                    while ((line = output.readLine()) != null) {
+                        if (line.toLowerCase().contains("1")) {
+                            return true;
+                        }
+                    }
+                }
             }
         } catch (Exception ex) {
             LOGGER.error("unable to check button state", ex);
@@ -271,7 +295,7 @@ public class ButtonManager {
     @VisibleForTesting FileBasedConfigurationBuilder<FileBasedConfiguration> getHostApdConf() throws Exception {
        return new FileBasedConfigurationBuilder<FileBasedConfiguration>(PropertiesConfiguration.class)
                 .configure(new Parameters().properties()
-                        .setFile(new File("/etc/hostapd.conf"))
+                        .setFile(new File(getHostUtils().isRunit() ? "/etc/wpa_supplicant_ap.conf" : "/etc/hostapd.conf"))
                         .setThrowExceptionOnMissing(true)
                         .setIncludesAllowed(false));
     }

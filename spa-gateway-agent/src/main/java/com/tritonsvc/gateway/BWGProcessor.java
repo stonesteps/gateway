@@ -639,11 +639,6 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         this.faultLogManager = faultLogManager;
     }
 
-    @VisibleForTesting
-    Process executeUnixCommand(String command) throws IOException {
-        return Runtime.getRuntime().exec(command);
-    }
-
     private List<Metadata> convertRequestToMetaData(Collection<RequestMetadata> requestMetadata) {
         return requestMetadata.stream()
                 .map(request -> Metadata.newBuilder().setName(request.getName().name()).setValue(request.getValue()).build())

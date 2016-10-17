@@ -39,7 +39,7 @@ public final class SoftwareUpgradeManager {
 
     private String softwareUpgradePackageFolder = "./upgrade";
     private String softwareUpgradePackageFilename = "upgradePackage.tar.gz";
-    private String softwareUpgradeCommand = "service bwg-gateway-agent restart";
+    private String softwareUpgradeCommand = "sudo sv restart /service/bwg-gateway-agent";
     private String softwareUpgradeCommandSystemd = "sudo systemctl restart bwg-gateway-agent.service";
     private String softwareUpgradeTempFile = ".upgr_last_version";
     private String softwareUpgradeMarkerFile = ".upgr_marker";

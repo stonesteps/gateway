@@ -36,7 +36,7 @@ PARAMS="-Djava.library.path=$BASEDIR/lib -Djava.security.policy=$BASEDIR/dio.pol
 pid_of_jvm() {
     sys_build=$(uname -a)
     case $sys_build in
-        *iotgw* ) ps | grep "[j]ava.*$JAR_NAME" | awk '{print $1}' ;;
+        *iotgw* ) ps -w | grep "[j]ava.*java\.library\.path\=" | awk '{print $1}' ;;
         *) ps -eo pid,args | grep "[j]ava.*$JAR_NAME" | awk '{print $1}' ;;
     esac
 }
