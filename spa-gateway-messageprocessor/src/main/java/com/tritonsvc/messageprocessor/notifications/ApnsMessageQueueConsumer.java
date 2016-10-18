@@ -29,6 +29,5 @@ public class ApnsMessageQueueConsumer implements Runnable {
             }
         }
         log.debug("apns message consumer stopped");
-        sender.cleanup();
     }
 }

@@ -1,10 +1,7 @@
 package com.tritonsvc.messageprocessor.notifications;
 
 import com.bwg.iot.model.Alert;
-import com.relayrides.pushy.apns.PushNotificationResponse;
-import com.relayrides.pushy.apns.util.ApnsPayloadBuilder;
-import com.relayrides.pushy.apns.util.SimpleApnsPushNotification;
-import io.netty.util.concurrent.Future;
+import com.notnoop.apns.APNS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,41 +22,30 @@ public class PushNotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(PushNotificationService.class);
 
-    @Value("${certPath:/push.p12}")
+    @Value("${certPath:/ControlMySpa_push.p12}")
     private String certPath;
-    @Value("${certPassword:password}")
+    @Value("${certPassword:}")
     private String certPassword;
     @Value("${useProduction:false}")
     private boolean useProductionServer;
-    @Value("${apnsNotificationsEnabled:false}")
+    @Value("${apnsNotificationsEnabled:true}")
     private boolean apnsNotificationsEnabled;
 
     private final ExecutorService es = Executors.newCachedThreadPool();
     private final BlockingQueue<ApnsMessage> apnsQueue = new LinkedBlockingQueue<>();
-    private final BlockingQueue<Future<PushNotificationResponse<SimpleApnsPushNotification>>> apnsResponseQueue = new LinkedBlockingQueue<>();
 
     @PostConstruct
     public void init() {
-        es.submit(new ApnsResponseQueueConsumer(apnsResponseQueue));
         for (int i = 0; i < 5; i++) {
             es.submit(new ApnsMessageQueueConsumer(
-                    new ApnsSender(certPath, certPassword, useProductionServer, apnsNotificationsEnabled, apnsResponseQueue), apnsQueue));
+                    new ApnsSender(certPath, certPassword, useProductionServer, apnsNotificationsEnabled), apnsQueue));
         }
     }
 
     public void pushApnsAlertNotification(final String deviceToken, final Alert alert) {
-
-        final ApnsPayloadBuilder payloadBuilder = new ApnsPayloadBuilder();
-        payloadBuilder.setContentAvailable(true);
-        payloadBuilder.setBadgeNumber(1);
-
-        payloadBuilder.addCustomProperty("severity", alert.getSeverityLevel());
-        payloadBuilder.addCustomProperty("description", alert.getShortDescription());
-
-        final String payload = payloadBuilder.buildWithDefaultMaximumLength();
+        final String payload = APNS.newPayload().alertBody(alert.getShortDescription()).category("SPA ALERT").sound("default").build();
         pushApnsPayload(deviceToken, payload);
     }
-
 
     private void pushApnsPayload(final String deviceTokenId, final String payload) {
         try {
