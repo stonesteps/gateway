@@ -77,4 +77,10 @@ public interface AgentMessageProcessor {
      */
     String getWifiDeviceName();
 
+    /**
+     * check if ap mode is currently on
+     * @return
+     */
+    boolean isAPModeOn();
+
 }

@@ -287,6 +287,11 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         }
     }
 
+    @Override
+    public boolean isAPModeOn() {
+        return false;
+    }
+
     private List<Metadata> convertRequestToMetaData(Collection<RequestMetadata> requestMetadata) {
         return requestMetadata.stream()
                 .map(request -> Metadata.newBuilder().setName(request.getName().name()).setValue(request.getValue()).build())
