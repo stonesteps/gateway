@@ -177,7 +177,7 @@ public abstract class RS485DataHarvester implements Runnable {
                         state = State.searchForBeginning;
                         hdlcFrameLength = 0;
                         try {Thread.sleep(5000);} catch (InterruptedException ex2){}
-                        if (System.currentTimeMillis() - pausedStartTime > 300000) {
+                        if ((System.currentTimeMillis() - pausedStartTime > 300000) && paused) {
                             LOGGER.info("paused more then 5 mins, intentionally un-pausing rs485 processing");
                             pause(false);
                         }
