@@ -161,8 +161,17 @@ public class ButtonManager {
         }
     }
 
+    /**
+     * tell whether currently in ap mode
+     * @return
+     */
+    public boolean isAPModeOn() {
+        return startedAP;
+    }
+
     private void startWifiAP() throws Exception {
         startedAP = true;
+        processor.pauseDataHarvester(true);
         File factoryApMod = new File(processor.getHomePath(), "factory_ap");
         FileBasedConfigurationBuilder<FileBasedConfiguration> builder = getHostApdConf();
         Configuration config = builder.getConfiguration();
@@ -219,28 +228,24 @@ public class ButtonManager {
         try {
             if (getHostUtils().isSystemD()) {
                 executeUnixCommand("sudo systemctl restart wpa_supplicant@" + processor.getWifiDeviceName()).waitFor(10, TimeUnit.SECONDS);
+                if (restartNetwork) {
+                    executeUnixCommand("sudo " + ifConfigPath + " " + processor.getEthernetDeviceName() + " down").waitFor(10, TimeUnit.SECONDS);
+                    executeUnixCommand("sudo ip addr flush dev " + processor.getEthernetDeviceName()).waitFor(10, TimeUnit.SECONDS);
+                    executeUnixCommand("sudo systemctl restart systemd-networkd").waitFor(10, TimeUnit.SECONDS);
+                    LOGGER.info("restarted linux networking");
+                }
             } else {
+                if (restartNetwork) {
+                    executeUnixCommand("sudo ifdown -af").waitFor(10, TimeUnit.SECONDS);
+                    executeUnixCommand("sudo ifup -af").waitFor(10, TimeUnit.SECONDS);
+                }
                 executeUnixCommand("sudo sv start /service/wifi_station").waitFor(10, TimeUnit.SECONDS);
             }
             LOGGER.info("restarted wifi ap client");
         } catch (Exception ex) {
             LOGGER.error("had error restarting wifi client process", ex);
-        }
-
-        if (restartNetwork) {
-            try {
-                if (getHostUtils().isSystemD()) {
-                    executeUnixCommand("sudo " + ifConfigPath + " " + processor.getEthernetDeviceName() + " down").waitFor(10, TimeUnit.SECONDS);
-                    executeUnixCommand("sudo ip addr flush dev " + processor.getEthernetDeviceName()).waitFor(10, TimeUnit.SECONDS);
-                    executeUnixCommand("sudo systemctl restart systemd-networkd").waitFor(10, TimeUnit.SECONDS);
-                } else {
-                    executeUnixCommand("sudo ifdown -af").waitFor(10, TimeUnit.SECONDS);
-                    executeUnixCommand("sudo ifup -af").waitFor(10, TimeUnit.SECONDS);
-                }
-                LOGGER.info("restarted linux networking");
-            } catch (Exception ex) {
-                LOGGER.error("had error restarting networking", ex);
-            }
+        } finally {
+            processor.pauseDataHarvester(false);
         }
 
         long eventTime = System.currentTimeMillis();

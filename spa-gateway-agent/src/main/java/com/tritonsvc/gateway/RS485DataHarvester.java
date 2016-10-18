@@ -75,6 +75,8 @@ public abstract class RS485DataHarvester implements Runnable {
         ACQUIRING_DYNAMIC_ADDRESS,
         DYNAMIC_ADDRESS
     }
+    private volatile boolean paused;
+    private volatile long pausedStartTime;
 
     /**
      * process just the message, delimiters have been removed, the FCS should be the last byte
@@ -170,6 +172,17 @@ public abstract class RS485DataHarvester implements Runnable {
                 processor.getRS485UART().setReceiveTimeout(2);
 
                 while (!cancelled && processor.stillRunning()) {
+                    if (paused) {
+                        workingMessage.clear();
+                        state = State.searchForBeginning;
+                        hdlcFrameLength = 0;
+                        try {Thread.sleep(5000);} catch (InterruptedException ex2){}
+                        if (System.currentTimeMillis() - pausedStartTime > 300000) {
+                            LOGGER.info("paused more then 5 mins, intentionally un-pausing rs485 processing");
+                            pause(false);
+                        }
+                        continue;
+                    }
                     readBytes.clear();
                     processor.getRS485UART().read(readBytes);
                     parseHDLCMessages(workingMessage, readBytes);
@@ -397,6 +410,24 @@ public abstract class RS485DataHarvester implements Runnable {
      */
     public void cancel() {
         cancelled = true;
+    }
+
+    /**
+     * temporarily stop the thread from reading on rs485
+     * @param toggle
+     */
+    public void pause(boolean toggle) {
+        if (paused == toggle) {
+            return;
+        }
+        if (toggle) {
+            pausedStartTime = System.currentTimeMillis();
+            LOGGER.info("intentionally pausing rs 485 data harvester");
+        } else {
+            pausedStartTime = 0;
+            LOGGER.info("intentionally un-pausing rs 485 data harvester");
+        }
+        paused = toggle;
     }
 
     private void setAddressState(ADDRESS_STATE addressState) {

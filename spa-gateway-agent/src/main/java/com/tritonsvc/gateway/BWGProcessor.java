@@ -423,6 +423,11 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
         return this.gwSerialNumber;
     }
 
+    @Override
+    public boolean isAPModeOn() {
+        return buttonManager != null ? buttonManager.isAPModeOn() : false;
+    }
+
     public synchronized void setUpRS485Processors() {
         this.faultLogManager = new FaultLogManager(getConfigProps());
         if (Objects.equals(getRS485ControllerType(), "JACUZZI")) {
@@ -617,6 +622,10 @@ public class BWGProcessor extends MQTTCommandProcessor implements RegistrationIn
 
     public String getSerialPort() {
         return serialPort;
+    }
+
+    public void pauseDataHarvester(boolean toggle) {
+        rs485DataHarvester.pause(toggle);
     }
 
     @VisibleForTesting
