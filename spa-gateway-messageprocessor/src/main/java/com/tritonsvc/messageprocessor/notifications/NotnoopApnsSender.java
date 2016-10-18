@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Date;
+import java.util.Map;
 
 public class NotnoopApnsSender implements ApnsSender {
 
@@ -34,6 +36,10 @@ public class NotnoopApnsSender implements ApnsSender {
             else builder.withSandboxDestination();
             return builder.build();
         }
+    }
+
+    public Map<String, Date> getInactiveDevices() {
+        return apnsService.getInactiveDevices();
     }
 }
 

@@ -5,6 +5,9 @@ import com.notnoop.exceptions.NetworkIOException;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.Date;
+import java.util.Map;
+
 /**
  * Created by holow on 17.10.2016.
  */
@@ -17,7 +20,7 @@ public class ApnsSenderIT {
 
     @Test
     public void testPush() throws Exception {
-        final ApnsSender apnsSender = new NotnoopApnsSender(CERT_PATH, CERT_PASSWORD, USE_PROD);
+        final NotnoopApnsSender apnsSender = new NotnoopApnsSender(CERT_PATH, CERT_PASSWORD, USE_PROD);
 
         final String payload = APNS.newPayload().alertBody("Water too hot").category("SPA ALERT").sound("default").build();
 
@@ -26,5 +29,11 @@ public class ApnsSenderIT {
         } catch (final NetworkIOException e) {
             Assert.fail("network io exception");
         }
+
+        Thread.sleep(5999);
+
+        // device is already inactive
+        final Map<String, Date> inactiveDevices = apnsSender.getInactiveDevices();
+        Assert.assertTrue(inactiveDevices != null && inactiveDevices.size() == 1);
     }
 }
