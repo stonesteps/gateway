@@ -18,5 +18,4 @@ public class SpaGatewayMessageProcessorApplication {
         OnlineStatusThread onlineStatusThread = context.getBean(OnlineStatusThread.class);
         onlineStatusThread.run();
     }
-
 }

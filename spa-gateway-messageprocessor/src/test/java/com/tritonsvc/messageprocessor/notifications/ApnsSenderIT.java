@@ -1,6 +1,8 @@
 package com.tritonsvc.messageprocessor.notifications;
 
 import com.notnoop.apns.APNS;
+import com.notnoop.exceptions.NetworkIOException;
+import org.junit.Assert;
 import org.junit.Test;
 
 /**
@@ -12,15 +14,17 @@ public class ApnsSenderIT {
     private static final String CERT_PATH = "/ControlMySpa.p12";
     private static final String CERT_PASSWORD = "SpaOwner1.0";
     private static final boolean USE_PROD = false;
-    private static final boolean APNS_ENABLED = true;
-
-    private final ApnsSender apnsSender = new ApnsSender(CERT_PATH, CERT_PASSWORD, USE_PROD, APNS_ENABLED);
 
     @Test
     public void testPush() throws Exception {
+        final ApnsSender apnsSender = new NotnoopApnsSender(CERT_PATH, CERT_PASSWORD, USE_PROD);
+
         final String payload = APNS.newPayload().alertBody("Water too hot").category("SPA ALERT").sound("default").build();
 
-        apnsSender.pushPayload(DEVICE_TOKEN, payload);
-        Thread.sleep(5000);
+        try {
+            apnsSender.pushPayload(DEVICE_TOKEN, payload);
+        } catch (final NetworkIOException e) {
+            Assert.fail("network io exception");
+        }
     }
 }

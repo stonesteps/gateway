@@ -70,21 +70,6 @@
             <artifactId>apns</artifactId>
             <version>1.0.0.Beta6</version>
         </dependency>
-        <!--<dependency>
-            <groupId>com.relayrides</groupId>
-            <artifactId>pushy</artifactId>
-            <version>0.8.1</version>
-        </dependency>
-        <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-resolver</artifactId>
-            <version>4.1.0.Final</version>
-        </dependency>
-        <dependency>
-            <groupId>org.mortbay.jetty.alpn</groupId>
-            <artifactId>alpn-boot</artifactId>
-            <version>8.1.8.v20160420</version>
-        </dependency>-->
 
         <!-- for tests only -->
         <dependency>
