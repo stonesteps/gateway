@@ -140,11 +140,11 @@ public final class SoftwareUpgradeManager {
                             if (bytesCopied != bytesSent) {
                                 throw new Exception("invalid upgrade file download, bytes sent was " + bytesSent + ", but bytes copied was " + bytesCopied);
                             }
-                            bwgProcessor.sendEvents(hardwareId, newArrayList(buildSoftwareUpgradeEvent(upgradePackageName)));
-                            writeTempFile(currentVersion);
-                            LOGGER.info("Software package obtained successfully {} - ready for upgrade", upgradePackageName);
-                            initiateSoftwareUpgradeProcedure();
                         }
+                        bwgProcessor.sendEvents(hardwareId, newArrayList(buildSoftwareUpgradeEvent(upgradePackageName)));
+                        writeTempFile(currentVersion);
+                        LOGGER.info("Software package obtained successfully {} - ready for upgrade", upgradePackageName);
+                        initiateSoftwareUpgradeProcedure();
                     } else if (code == 204) {
                         LOGGER.info("Software is up to date, upgrade url returned code 204");
                     } else {

@@ -123,6 +123,7 @@ upgrade() {
     cp "$JAR_PATH" "$JAR_BACKUP"
     if [ $? -ne 0 ]; then
         echo 'Upgrade failed (could not back up current jar).' >> $LOG_FILE
+        rm -f "$UPGRADE_MARKER_FILE"
         exit 1
     fi
 
@@ -131,6 +132,9 @@ upgrade() {
     if [ $? -ne 0 ]; then
         echo 'Upgrade failed (could not unpack new one).' >> $LOG_FILE
         cp "$JAR_BACKUP" "$JAR_PATH" && rm "$JAR_BACKUP"
+        chown bwg:bwg "$JAR_NAME"
+        chmod 755 "$JAR_NAME"
+        rm -f "$UPGRADE_MARKER_FILE"
         exit 1
     else
         echo 'Upgrade completed' >> $LOG_FILE
@@ -148,10 +152,13 @@ upgrade() {
         rm -f "$UPGRADE_PACKAGE"
     else
         echo 'Failed to start after upgrade, rolling back.' >> $LOG_FILE
-        cp "$JAR_BACKUP" "$JAR_PATH"
+        cp "$JAR_BACKUP" "$JAR_PATH" && rm "$JAR_BACKUP"
         if [ $? -ne 0 ]; then
             echo 'Rollback failed (could not restore from back-up).' >> $LOG_FILE
         fi
+        chown bwg:bwg "$JAR_NAME"
+        chmod 755 "$JAR_NAME"
+        rm -f "$UPGRADE_MARKER_FILE"
         stop
         start
     fi
