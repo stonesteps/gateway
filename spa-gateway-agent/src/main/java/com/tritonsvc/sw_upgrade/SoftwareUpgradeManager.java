@@ -15,9 +15,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
@@ -122,6 +125,8 @@ public final class SoftwareUpgradeManager {
                 try {
                     final URL url = new URL(fullUpgradeUrl);
                     connection = (HttpURLConnection) url.openConnection();
+                    connection.setConnectTimeout(60000);
+                    connection.setReadTimeout(60000);
                     connection.connect();
                 } catch (Exception ex) {
                     LOGGER.info("skip sw upgrade, url {} was not reachable", fullUpgradeUrl, ex);
@@ -162,6 +167,9 @@ public final class SoftwareUpgradeManager {
         }
 
         private boolean isRunning() {
+            if (checkUpgradeMarkerFile()) {
+                return true;
+            }
             return running;
         }
     }
@@ -185,6 +193,10 @@ public final class SoftwareUpgradeManager {
         } catch (IOException e) {
             LOGGER.error("Error while writing marker file", e);
         }
+    }
+
+    private boolean checkUpgradeMarkerFile() {
+        return new File(softwareUpgradePackageFolder, softwareUpgradeMarkerFile).exists();
     }
 
     public String readOldVersionNumber() {
