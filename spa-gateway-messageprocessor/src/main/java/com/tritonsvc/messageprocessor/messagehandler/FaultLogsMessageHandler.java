@@ -1,25 +1,18 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
-import com.bwg.iot.model.Alert;
-import com.bwg.iot.model.FaultLog;
-import com.bwg.iot.model.FaultLogDescription;
-import com.bwg.iot.model.FaultLogSeverity;
-import com.bwg.iot.model.Spa;
+import com.bwg.iot.model.*;
 import com.tritonsvc.messageprocessor.mongo.repository.AlertRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.FaultLogDescriptionRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.FaultLogRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
+import com.tritonsvc.messageprocessor.notifications.PushNotificationService;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * process fault logs from spa systems
@@ -42,6 +35,9 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
 
     @Autowired
     private AlertRepository alertRepository;
+
+    @Autowired
+    private PushNotificationService pushNotificationService;
 
     @Override
     public Class<Bwg.Uplink.Model.FaultLogs> handles() {
@@ -75,8 +71,9 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                     faultLogRepository.save(faultLogEntity);
                     log.info("Saved new fault log with code {} for spa {} and occur date {}", code, spaId, occurDate);
 
-                    //TODO - enable alerts once alert clearing feature is added to system
-                    //mapFaultLogToAlert(spa, faultLogEntity);
+                    //TODO - enable alerts saving once alert clearing feature is added to system
+                    final Alert alert = mapFaultLogToAlert(spa, faultLogEntity, false);
+                    pushNotification(spa, alert);
                 } else {
                     log.info("Skipped fault log with code {} for spa {} and occur date {}, was a duplicate", code, spaId, occurDate);
                 }
@@ -112,10 +109,10 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         return faultLogEntity;
     }
 
-    private void mapFaultLogToAlert(final Spa spa, final FaultLog faultLog) {
+    private Alert mapFaultLogToAlert(final Spa spa, final FaultLog faultLog, boolean save) {
         if (olderThanThreeDays(faultLog.getTimestamp())) {
             log.info("Skipping alert creation - FaultLog entry is older than three days.");
-            return;
+            return null;
         }
         final FaultLogDescription faultLogDescription = faultLog.getFaultLogDescription();
         final String severityLevel = getSeverityLevel(faultLog.getSeverity());
@@ -130,21 +127,27 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             alert.setSeverityLevel(severityLevel);
             alert.setLongDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
             alert.setShortDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
-            alertRepository.save(alert);
 
-            if (spa != null) {
-                if (spa.getAlerts() == null) {
-                    spa.setAlerts(new ArrayList<>());
+            if (save) {
+                alertRepository.save(alert);
+
+                if (spa != null) {
+                    if (spa.getAlerts() == null) {
+                        spa.setAlerts(new ArrayList<>());
+                    }
+                    spa.getAlerts().add(alert);
+                    updateSpaAlertState(spa, alert);
+                    spaRepository.save(spa);
                 }
-                spa.getAlerts().add(alert);
-                updateSpaAlertState(spa, alert);
-                spaRepository.save(spa);
             }
+            return alert;
         }
+        return null;
     }
 
     /**
      * Returns true if given date is older than 3 days.
+     *
      * @param date
      * @return
      */
@@ -168,6 +171,12 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                 return Alert.SeverityLevelEnum.INFO.name();
             default:
                 return null;
+        }
+    }
+
+    private void pushNotification(final Spa spa, final Alert alert) {
+        if (spa != null && spa.getOwner() != null && spa.getOwner().getDeviceToken() != null && alert != null) {
+            pushNotificationService.pushApnsAlertNotification(spa.getOwner().getDeviceToken(), alert);
         }
     }
 }

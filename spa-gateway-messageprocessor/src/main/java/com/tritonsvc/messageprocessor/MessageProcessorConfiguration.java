@@ -1,8 +1,12 @@
 package com.tritonsvc.messageprocessor;
 
+import com.tritonsvc.messageprocessor.notifications.NotnoopApnsSenderBuilder;
+import com.tritonsvc.messageprocessor.notifications.PushNotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -23,6 +27,9 @@ public class MessageProcessorConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(MessageProcessorConfiguration.class);
 
+    @Autowired
+    private PushNotificationService pushNotificationService;
+
     @Value("${downlinkTopicName:BWG/spa/downlink}")
     private String downlinkTopicName;
     @Value("${uplinkTopicName:BWG/spa/uplink}")
@@ -35,6 +42,13 @@ public class MessageProcessorConfiguration {
     private String clientKeyFilePkcs8;
     @Value("${swUpgradeUrl:http://localhost:8080/sw_upgrade}")
     private String swUpgradeUrl;
+
+    @Value("${apnsCertPath:/ControlMySpa.p12}")
+    private String certPath;
+    @Value("${apnsCcertPassword:SpaOwner1.0}")
+    private String certPassword;
+    @Value("${apnsUseProduction:false}")
+    private boolean useProductionServer;
 
     public String getDownlinkTopicName() {
         return downlinkTopicName;
@@ -128,5 +142,16 @@ public class MessageProcessorConfiguration {
 
     public String getSwUpgradeUrl() {
         return swUpgradeUrl;
+    }
+
+    @Bean
+    public PushNotificationService configurePushNotificationService() {
+        final PushNotificationService pushNotificationService = new PushNotificationService();
+        pushNotificationService.setApnsSenderBuilder(
+                new NotnoopApnsSenderBuilder()
+                        .setCertificateResourceLocation(certPath)
+                        .setCertificatePassword(certPassword)
+                        .setUseProductionApnsServer(useProductionServer));
+        return pushNotificationService;
     }
 }
