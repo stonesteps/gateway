@@ -49,6 +49,7 @@ public class DownlinkProcessor implements WatchedThreadCreator {
 
     @PostConstruct
     public void init() {
+        log.info("Initializing downlink processor thread");
         lastCheckin = new AtomicLong(System.currentTimeMillis());
 
         final DownlinkProcessorThread downlinkProcessorThread = new DownlinkProcessorThread();

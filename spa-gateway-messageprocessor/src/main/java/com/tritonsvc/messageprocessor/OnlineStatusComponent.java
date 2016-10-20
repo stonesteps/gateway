@@ -27,7 +27,6 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 import static org.springframework.data.mongodb.core.query.Query.query;
 
 @Component
-@Scope("prototype")
 public class OnlineStatusComponent implements WatchedThreadCreator {
 
     private static final Logger log = LoggerFactory.getLogger(UplinkProcessor.class);
@@ -49,8 +48,8 @@ public class OnlineStatusComponent implements WatchedThreadCreator {
 
     @PostConstruct
     public void init() {
+        log.info("Initializing online status thread");
         lastCheckin = new AtomicLong(System.currentTimeMillis());
-
         final OnlineStatusThread onlineStatusThread = new OnlineStatusThread();
         currentOnlineStatusThread = es.submit(onlineStatusThread);
         watchdog = es.submit(new Watchdog(WATCHDOG_SLEEP_MILLISECONDS, WATCHDOG_THRESHOLD_MILLISECONDS, lastCheckin, this));
