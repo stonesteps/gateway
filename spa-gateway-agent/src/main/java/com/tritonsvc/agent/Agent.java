@@ -705,8 +705,11 @@ public class Agent {
             if (!processor.isAPModeOn()) {
                 if (getHostUtils().isSystemD()) {
                     executeUnixCommand("sudo systemctl restart wpa_supplicant@" + processor.getWifiDeviceName()).waitFor(10, TimeUnit.SECONDS);
-                    LOGGER.info("restarted wpa_supplicant for {}", processor.getWifiDeviceName());
+                } else if (getHostUtils().isRunit()) {
+                    executeUnixCommand("sudo sv restart /service/wifi_station_wpa").waitFor(10, TimeUnit.SECONDS);
+                    executeUnixCommand("sudo sv restart /service/udhcpc_wlan0").waitFor(10, TimeUnit.SECONDS);
                 }
+                LOGGER.info("restarted wpa_supplicant for {}", processor.getWifiDeviceName());
             }
         } catch (Exception ex) {
             LOGGER.error("tried to restart wpa_supplicant", ex);
