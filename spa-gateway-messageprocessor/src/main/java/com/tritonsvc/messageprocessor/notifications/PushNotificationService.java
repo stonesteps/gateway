@@ -28,7 +28,7 @@ public class PushNotificationService {
 
     public void pushApnsAlertNotification(final String deviceToken, final Alert alert) {
         init();
-        final String payload = APNS.newPayload().alertBody(alert.getShortDescription()).category("SPA ALERT").sound("default").build();
+        final String payload = APNS.newPayload().alertBody(alert.getShortDescription() != null ? alert.getShortDescription() : "Alert").category("SPA ALERT").sound("default").build();
         pushApnsPayload(deviceToken, payload);
     }
 

@@ -24,11 +24,12 @@ public class NotnoopApnsSender implements ApnsSender {
     }
 
     public void pushPayload(final String deviceToken, final String payload) {
-        log.debug("sending apns payload {} to device {}", payload, deviceToken);
+        log.info("sending apns payload {} to device {}", payload, deviceToken);
         apnsService.push(deviceToken, payload);
     }
 
     private ApnsService initApnsService(final String certPath, final String certPassword, final boolean useProductionApns) throws IOException {
+        log.info("initializing apns service, certPath={}, production={}", certPath, useProductionApns);
         try (final InputStream in = ApnsSender.class.getResourceAsStream(certPath)) {
             final ApnsServiceBuilder builder = APNS.newService()
                     .withCert(in, certPassword);

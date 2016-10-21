@@ -176,18 +176,18 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
     }
 
     private void pushNotification(final Spa spa, final Alert alert) {
-        if (spa != null && spa.getOwner() != null  && alert != null) {
-            User owner = userRepository.findOne( spa.getOwner().get_id() );
-            if (owner == null){
+        if (spa != null && spa.getOwner() != null && alert != null) {
+            User owner = userRepository.findOne(spa.getOwner().get_id());
+            if (owner == null) {
                 log.debug("aborting: can't find owner");
                 return;
             }
             String deviceToken = owner.getDeviceToken();
             if (deviceToken == null) {
-                log.debug("no device token for user: " + owner.getUsername());
+                log.debug("no device token for user: {}", owner.getUsername());
                 return;
             }
-            log.info("Sending Push Notification to owner " + owner.getUsername());
+            log.info("Sending Push Notification to owner {}", owner.getUsername());
             pushNotificationService.pushApnsAlertNotification(deviceToken, alert);
         } else {
             log.debug("Not enough info to send push notification.");
@@ -197,7 +197,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             if (spa.getOwner() == null) {
                 log.debug("no owner");
             }
-            if (alert == null){
+            if (alert == null) {
                 log.debug("alert is, indeed, null");
             }
         }
