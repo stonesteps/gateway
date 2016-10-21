@@ -43,7 +43,7 @@ public class MessageProcessorConfiguration {
     @Value("${swUpgradeUrl:http://localhost:8080/sw_upgrade}")
     private String swUpgradeUrl;
 
-    @Value("${apnsCertPath:/ControlMySpa.p12}")
+    @Value("${apnsCertPath:/ControlMySpa_dev.p12}")
     private String certPath;
     @Value("${apnsCcertPassword:SpaOwner1.0}")
     private String certPassword;

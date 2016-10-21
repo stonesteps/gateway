@@ -29,6 +29,7 @@ public class NotnoopApnsSender implements ApnsSender {
     }
 
     private ApnsService initApnsService(final String certPath, final String certPassword, final boolean useProductionApns) throws IOException {
+        log.info("initializing apns service, certPath={}, production={}", certPath, useProductionApns);
         try (final InputStream in = ApnsSender.class.getResourceAsStream(certPath)) {
             final ApnsServiceBuilder builder = APNS.newService()
                     .withCert(in, certPassword);
