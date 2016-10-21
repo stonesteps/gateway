@@ -24,7 +24,7 @@ public class NotnoopApnsSender implements ApnsSender {
     }
 
     public void pushPayload(final String deviceToken, final String payload) {
-        log.debug("sending apns payload {} to device {}", payload, deviceToken);
+        log.info("sending apns payload {} to device {}", payload, deviceToken);
         apnsService.push(deviceToken, payload);
     }
 
