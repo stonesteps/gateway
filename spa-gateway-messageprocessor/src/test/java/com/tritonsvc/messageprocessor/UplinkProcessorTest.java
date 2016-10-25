@@ -93,7 +93,7 @@ public class UplinkProcessorTest {
             try {
                 _mongodExe = starter.prepare(new MongodConfigBuilder()
                         .version(Version.Main.PRODUCTION)
-                        .net(new Net(27017, Network.localhostIsIPv6()))
+                        .net(new Net(27777, Network.localhostIsIPv6()))
                         .build());
                 _mongod = _mongodExe.start();
             } catch (Exception e) {
