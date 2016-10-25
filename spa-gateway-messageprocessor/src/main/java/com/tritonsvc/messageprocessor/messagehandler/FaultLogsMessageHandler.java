@@ -71,8 +71,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
                     faultLogRepository.save(faultLogEntity);
                     log.info("Saved new fault log with code {} for spa {} and occur date {}", code, spaId, occurDate);
 
-                    //TODO - enable alerts saving once alert clearing feature is added to system
-                    final Alert alert = mapFaultLogToAlert(spa, faultLogEntity, true);
+                    final Alert alert = mapFaultLogToAlert(spa, faultLogEntity);
                     pushNotification(spa, alert);
                 } else {
                     log.info("Skipped fault log with code {} for spa {} and occur date {}, was a duplicate", code, spaId, occurDate);
@@ -109,7 +108,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
         return faultLogEntity;
     }
 
-    private Alert mapFaultLogToAlert(final Spa spa, final FaultLog faultLog, boolean save) {
+    private Alert mapFaultLogToAlert(final Spa spa, final FaultLog faultLog) {
         log.debug("Entering mapFaultLogToAlert");
         if (olderThanThreeDays(faultLog.getTimestamp())) {
             log.info("Skipping alert creation - FaultLog entry is older than three days.");
@@ -129,17 +128,15 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
             alert.setLongDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
             alert.setShortDescription(faultLogDescription != null ? faultLogDescription.getDescription() : null);
 
-            if (save) {
-                alertRepository.save(alert);
+            alertRepository.save(alert);
 
-                if (spa != null) {
-                    if (spa.getAlerts() == null) {
-                        spa.setAlerts(new ArrayList<>());
-                    }
-                    spa.getAlerts().add(alert);
-                    updateSpaAlertState(spa, alert);
-                    spaRepository.save(spa);
+            if (spa != null) {
+                if (spa.getAlerts() == null) {
+                    spa.setAlerts(new ArrayList<>());
                 }
+                spa.getAlerts().add(alert);
+                updateSpaAlertState(spa, alert);
+                spaRepository.save(spa);
             }
             return alert;
         }

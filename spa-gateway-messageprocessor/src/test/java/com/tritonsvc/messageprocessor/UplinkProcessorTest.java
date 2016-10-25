@@ -18,9 +18,14 @@ import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Controller;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import com.tritonsvc.spa.communication.proto.BwgHelper;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import de.flapdoodle.embed.mongo.MongodExecutable;
+import de.flapdoodle.embed.mongo.MongodProcess;
+import de.flapdoodle.embed.mongo.MongodStarter;
+import de.flapdoodle.embed.mongo.config.MongodConfigBuilder;
+import de.flapdoodle.embed.mongo.config.Net;
+import de.flapdoodle.embed.mongo.distribution.Version;
+import de.flapdoodle.embed.process.runtime.Network;
+import org.junit.*;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.SpringApplicationConfiguration;
@@ -29,6 +34,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
@@ -67,12 +74,42 @@ public class UplinkProcessorTest {
     @Autowired
     private EventRepository eventRepository;
 
+    private static final ExecutorService es = Executors.newCachedThreadPool();
+    private static final MongodStarter starter = MongodStarter.getDefaultInstance();
+    private static MongodExecutable _mongodExe;
+    private static MongodProcess _mongod;
+
     @After
     @Before
     public void cleanup() {
         spaRepository.deleteAll();
         spaCommandRepository.deleteAll();
         componentRepository.deleteAll();
+    }
+
+    @BeforeClass
+    public static void setUp() throws Exception {
+        es.submit(() -> {
+            try {
+                _mongodExe = starter.prepare(new MongodConfigBuilder()
+                        .version(Version.Main.PRODUCTION)
+                        .net(new Net(27777, Network.localhostIsIPv6()))
+                        .build());
+                _mongod = _mongodExe.start();
+            } catch (Exception e) {
+                // ignore
+            }
+        });
+    }
+
+    @AfterClass
+    public static void tearDown() throws Exception {
+        es.submit(() -> {
+            if (_mongod != null) _mongod.stop();
+            if (_mongodExe != null) _mongodExe.stop();
+        });
+        Thread.sleep(1000);
+        es.shutdown();
     }
 
     @Test
@@ -254,15 +291,14 @@ public class UplinkProcessorTest {
 
         spa = spaRepository.findOne("spaId");
 
-        //TODO - enable this test once alerts are enabled
-        //final List<Alert> alerts = spa.getAlerts();
-        //assertNotNull(alerts);
-        //assertEquals(1, alerts.size());
-        //assertEquals(Alert.SeverityLevelEnum.red.name(), alerts.get(0).getSeverityLevel());
-        //assertEquals("sample description", alerts.get(0).getLongDescription());
-        //assertEquals("sample description", alerts.get(0).getShortDescription());
-        //assertEquals("Controller", alerts.get(0).getComponent());
-        //assertEquals("Fault Log", alerts.get(0).getName());
+        final List<Alert> alerts = spa.getAlerts();
+        assertNotNull(alerts);
+        assertEquals(1, alerts.size());
+        assertEquals(Alert.SeverityLevelEnum.ERROR.name(), alerts.get(0).getSeverityLevel());
+        assertEquals("sample description", alerts.get(0).getLongDescription());
+        assertEquals("sample description", alerts.get(0).getShortDescription());
+        assertEquals("CONTROLLER", alerts.get(0).getComponent());
+        assertEquals("Fault Log", alerts.get(0).getName());
     }
 
     @Test
