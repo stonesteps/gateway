@@ -27,9 +27,6 @@ public class MessageProcessorConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(MessageProcessorConfiguration.class);
 
-    @Autowired
-    private PushNotificationService pushNotificationService;
-
     @Value("${downlinkTopicName:BWG/spa/downlink}")
     private String downlinkTopicName;
     @Value("${uplinkTopicName:BWG/spa/uplink}")
@@ -43,12 +40,12 @@ public class MessageProcessorConfiguration {
     @Value("${swUpgradeUrl:http://localhost:8080/sw_upgrade}")
     private String swUpgradeUrl;
 
-    @Value("${apnsCertPath:/ControlMySpa.p12}")
-    private String certPath;
-    @Value("${apnsCcertPassword:SpaOwner1.0}")
-    private String certPassword;
+    @Value("${apnsCertPath:/ControlMySpa_dev.p12}")
+    private String apnsCertPath;
+    @Value("${apnsCertPassword:SpaOwner1.0}")
+    private String apnsCertPassword;
     @Value("${apnsUseProduction:false}")
-    private boolean useProductionServer;
+    private boolean apnsUseProduction;
 
     public String getDownlinkTopicName() {
         return downlinkTopicName;
@@ -149,9 +146,9 @@ public class MessageProcessorConfiguration {
         final PushNotificationService pushNotificationService = new PushNotificationService();
         pushNotificationService.setApnsSenderBuilder(
                 new NotnoopApnsSenderBuilder()
-                        .setCertificateResourceLocation(certPath)
-                        .setCertificatePassword(certPassword)
-                        .setUseProductionApnsServer(useProductionServer));
+                        .setCertificateResourceLocation(apnsCertPath)
+                        .setCertificatePassword(apnsCertPassword)
+                        .setUseProductionApnsServer(apnsUseProduction));
         return pushNotificationService;
     }
 }

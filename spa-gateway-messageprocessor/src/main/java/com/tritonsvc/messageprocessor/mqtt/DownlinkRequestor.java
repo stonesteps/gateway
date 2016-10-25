@@ -185,6 +185,8 @@ public final class DownlinkRequestor {
             } else if (durationMinutes != null && !NumberUtils.isNumber(durationMinutes)) {
                 log.error("Duration minutes passed with command is invalid {}", durationMinutes);
             } else if ((intervalSeconds != null && durationMinutes == null) || (intervalSeconds == null && durationMinutes != null)) {
+                log.error("Duration and interval are required together");
+            } else {
                 sent = sendDownlinkMessage(spa, command, requestType);
                 if (sent) {
                     if (spa.getCurrentState() == null) {

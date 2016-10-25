@@ -1,10 +1,7 @@
 package com.tritonsvc.messageprocessor.messagehandler;
 
 import com.bwg.iot.model.*;
-import com.tritonsvc.messageprocessor.mongo.repository.AlertRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.FaultLogDescriptionRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.FaultLogRepository;
-import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
+import com.tritonsvc.messageprocessor.mongo.repository.*;
 import com.tritonsvc.messageprocessor.notifications.PushNotificationService;
 import com.tritonsvc.spa.communication.proto.Bwg;
 import org.slf4j.Logger;
@@ -26,6 +23,9 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
 
     @Autowired
     private SpaRepository spaRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private FaultLogRepository faultLogRepository;
@@ -109,6 +109,7 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
     }
 
     private Alert mapFaultLogToAlert(final Spa spa, final FaultLog faultLog) {
+        log.debug("Entering mapFaultLogToAlert");
         if (olderThanThreeDays(faultLog.getTimestamp())) {
             log.info("Skipping alert creation - FaultLog entry is older than three days.");
             return null;
@@ -172,8 +173,30 @@ public class FaultLogsMessageHandler extends AbstractMessageHandler<Bwg.Uplink.M
     }
 
     private void pushNotification(final Spa spa, final Alert alert) {
-        if (spa != null && spa.getOwner() != null && spa.getOwner().getDeviceToken() != null && alert != null) {
-            pushNotificationService.pushApnsAlertNotification(spa.getOwner().getDeviceToken(), alert);
+        if (spa != null && spa.getOwner() != null && alert != null) {
+            User owner = userRepository.findOne(spa.getOwner().get_id());
+            if (owner == null) {
+                log.debug("aborting: can't find owner");
+                return;
+            }
+            String deviceToken = owner.getDeviceToken();
+            if (deviceToken == null) {
+                log.debug("no device token for user: {}", owner.getUsername());
+                return;
+            }
+            log.info("Sending Push Notification to owner {}", owner.getUsername());
+            pushNotificationService.pushApnsAlertNotification(deviceToken, alert);
+        } else {
+            log.debug("Not enough info to send push notification.");
+            if (spa == null) {
+                log.debug("spa is null");
+            }
+            if (spa.getOwner() == null) {
+                log.debug("no owner");
+            }
+            if (alert == null) {
+                log.debug("alert is, indeed, null");
+            }
         }
     }
 }
