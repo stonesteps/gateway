@@ -4,6 +4,7 @@ import com.bwg.iot.model.ProcessedResult;
 import com.bwg.iot.model.SpaCommand;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mqtt.DownlinkRequestor;
+import com.tritonsvc.messageprocessor.state.SpaCommandExecutionWatcher;
 import com.tritonsvc.messageprocessor.util.Watchdog;
 import com.tritonsvc.messageprocessor.util.WatchedThreadCreator;
 import org.slf4j.Logger;
@@ -41,6 +42,9 @@ public class DownlinkProcessor implements WatchedThreadCreator {
 
     @Autowired
     private DownlinkRequestor downlinkRequestor;
+
+    @Autowired
+    private SpaCommandExecutionWatcher spaCommandExecutionWatcher;
 
     private final ExecutorService es = Executors.newCachedThreadPool();
     private Future<Void> currentDownlinkProcessor;
@@ -103,6 +107,7 @@ public class DownlinkProcessor implements WatchedThreadCreator {
             try {
                 if (SpaCommand.RequestType.HEATER.getCode() == command.getRequestTypeId().intValue()) {
                     sent = downlinkRequestor.sendHeaterUpdateCommand(command);
+                    spaCommandExecutionWatcher.watchCommand(command);
                 } else if (SpaCommand.RequestType.FILTER.getCode() == command.getRequestTypeId().intValue()) {
                     sent = downlinkRequestor.sendFilterUpdateCommand(command);
                 } else if (SpaCommand.RequestType.UPDATE_AGENT_SETTINGS.getCode() == command.getRequestTypeId().intValue()) {
