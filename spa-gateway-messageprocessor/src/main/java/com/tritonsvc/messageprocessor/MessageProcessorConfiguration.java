@@ -40,11 +40,11 @@ public class MessageProcessorConfiguration {
     @Value("${swUpgradeUrl:http://localhost:8080/sw_upgrade}")
     private String swUpgradeUrl;
 
-    @Value("${apnsCertPath:/ControlMySPA_dev.p12}")
+    @Value("${apnsCertPath:/ControlMySPA_production.p12}")
     private String apnsCertPath;
     @Value("${apnsCertPassword:SpaOwner1.0}")
     private String apnsCertPassword;
-    @Value("${apnsUseProduction:false}")
+    @Value("${apnsUseProduction:true}")
     private boolean apnsUseProduction;
 
     public String getDownlinkTopicName() {
