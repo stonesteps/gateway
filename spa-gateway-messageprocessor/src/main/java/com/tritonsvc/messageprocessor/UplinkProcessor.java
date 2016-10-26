@@ -5,14 +5,9 @@ import com.tritonsvc.messageprocessor.mongo.repository.SpaCommandRepository;
 import com.tritonsvc.messageprocessor.mongo.repository.SpaRepository;
 import com.tritonsvc.messageprocessor.mqtt.MessageListener;
 import com.tritonsvc.messageprocessor.mqtt.MqttSubscribeService;
+import com.tritonsvc.messageprocessor.state.SpaCommandExecutionWatcher;
 import com.tritonsvc.spa.communication.proto.Bwg;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Events;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.DownlinkAcknowledge;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.FaultLogs;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.Measurements;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.RegisterDevice;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.SpaState;
-import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.WifiStats;
+import com.tritonsvc.spa.communication.proto.Bwg.Uplink.Model.*;
 import com.tritonsvc.spa.communication.proto.Bwg.Uplink.UplinkCommandType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +40,9 @@ public class UplinkProcessor implements MessageListener {
     @Autowired
     private MessageProcessorConfiguration messageProcessorConfiguration;
 
+    @Autowired
+    private SpaCommandExecutionWatcher spaCommandExecutionWatcher;
+
     @PostConstruct
     public void start() throws Exception {
         mqttSubscribeService.subscribe(messageProcessorConfiguration.getUplinkTopicName(), this);
@@ -71,6 +69,7 @@ public class UplinkProcessor implements MessageListener {
             } else if (uplinkHeader.getCommand() == UplinkCommandType.SPA_STATE) {
                 final SpaState state = SpaState.parseDelimitedFrom(stream);
                 handleMessage(SpaState.class, header, uplinkHeader, state);
+                spaCommandExecutionWatcher.checkDesiredStateReached(uplinkHeader.getHardwareId(), state);
             } else if (uplinkHeader.getCommand() == UplinkCommandType.FAULT_LOGS) {
                 final FaultLogs faultLogs = FaultLogs.parseDelimitedFrom(stream);
                 handleMessage(FaultLogs.class, header, uplinkHeader, faultLogs);
