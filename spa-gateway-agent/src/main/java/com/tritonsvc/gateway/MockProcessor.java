@@ -62,6 +62,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private long lastMeasurementReadingsSendTime = 0L;
 
     private long spaStateSendInterval = 60000L;
+    private long faultLogSendInterval = 1800000L;
 
     private Integer wifiState;
 
@@ -160,6 +161,16 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
                 LOGGER.error("Property mock.spaStateSendInterval is invalid {}", spaStateSendIntervalStr);
             }
         }
+
+        final String faultLogSendIntervalStr = props.getProperty("mock.faultLogSendIntervalMinutes");
+        if (faultLogSendIntervalStr != null) {
+            try {
+                faultLogSendInterval = Long.valueOf(faultLogSendIntervalStr) * 60000;
+            } catch (final NumberFormatException e) {
+                LOGGER.error("Property mock.faultLogSendIntervalMinutes is invalid {}", faultLogSendIntervalStr);
+            }
+        }
+
     }
 
     private void setupWebServer(Properties props) {
@@ -409,7 +420,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
     private void sendFaultLogs() {
         if (!sendRandomFaultLogs) return;
 
-        if (System.currentTimeMillis() > lastFaultLogsSendTime + RANDOM_DATA_SEND_INTERVAL) {
+        if (System.currentTimeMillis() > lastFaultLogsSendTime + faultLogSendInterval) {
             final Bwg.Uplink.Model.FaultLogs randomFaultLogs = buildRandomFaultLogs();
             getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, Bwg.Uplink.UplinkCommandType.FAULT_LOGS, randomFaultLogs, false);
             lastFaultLogsSendTime = System.currentTimeMillis();
