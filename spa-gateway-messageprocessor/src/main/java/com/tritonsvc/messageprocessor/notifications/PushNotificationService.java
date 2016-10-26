@@ -32,6 +32,12 @@ public class PushNotificationService {
         pushApnsPayload(deviceToken, payload);
     }
 
+    public void pushApnsTemperatureReachedNotification(final String deviceToken, final int desiredTemperature) {
+        init();
+        final String payload = APNS.newPayload().alertBody("Your spa reached temperature of " + desiredTemperature).category("SPA TEMP").sound("default").build();
+        pushApnsPayload(deviceToken, payload);
+    }
+
     private synchronized void init() {
         if (!initialized && apnsSenderBuilder != null) {
             try {
