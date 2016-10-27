@@ -63,6 +63,7 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
 
     private long spaStateSendInterval = 60000L;
     private long faultLogSendInterval = 1800000L;
+    private boolean genFaultLogErrorsOnly = false;
 
     private Integer wifiState;
 
@@ -140,6 +141,11 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         final String sendRandomWifiStatsStr = props.getProperty("mock.sendRandomWifiStats");
         if (sendRandomWifiStatsStr != null) {
             sendRandomWifiStats = "true".equalsIgnoreCase(sendRandomWifiStatsStr);
+        }
+
+        final String genFaultLogErrorsOnlyStr = props.getProperty("mock.generateFaultLogErrorsOnly");
+        if (genFaultLogErrorsOnlyStr != null) {
+            genFaultLogErrorsOnly = "true".equalsIgnoreCase(genFaultLogErrorsOnlyStr);
         }
 
         // wifiState(WifiConnectionHealth) 0 - 4
@@ -421,20 +427,20 @@ public class MockProcessor extends MQTTCommandProcessor implements RegistrationI
         if (!sendRandomFaultLogs) return;
 
         if (System.currentTimeMillis() > lastFaultLogsSendTime + faultLogSendInterval) {
-            final Bwg.Uplink.Model.FaultLogs randomFaultLogs = buildRandomFaultLogs();
+            final Bwg.Uplink.Model.FaultLogs randomFaultLogs = buildRandomFaultLogs(genFaultLogErrorsOnly);
             getCloudDispatcher().sendUplink(registeredSpa.getHardwareId(), null, Bwg.Uplink.UplinkCommandType.FAULT_LOGS, randomFaultLogs, false);
             lastFaultLogsSendTime = System.currentTimeMillis();
         }
     }
 
-    private Bwg.Uplink.Model.FaultLogs buildRandomFaultLogs() {
+    private Bwg.Uplink.Model.FaultLogs buildRandomFaultLogs(boolean errorOnly) {
         final FaultLogManager faultLogManager = new FaultLogManager(new Properties());
 
         final Random rnd = new Random();
 
         int randomCode;
 
-        while ((randomCode = rnd.nextInt(20)) < 1) {
+        while ( (randomCode = rnd.nextInt(20)) < 1 || (errorOnly && (randomCode < 11 || randomCode > 17)) ) {
         }
         int targetTemp = rnd.nextInt(100) + 20;
         int tempA = rnd.nextInt(100) + 20;
